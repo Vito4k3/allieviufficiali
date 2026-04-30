@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Accademia Militare di Modena — Portale Allievi</title>
+<title>Portale Allievi Ufficiali</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -291,8 +291,22 @@ canvas{max-height:220px}
 .prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--green),var(--gold))}
 
 /* ═══════════════════════════════════════════
-   ADMIN
+   LISTE
 ═══════════════════════════════════════════ */
+.lista-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:1.3rem;margin-bottom:1rem}
+.lista-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.lista-title{font-family:var(--font-display);font-size:1rem;color:var(--gold);letter-spacing:.08em}
+.lista-slot-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
+.lista-slot-tab{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;padding:.35rem .8rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text3);cursor:pointer;transition:all .2s}
+.lista-slot-tab:hover{border-color:var(--border2);color:var(--text2)}
+.lista-slot-tab.active{border-color:var(--gold-dim);background:var(--gold-dim);color:var(--gold)}
+.lista-entry{display:flex;align-items:center;justify-content:space-between;padding:.5rem .7rem;border-bottom:1px solid rgba(42,58,74,.4);font-family:var(--font-mono);font-size:.75rem}
+.lista-entry:last-child{border-bottom:none}
+.lista-num{width:26px;text-align:right;color:var(--text3);font-size:.65rem;margin-right:.6rem;flex-shrink:0}
+.lista-entry-name{color:var(--text);flex:1}
+.lista-entry-meta{color:var(--text3);font-size:.65rem;margin-left:.5rem}
+.lista-empty{text-align:center;padding:2rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem}
+
 .admin-table td:last-child{white-space:nowrap}
 .perm-toggle{display:inline-flex;align-items:center;gap:.3rem;cursor:pointer;font-family:var(--font-mono);font-size:.65rem;padding:.2rem .5rem;border-radius:4px;border:1px solid;transition:all .2s;user-select:none}
 .perm-on{background:var(--green-dim);border-color:var(--green);color:var(--green-light)}
