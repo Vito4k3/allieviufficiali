@@ -8,9 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-/* ═══════════════════════════════════════════
-   ROOT VARIABLES
-═══════════════════════════════════════════ */
 :root{
   --bg:#090d14;--surface:#111820;--surface2:#19222f;--surface3:#21303f;
   --border:#2a3a4a;--border2:#3d5268;
@@ -21,107 +18,66 @@
   --amber:#b87333;--amber-light:#e8a050;--amber-dim:rgba(184,115,51,0.18);
   --text:#dde4ef;--text2:#8a9ab0;--text3:#4a5a6a;
   --radius:8px;--radius2:14px;
-  --font-display:'Cinzel',serif;
-  --font-body:'EB Garamond',serif;
-  --font-mono:'JetBrains Mono',monospace;
-  --font-ui:'Outfit',sans-serif;
+  --font-display:'Cinzel',serif;--font-body:'EB Garamond',serif;
+  --font-mono:'JetBrains Mono',monospace;--font-ui:'Outfit',sans-serif;
 }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{font-size:15px;scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:var(--font-body);min-height:100vh;overflow-x:hidden;line-height:1.6}
-
-/* ═══════════════════════════════════════════
-   UTILS
-═══════════════════════════════════════════ */
 .hidden{display:none!important}
 .flex{display:flex}.flex-col{flex-direction:column}.items-center{align-items:center}
 .justify-between{justify-content:space-between}.gap-1{gap:.4rem}.gap-2{gap:.8rem}.gap-3{gap:1.2rem}
 .text-gold{color:var(--gold)}.text-dim{color:var(--text2)}.text-muted{color:var(--text3)}
 .text-red{color:var(--red-light)}.text-green{color:var(--green-light)}.text-blue{color:var(--blue-light)}
-.mono{font-family:var(--font-mono)}.display{font-family:var(--font-display)}
-.w-full{width:100%}
+.mono{font-family:var(--font-mono)}.display{font-family:var(--font-display)}.w-full{width:100%}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
-/* ═══════════════════════════════════════════
-   SCROLLBAR
-═══════════════════════════════════════════ */
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
-
-/* ═══════════════════════════════════════════
-   LANDING PAGE
-═══════════════════════════════════════════ */
+/* LANDING */
 #landing{position:relative;min-height:100vh;overflow:hidden}
-.land-bg{position:fixed;inset:0;background:
-  radial-gradient(ellipse 80% 60% at 50% 0%, rgba(200,168,75,0.06) 0%, transparent 70%),
-  radial-gradient(ellipse 50% 80% at 80% 50%, rgba(42,95,168,0.04) 0%, transparent 60%),
-  var(--bg);z-index:-1}
-.land-grid{position:fixed;inset:0;z-index:-1;
-  background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
-  background-size:60px 60px;opacity:0.25}
-
-/* NAV */
+.land-bg{position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(200,168,75,0.06) 0%,transparent 70%),radial-gradient(ellipse 50% 80% at 80% 50%,rgba(42,95,168,0.04) 0%,transparent 60%),var(--bg);z-index:-1}
+.land-grid{position:fixed;inset:0;z-index:-1;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:60px 60px;opacity:0.25}
 .land-nav{display:flex;align-items:center;justify-content:space-between;padding:1.5rem 4rem;border-bottom:1px solid rgba(200,168,75,0.1);position:sticky;top:0;z-index:50;background:rgba(9,13,20,0.85);backdrop-filter:blur(10px)}
 .land-logo{display:flex;align-items:center;gap:.8rem}
 .land-emblem{width:44px;height:44px;border:2px solid var(--gold-dim);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;background:radial-gradient(circle,var(--surface2) 60%,var(--bg) 100%)}
 .land-logo-text{font-family:var(--font-display);font-size:.9rem;color:var(--gold);letter-spacing:.15em;line-height:1.2}
 .land-logo-sub{font-family:var(--font-mono);font-size:.55rem;color:var(--text3);letter-spacing:.25em;text-transform:uppercase}
 .land-nav-btns{display:flex;gap:.6rem}
-
-/* HERO */
 .land-hero{max-width:900px;margin:0 auto;padding:8rem 2rem 5rem;text-align:center}
 .hero-badge{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--gold-dim);background:var(--gold-dim);border-radius:20px;padding:.3rem 1rem;font-family:var(--font-mono);font-size:.62rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;margin-bottom:2rem}
 .hero-title{font-family:var(--font-display);font-size:clamp(2.5rem,6vw,4.5rem);color:var(--text);line-height:1.05;letter-spacing:.05em;margin-bottom:1rem}
 .hero-title span{color:var(--gold)}
 .hero-sub{font-family:var(--font-body);font-size:1.2rem;color:var(--text2);max-width:600px;margin:0 auto 3rem;line-height:1.8}
 .hero-cta{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-
-/* FEATURES */
 .land-features{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;max-width:1100px;margin:5rem auto;padding:0 2rem}
 .feat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:2rem;transition:border-color .25s,transform .25s}
 .feat-card:hover{border-color:var(--gold-dim);transform:translateY(-3px)}
 .feat-icon{font-size:2rem;margin-bottom:1rem}
 .feat-title{font-family:var(--font-display);font-size:.95rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.6rem}
 .feat-desc{font-family:var(--font-ui);font-size:.85rem;color:var(--text2);line-height:1.7}
-
-/* STATS BAR */
 .land-stats{display:flex;justify-content:center;gap:5rem;padding:4rem 2rem;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .stat-item{text-align:center}
 .stat-num{font-family:var(--font-display);font-size:2.8rem;color:var(--gold);line-height:1}
 .stat-lbl{font-family:var(--font-mono);font-size:.62rem;color:var(--text3);letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem}
-
-/* HOW IT WORKS */
 .land-steps{max-width:700px;margin:5rem auto;padding:0 2rem}
 .land-steps h2{font-family:var(--font-display);font-size:1.8rem;color:var(--gold);text-align:center;letter-spacing:.1em;margin-bottom:3rem}
 .step{display:flex;gap:1.5rem;margin-bottom:2rem;align-items:flex-start}
 .step-num{width:40px;height:40px;border:1px solid var(--gold-dim);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1rem;color:var(--gold);flex-shrink:0}
 .step-body h3{font-family:var(--font-display);font-size:.9rem;color:var(--text);letter-spacing:.08em;margin-bottom:.3rem}
 .step-body p{font-family:var(--font-ui);font-size:.85rem;color:var(--text2);line-height:1.7}
-
-/* FOOTER */
 .land-footer{text-align:center;padding:3rem 2rem;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.15em}
 
-/* ═══════════════════════════════════════════
-   BUTTONS (shared)
-═══════════════════════════════════════════ */
+/* BUTTONS */
 .btn{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.08em;padding:.5rem 1.2rem;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;background:var(--surface2);color:var(--text2);transition:all .2s;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
 .btn:hover{border-color:var(--border2);color:var(--text)}
-.btn-gold{border-color:var(--gold-dim);color:var(--gold);background:var(--gold-dim)}
-.btn-gold:hover{background:var(--gold-glow)}
-.btn-green{border-color:var(--green);color:var(--green-light);background:var(--green-dim)}
-.btn-green:hover{background:rgba(45,122,79,.3)}
-.btn-red{border-color:var(--red);color:var(--red-light);background:var(--red-dim)}
-.btn-red:hover{background:rgba(139,46,46,.3)}
-.btn-blue{border-color:var(--blue);color:var(--blue-light);background:var(--blue-dim)}
-.btn-blue:hover{background:rgba(42,95,168,.3)}
-.btn-lg{font-size:.8rem;padding:.75rem 2rem}
-.btn-sm{font-size:.6rem;padding:.25rem .6rem}
+.btn-gold{border-color:var(--gold-dim);color:var(--gold);background:var(--gold-dim)}.btn-gold:hover{background:var(--gold-glow)}
+.btn-green{border-color:var(--green);color:var(--green-light);background:var(--green-dim)}.btn-green:hover{background:rgba(45,122,79,.3)}
+.btn-red{border-color:var(--red);color:var(--red-light);background:var(--red-dim)}.btn-red:hover{background:rgba(139,46,46,.3)}
+.btn-blue{border-color:var(--blue);color:var(--blue-light);background:var(--blue-dim)}.btn-blue:hover{background:rgba(42,95,168,.3)}
+.btn-lg{font-size:.8rem;padding:.75rem 2rem}.btn-sm{font-size:.6rem;padding:.25rem .6rem}
 
-/* ═══════════════════════════════════════════
-   AUTH PAGE
-═══════════════════════════════════════════ */
+/* AUTH */
 #auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:radial-gradient(ellipse 70% 60% at 50% 0%,rgba(200,168,75,0.07) 0%,transparent 70%),var(--bg)}
-.auth-box{background:var(--surface);border:1px solid var(--gold-dim);border-radius:var(--radius2);padding:2.5rem;width:100%;max-width:490px;animation:fadeUp .35s ease}
+.auth-box{background:var(--surface);border:1px solid var(--gold-dim);border-radius:var(--radius2);padding:2.5rem;width:100%;max-width:420px;animation:fadeUp .35s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .auth-emblem{text-align:center;margin-bottom:1.5rem}
 .auth-emblem-icon{width:64px;height:64px;border:2px solid var(--gold-dim);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:2rem;background:radial-gradient(circle,var(--surface2) 60%,var(--bg))}
@@ -140,12 +96,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-body);min-hei
 .auth-back:hover{color:var(--gold)}
 .auth-error{background:var(--red-dim);border:1px solid var(--red);border-radius:var(--radius);padding:.6rem .9rem;font-family:var(--font-mono);font-size:.72rem;color:var(--red-light);margin-bottom:1rem;display:none}
 
-/* ═══════════════════════════════════════════
-   APP SHELL
-═══════════════════════════════════════════ */
+/* APP SHELL */
 #app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-
-/* ── SIDEBAR ── */
 aside{background:var(--surface);border-right:1px solid var(--border);padding:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
 .sb-header{padding:1.5rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.7rem}
 .sb-emblem{width:38px;height:38px;border:1px solid var(--gold-dim);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
@@ -161,16 +113,12 @@ nav a.sb-link:hover{color:var(--text);background:rgba(255,255,255,.02)}
 nav a.sb-link.active{color:var(--gold);background:var(--gold-dim);border-left-color:var(--gold)}
 .sb-link .sb-icon{width:16px;text-align:center;font-size:.9rem}
 .sb-footer{padding:1rem 1.25rem;border-top:1px solid var(--border)}
-
-/* ── MAIN ── */
 main{overflow-x:hidden}
 .page{display:none;padding:2rem}.page.active{display:block}
 .page-title{font-family:var(--font-display);font-size:1.5rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.2rem}
 .page-desc{font-family:var(--font-mono);font-size:.62rem;color:var(--text3);letter-spacing:.15em;text-transform:uppercase;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--border)}
 
-/* ═══════════════════════════════════════════
-   CARDS / GENERIC
-═══════════════════════════════════════════ */
+/* CARDS */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:1.5rem;margin-bottom:1.2rem;transition:border-color .2s}
 .card:hover{border-color:var(--border2)}
 .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
@@ -179,16 +127,12 @@ main{overflow-x:hidden}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
 .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
-
-/* STAT BOX */
 .stat-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;text-align:center}
 .stat-box.top-gold{border-top:2px solid var(--gold)}.stat-box.top-green{border-top:2px solid var(--green-light)}
 .stat-box.top-red{border-top:2px solid var(--red-light)}.stat-box.top-blue{border-top:2px solid var(--blue-light)}
 .stat-value{font-family:var(--font-display);font-size:2rem;color:var(--gold);line-height:1;margin-bottom:.2rem}
 .stat-value.danger{color:var(--red-light)}.stat-value.ok{color:var(--green-light)}.stat-value.blue{color:var(--blue-light)}
 .stat-label{font-family:var(--font-mono);font-size:.58rem;color:var(--text3);letter-spacing:.18em;text-transform:uppercase}
-
-/* BADGE */
 .badge{display:inline-block;padding:.12rem .5rem;border-radius:4px;font-family:var(--font-mono);font-size:.68rem;font-weight:500}
 .badge-gold{background:rgba(200,168,75,.15);color:var(--gold);border:1px solid rgba(200,168,75,.3)}
 .badge-green{background:rgba(74,171,114,.15);color:var(--green-light);border:1px solid rgba(74,171,114,.3)}
@@ -196,22 +140,22 @@ main{overflow-x:hidden}
 .badge-blue{background:rgba(90,158,245,.15);color:var(--blue-light);border:1px solid rgba(90,158,245,.3)}
 .badge-amber{background:rgba(232,160,80,.15);color:var(--amber-light);border:1px solid rgba(232,160,80,.3)}
 .badge-purple{background:rgba(170,100,220,.15);color:#c488ff;border:1px solid rgba(170,100,220,.3)}
-
-/* TABLE */
 .data-table{width:100%;border-collapse:collapse;font-size:.85rem}
 .data-table th{font-family:var(--font-mono);font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--text3);padding:.6rem .8rem;text-align:left;border-bottom:1px solid var(--border)}
 .data-table td{padding:.55rem .8rem;border-bottom:1px solid rgba(42,58,74,.45);font-family:var(--font-mono);font-size:.75rem;vertical-align:middle}
 .data-table tr:hover td{background:rgba(200,168,75,.03)}
 .data-table .del-btn{opacity:0}.data-table tr:hover .del-btn{opacity:1}
-
-/* ALERT / INFO */
 .alert{border-radius:var(--radius);padding:.6rem .9rem;font-family:var(--font-mono);font-size:.7rem;margin-bottom:.8rem}
 .alert-warn{background:var(--amber-dim);border:1px solid var(--amber);color:var(--amber-light)}
 .alert-info{background:var(--blue-dim);border:1px solid var(--blue);color:var(--blue-light)}
 
-/* ═══════════════════════════════════════════
-   BACHECA
-═══════════════════════════════════════════ */
+/* LOCKED STATE */
+.locked-state{text-align:center;padding:4rem 2rem}
+.locked-icon{font-size:3rem;margin-bottom:1rem}
+.locked-title{font-family:var(--font-display);font-size:1.1rem;color:var(--text2);letter-spacing:.1em;margin-bottom:.5rem}
+.locked-desc{font-family:var(--font-mono);font-size:.72rem;color:var(--text3)}
+
+/* BACHECA */
 .post-form{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:1.25rem;margin-bottom:1.5rem}
 .feed{display:flex;flex-direction:column;gap:.8rem}
 .post-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.25rem;animation:fadeUp .2s ease}
@@ -222,10 +166,11 @@ main{overflow-x:hidden}
 .post-content{font-family:var(--font-body);font-size:1rem;color:var(--text);line-height:1.65;white-space:pre-wrap}
 .post-actions{margin-top:.6rem;opacity:0;transition:opacity .2s}
 .post-card:hover .post-actions{opacity:1}
+.poll-indicator{display:flex;align-items:center;gap:.4rem;font-family:var(--font-mono);font-size:.58rem;color:var(--text3);margin-bottom:.6rem}
+.poll-dot{width:6px;height:6px;border-radius:50%;background:var(--green-light);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-/* ═══════════════════════════════════════════
-   FINANZE
-═══════════════════════════════════════════ */
+/* FINANZE */
 .fin-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
 .fin-kpi .stat-box .stat-value{font-size:1.6rem}
 .tx-type-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.15rem .55rem;border-radius:20px;font-size:.68rem;font-weight:500;white-space:nowrap}
@@ -233,8 +178,7 @@ main{overflow-x:hidden}
 .type-spesa{background:var(--red-dim);color:var(--red-light)}
 .type-investimento{background:var(--blue-dim);color:var(--blue-light)}
 .type-ricavo{background:var(--amber-dim);color:var(--amber-light)}
-.amount-pos{color:var(--green-light)}.amount-neg{color:var(--red-light)}
-.amount-blue{color:var(--blue-light)}.amount-amber{color:var(--amber-light)}
+.amount-pos{color:var(--green-light)}.amount-neg{color:var(--red-light)}.amount-blue{color:var(--blue-light)}.amount-amber{color:var(--amber-light)}
 canvas{max-height:220px}
 .charts-row{display:grid;grid-template-columns:2fr 1fr;gap:1rem;margin-bottom:2rem}
 .fin-filter-row{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem}
@@ -245,16 +189,12 @@ canvas{max-height:220px}
 .search-wrap input:focus{border-color:var(--border2)}
 .search-icon{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--text3);font-size:.85rem}
 
-/* ═══════════════════════════════════════════
-   VOTI / ACCADEMIA
-═══════════════════════════════════════════ */
+/* VOTI */
 .tabs{display:flex;overflow-x:auto;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.5rem}
 .tab-btn{font-family:var(--font-display);font-size:.68rem;letter-spacing:.12em;padding:.8rem 1.1rem;border:none;background:none;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;text-transform:uppercase}
 .tab-btn:hover{color:var(--text2);border-bottom-color:var(--border)}
 .tab-btn.active{color:var(--gold);border-bottom-color:var(--gold)}
 .tab-panel{display:none}.tab-panel.active{display:block}
-
-/* SUBJECT SECTION */
 .subject-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:.6rem;overflow:hidden}
 .subject-toggle{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem;cursor:pointer;transition:background .15s}
 .subject-toggle:hover{background:rgba(255,255,255,.02)}
@@ -262,14 +202,13 @@ canvas{max-height:220px}
 .subject-toggle-stats{display:flex;align-items:center;gap:1rem;font-family:var(--font-mono);font-size:.65rem;color:var(--text3)}
 .subject-body{padding:1rem 1.1rem;border-top:1px solid var(--border);display:none}
 .subject-body.open{display:block}
-
-/* GRADUATORIA */
+.uni-subject-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:.8rem;overflow:hidden}
+.uni-subject-header{padding:.9rem 1.1rem;background:var(--surface2);display:flex;align-items:center;justify-content:space-between}
+.uni-subject-section{padding:.8rem 1.1rem;border-top:1px solid var(--border)}
 .rank-row{display:flex;align-items:center;gap:1rem;padding:.8rem 1rem;border-bottom:1px solid rgba(42,58,74,.5)}
 .rank-row:hover{background:rgba(200,168,75,.03)}
 .rank-bar-bg{flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
 .rank-bar-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--gold));transition:width .5s ease;border-radius:3px}
-
-/* SCHEDULE */
 .schedule-grid{display:grid;grid-template-columns:70px repeat(6,1fr);gap:2px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;min-width:600px}
 .sched-cell{background:var(--surface);padding:.45rem .35rem;min-height:42px;cursor:pointer;transition:background .15s;position:relative}
 .sched-cell:hover{background:var(--surface2)}
@@ -278,43 +217,25 @@ canvas{max-height:220px}
 .sched-entry{background:var(--gold-dim);border-left:3px solid var(--gold);border-radius:2px;padding:.2rem .4rem;font-size:.65rem;font-family:var(--font-mono);color:var(--text);line-height:1.3}
 .sched-entry.military{border-color:var(--green-light);background:var(--green-dim)}
 .sched-entry.gym{border-color:var(--blue-light);background:var(--blue-dim)}
-
-/* NOTES */
 .note-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.3rem;margin-bottom:.7rem;transition:border-color .2s}
 .note-card.pinned{border-color:var(--gold-dim)}
 .note-title{font-family:var(--font-display);font-size:.9rem;color:var(--text);margin-bottom:.4rem;letter-spacing:.05em}
 .note-body{font-family:var(--font-body);font-size:.95rem;color:var(--text2);line-height:1.6;white-space:pre-wrap}
 .note-date{font-family:var(--font-mono);font-size:.58rem;color:var(--text3);margin-top:.5rem}
-
-/* PROG BAR */
 .prog-bar{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-top:.3rem}
 .prog-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--green),var(--gold))}
 
-/* ═══════════════════════════════════════════
-   LISTE
-═══════════════════════════════════════════ */
-.lista-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:1.3rem;margin-bottom:1rem}
-.lista-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
-.lista-title{font-family:var(--font-display);font-size:1rem;color:var(--gold);letter-spacing:.08em}
-.lista-slot-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
-.lista-slot-tab{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;padding:.35rem .8rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);color:var(--text3);cursor:pointer;transition:all .2s}
-.lista-slot-tab:hover{border-color:var(--border2);color:var(--text2)}
-.lista-slot-tab.active{border-color:var(--gold-dim);background:var(--gold-dim);color:var(--gold)}
-.lista-entry{display:flex;align-items:center;justify-content:space-between;padding:.5rem .7rem;border-bottom:1px solid rgba(42,58,74,.4);font-family:var(--font-mono);font-size:.75rem}
-.lista-entry:last-child{border-bottom:none}
-.lista-num{width:26px;text-align:right;color:var(--text3);font-size:.65rem;margin-right:.6rem;flex-shrink:0}
-.lista-entry-name{color:var(--text);flex:1}
-.lista-entry-meta{color:var(--text3);font-size:.65rem;margin-left:.5rem}
-.lista-empty{text-align:center;padding:2rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem}
+/* LISTE */
+.list-card-signup{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;border-bottom:1px solid rgba(42,58,74,.35);font-family:var(--font-mono);font-size:.72rem}
+.list-card-signup:last-child{border-bottom:none}
 
+/* ADMIN */
 .admin-table td:last-child{white-space:nowrap}
 .perm-toggle{display:inline-flex;align-items:center;gap:.3rem;cursor:pointer;font-family:var(--font-mono);font-size:.65rem;padding:.2rem .5rem;border-radius:4px;border:1px solid;transition:all .2s;user-select:none}
 .perm-on{background:var(--green-dim);border-color:var(--green);color:var(--green-light)}
 .perm-off{background:var(--surface2);border-color:var(--border);color:var(--text3)}
 
-/* ═══════════════════════════════════════════
-   MODAL
-═══════════════════════════════════════════ */
+/* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px)}
 .modal-overlay.open{display:flex}
 .modal{background:var(--surface);border:1px solid var(--gold-dim);border-radius:var(--radius2);padding:2rem;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;animation:fadeUp .2s ease}
@@ -331,21 +252,15 @@ canvas{max-height:220px}
 .form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
 .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem}
 
-/* ═══════════════════════════════════════════
-   TOAST
-═══════════════════════════════════════════ */
+/* TOAST */
 #toast{position:fixed;bottom:2rem;right:2rem;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:.8rem 1.2rem;font-family:var(--font-mono);font-size:.78rem;z-index:500;transform:translateY(120%);opacity:0;transition:all .3s;max-width:320px}
 #toast.show{transform:translateY(0);opacity:1}
 #toast.ok{border-left:3px solid var(--green-light)}
 #toast.err{border-left:3px solid var(--red-light)}
 #toast.info{border-left:3px solid var(--blue-light)}
 
-/* ═══════════════════════════════════════════
-   RESPONSIVE
-═══════════════════════════════════════════ */
 @media(max-width:900px){
-  #app{grid-template-columns:1fr}
-  aside{display:none}
+  #app{grid-template-columns:1fr}aside{display:none}
   .fin-kpi,.grid-4{grid-template-columns:1fr 1fr}
   .grid-3,.grid-2{grid-template-columns:1fr}
   .land-features{grid-template-columns:1fr}
@@ -361,17 +276,16 @@ canvas{max-height:220px}
 </head>
 <body>
 
-<!-- ═══════════════════ LANDING ═══════════════════ -->
+<!-- LANDING -->
 <div id="landing">
   <div class="land-bg"></div>
   <div class="land-grid"></div>
-
   <nav class="land-nav">
     <div class="land-logo">
       <div class="land-emblem">⚔</div>
       <div>
-        <div class="land-logo-text">Accademia Militare</div>
-        <div class="land-logo-sub">Modena — Portale Allievi</div>
+        <div class="land-logo-text">Portale AU</div>
+        <div class="land-logo-sub">Allievi Ufficiali</div>
       </div>
     </div>
     <div class="land-nav-btns">
@@ -379,164 +293,78 @@ canvas{max-height:220px}
       <button class="btn btn-gold" onclick="showAuth('register')">Registrati</button>
     </div>
   </nav>
-
   <div class="land-hero">
-    <div class="hero-badge">⚔ Portale Ufficiale Allievi</div>
-    <h1 class="hero-title">Gestione <span>Allievi Ufficiali</span><br>Accademia Militare</h1>
-    <p class="hero-sub">Il sistema integrato per la gestione di voti, finanze personali e comunicazioni degli Allievi Ufficiali dell'Accademia Militare di Modena.</p>
+    <div class="hero-badge">⚔ Portale Allievi Ufficiali</div>
+    <h1 class="hero-title">Gestione <span>Allievi Ufficiali</span></h1>
+    <p class="hero-sub">Il sistema integrato per la gestione di voti, finanze personali, liste e comunicazioni degli Allievi Ufficiali.</p>
     <div class="hero-cta">
       <button class="btn btn-gold btn-lg" onclick="showAuth('register')">✦ Inizia Ora</button>
       <button class="btn btn-lg" onclick="showAuth('login')">→ Accedi al Portale</button>
     </div>
   </div>
-
   <div class="land-stats">
-    <div class="stat-item">
-      <div class="stat-num">2</div>
-      <div class="stat-lbl">Medie Separate</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-num">∞</div>
-      <div class="stat-lbl">Transazioni Finanze</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-num">1</div>
-      <div class="stat-lbl">Bacheca Comune</div>
-    </div>
-    <div class="stat-item">
-      <div class="stat-num">DB</div>
-      <div class="stat-lbl">Dati su Server</div>
-    </div>
+    <div class="stat-item"><div class="stat-num">2</div><div class="stat-lbl">Medie Separate</div></div>
+    <div class="stat-item"><div class="stat-num">∞</div><div class="stat-lbl">Transazioni Finanze</div></div>
+    <div class="stat-item"><div class="stat-num">5</div><div class="stat-lbl">Tipi di Liste</div></div>
+    <div class="stat-item"><div class="stat-num">DB</div><div class="stat-lbl">Dati su Server</div></div>
   </div>
-
   <div class="land-features">
-    <div class="feat-card">
-      <div class="feat-icon">📢</div>
-      <div class="feat-title">Bacheca Annunci</div>
-      <div class="feat-desc">Pubblica messaggi visibili a tutti gli allievi registrati. Una piazza virtuale per comunicare in modo semplice.</div>
-    </div>
-    <div class="feat-card">
-      <div class="feat-icon">🎓</div>
-      <div class="feat-title">Registro Voti</div>
-      <div class="feat-desc">Esami universitari, accertamenti, prove ginniche e materie militari. Due medie separate: Universitaria e Accademica.</div>
-    </div>
-    <div class="feat-card">
-      <div class="feat-icon">💰</div>
-      <div class="feat-title">Gestione Finanze</div>
-      <div class="feat-desc">Traccia entrate, uscite, investimenti e ricavi con grafici e analisi mensili. Backup su database MySQL.</div>
-    </div>
-    <div class="feat-card">
-      <div class="feat-icon">⚠</div>
-      <div class="feat-title">Punizioni & Rigore</div>
-      <div class="feat-desc">Consegna (−0.5 pt/giorno) e Rigore (−3.5 apertura + −1 pt/giorno) calcolati automaticamente sul punteggio finale.</div>
-    </div>
-    <div class="feat-card">
-      <div class="feat-icon">📅</div>
-      <div class="feat-title">Orario & Note</div>
-      <div class="feat-desc">Compila il tuo orario settimanale e tieni note personali fissabili, tutto sincronizzato sul database.</div>
-    </div>
-    <div class="feat-card">
-      <div class="feat-icon">🔐</div>
-      <div class="feat-title">Accesso Controllato</div>
-      <div class="feat-desc">L'amministratore gestisce i permessi: chi può accedere a Finanze e Voti è controllato materia per materia.</div>
-    </div>
+    <div class="feat-card"><div class="feat-icon">📢</div><div class="feat-title">Bacheca Comune</div><div class="feat-desc">Pubblica annunci visibili a tutti gli allievi registrati, in tempo reale.</div></div>
+    <div class="feat-card"><div class="feat-icon">🎓</div><div class="feat-title">Registro Voti</div><div class="feat-desc">Esami, accertamenti, prove ginniche e materie militari con calcolo graduatoria.</div></div>
+    <div class="feat-card"><div class="feat-icon">📋</div><div class="feat-title">Liste</div><div class="feat-desc">Liberi uscenti, messa e parlatorio con iscrizione semplice e visibilità immediata.</div></div>
   </div>
-
   <div class="land-steps">
     <h2>Come Funziona</h2>
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-body"><h3>Registrati</h3><p>Crea il tuo account con username ed email. L'accesso alle sezioni riservate viene abilitato dall'amministratore.</p></div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-body"><h3>Accedi al Portale</h3><p>Dopo il login trovi la bacheca comune, e — se abilitato — le sezioni Finanze e Voti.</p></div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-body"><h3>Inserisci i tuoi dati</h3><p>Aggiungi voti (esami e accertamenti), transazioni finanziarie, imposta l'orario e scrivi note.</p></div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-body"><h3>Analizza</h3><p>Visualizza la graduatoria con le due medie separate, i grafici finanziari e le penalità accumulate.</p></div>
-    </div>
+    <div class="step"><div class="step-num">1</div><div class="step-body"><h3>Registrati</h3><p>Crea il tuo account con username e email. Un amministratore potrà abilitare le sezioni riservate.</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><h3>Accedi al Portale</h3><p>Dopo il login trovi la bacheca comune e le sezioni Finanze, Voti e Liste.</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><h3>Inserisci i tuoi dati</h3><p>Aggiungi voti, transazioni finanziarie, iscriviti alle liste e scrivi note.</p></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-body"><h3>Analizza</h3><p>Visualizza la graduatoria con le due medie separate e i grafici finanziari.</p></div></div>
   </div>
-
-  <footer class="land-footer">
-    ACCADEMIA MILITARE DI MODENA &nbsp;·&nbsp; PORTALE ALLIEVI UFFICIALI &nbsp;·&nbsp; TUTTI I DIRITTI RISERVATI
-  </footer>
+  <footer class="land-footer">PORTALE ALLIEVI UFFICIALI &nbsp;·&nbsp; TUTTI I DIRITTI RISERVATI</footer>
 </div>
 
-<!-- ═══════════════════ AUTH ═══════════════════ -->
+<!-- AUTH -->
 <div id="auth" class="hidden">
   <div class="auth-box">
     <div class="auth-emblem">
       <div class="auth-emblem-icon">⚔</div>
-      <div class="auth-title">Accademia Militare</div>
-      <div class="auth-subtitle">Modena — Portale Allievi</div>
+      <div class="auth-title">Portale AU</div>
+      <div class="auth-subtitle">Allievi Ufficiali</div>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Accedi</button>
       <button class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">Registrati</button>
     </div>
     <div id="authError" class="auth-error"></div>
-
-    <!-- LOGIN -->
     <div id="formLogin">
-      <div class="form-group">
-        <label>Username o Email</label>
-        <input type="text" id="loginUser" placeholder="nome.cognome" autocomplete="username">
-      </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-      </div>
+      <div class="form-group"><label>Username o Email</label><input type="text" id="loginUser" placeholder="nome.cognome" autocomplete="username"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn btn-gold w-full" style="margin-top:.5rem;justify-content:center" onclick="doLogin()">→ Entra nel Portale</button>
     </div>
-
-    <!-- REGISTER -->
     <div id="formRegister" class="hidden">
       <div class="form-row-2">
-        <div class="form-group">
-          <label>Username *</label>
-          <input type="text" id="regUser" placeholder="mario.rossi">
-        </div>
-        <div class="form-group">
-          <label>Email *</label>
-          <input type="email" id="regEmail" placeholder="mario@mail.it">
-        </div>
+        <div class="form-group"><label>Username *</label><input type="text" id="regUser" placeholder="mario.rossi"></div>
+        <div class="form-group"><label>Email *</label><input type="email" id="regEmail" placeholder="mario@mail.it"></div>
       </div>
-      <div class="form-group">
-        <label>Nome e Cognome</label>
-        <input type="text" id="regName" placeholder="Ten. Mario Rossi">
-      </div>
+      <div class="form-group"><label>Nome e Cognome</label><input type="text" id="regName" placeholder="Ten. Mario Rossi"></div>
       <div class="form-row-2">
-        <div class="form-group">
-          <label>Password *</label>
-          <input type="password" id="regPass" placeholder="min 6 caratteri">
-        </div>
-        <div class="form-group">
-          <label>Conferma *</label>
-          <input type="password" id="regPass2" placeholder="••••••••">
-        </div>
+        <div class="form-group"><label>Password *</label><input type="password" id="regPass" placeholder="min 6 caratteri"></div>
+        <div class="form-group"><label>Conferma *</label><input type="password" id="regPass2" placeholder="••••••••"></div>
       </div>
       <button class="btn btn-gold w-full" style="margin-top:.5rem;justify-content:center" onclick="doRegister()">✦ Crea Account</button>
     </div>
-
     <div class="auth-back" onclick="showLanding()">← Torna alla Home</div>
   </div>
 </div>
 
-<!-- ═══════════════════ APP ═══════════════════ -->
+<!-- APP -->
 <div id="app" class="hidden">
-
-  <!-- SIDEBAR -->
   <aside>
     <div class="sb-header">
       <div class="sb-emblem">⚔</div>
       <div>
-        <div class="sb-title">Accademia<br>Militare</div>
-        <div class="sb-sub">Modena</div>
+        <div class="sb-title">Portale AU</div>
+        <div class="sb-sub">Allievi Ufficiali</div>
       </div>
     </div>
     <div class="sb-user">
@@ -546,30 +374,17 @@ canvas{max-height:220px}
     <div class="sb-nav">
       <div class="sb-section">Principale</div>
       <nav>
-        <a class="sb-link active" onclick="showPage('bacheca',this)">
-          <span class="sb-icon">📢</span>Bacheca Annunci
-        </a>
+        <a class="sb-link active" onclick="showPage('bacheca',this)"><span class="sb-icon">📢</span>Bacheca Annunci</a>
+        <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
       </nav>
-
-      <div class="sb-section" id="sb-section-fin" style="display:none">Finanze</div>
-      <nav id="sb-nav-fin" style="display:none">
-        <a class="sb-link" onclick="showPage('finanze',this)">
-          <span class="sb-icon">💰</span>Gestione Finanze
-        </a>
+      <div class="sb-section">Personale</div>
+      <nav>
+        <a class="sb-link" onclick="showPage('finanze',this)"><span class="sb-icon">💰</span>Gestione Finanze</a>
+        <a class="sb-link" onclick="showPage('voti',this)"><span class="sb-icon">🎓</span>Voti & Registro</a>
       </nav>
-
-      <div class="sb-section" id="sb-section-voti" style="display:none">Accademia</div>
-      <nav id="sb-nav-voti" style="display:none">
-        <a class="sb-link" onclick="showPage('voti',this)">
-          <span class="sb-icon">🎓</span>Voti & Registro
-        </a>
-      </nav>
-
       <div class="sb-section" id="sb-section-admin" style="display:none">Amministrazione</div>
       <nav id="sb-nav-admin" style="display:none">
-        <a class="sb-link" onclick="showPage('admin',this)">
-          <span class="sb-icon">🔐</span>Gestione Utenti
-        </a>
+        <a class="sb-link" onclick="showPage('admin',this)"><span class="sb-icon">🔐</span>Gestione Utenti</a>
       </nav>
     </div>
     <div class="sb-footer">
@@ -577,14 +392,13 @@ canvas{max-height:220px}
     </div>
   </aside>
 
-  <!-- MAIN CONTENT -->
   <main>
-
-    <!-- ── BACHECA ── -->
+    <!-- BACHECA -->
     <div class="page active" id="page-bacheca">
       <div class="page-title">Bacheca Annunci</div>
-      <div class="page-desc">Messaggi condivisi tra tutti gli allievi registrati</div>
-
+      <div class="page-desc">
+        <span class="poll-indicator"><span class="poll-dot"></span>Aggiornamento automatico ogni 15 secondi</span>
+      </div>
       <div class="post-form card">
         <div class="form-group" style="margin-bottom:.8rem">
           <label>Nuovo Annuncio</label>
@@ -594,213 +408,251 @@ canvas{max-height:220px}
           <button class="btn btn-gold" onclick="postAnnouncement()">📢 Pubblica</button>
         </div>
       </div>
-
       <div class="feed" id="feedList">
         <div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Caricamento annunci…</div>
       </div>
     </div>
 
-    <!-- ── FINANZE ── -->
-    <div class="page" id="page-finanze">
-      <div class="page-title">Gestione Finanze</div>
-      <div class="page-desc">Entrate · Uscite · Investimenti · Ricavi</div>
+    <!-- LISTE -->
+    <div class="page" id="page-liste">
+      <div class="page-title">Liste</div>
+      <div class="page-desc">Liberi Uscenti · Messa · Parlatorio</div>
 
-      <div class="fin-kpi">
-        <div class="stat-box top-green"><div class="stat-value ok" id="f-patrimonio">€0</div><div class="stat-label">Patrimonio Netto</div></div>
-        <div class="stat-box top-green"><div class="stat-value ok" id="f-entrate">€0</div><div class="stat-label">Entrate Mese</div></div>
-        <div class="stat-box top-red"><div class="stat-value danger" id="f-uscite">€0</div><div class="stat-label">Uscite Mese</div></div>
-        <div class="stat-box top-blue"><div class="stat-value blue" id="f-investimenti">€0</div><div class="stat-label">Investimenti</div></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+        <div class="tabs" style="flex:1;margin-bottom:0;border-bottom:none">
+          <button class="tab-btn active" onclick="switchListTab('liberi_sab_pom',this)">🚶 Sab. Pom.</button>
+          <button class="tab-btn" onclick="switchListTab('liberi_sab_sera',this)">🌙 Sab. Sera</button>
+          <button class="tab-btn" onclick="switchListTab('liberi_dom_pom',this)">☀ Dom. Pom.</button>
+          <button class="tab-btn" onclick="switchListTab('messa',this)">⛪ Messa</button>
+          <button class="tab-btn" onclick="switchListTab('parlatorio',this)">👥 Parlatorio</button>
+        </div>
+        <button id="btnNewList" class="btn btn-gold hidden" style="margin-left:1rem;flex-shrink:0" onclick="toggleAdminListPanel()">➕ Nuova Lista</button>
       </div>
+      <div style="border-bottom:1px solid var(--border);margin-bottom:1.5rem"></div>
 
-      <div class="charts-row">
-        <div class="card"><div class="card-title" style="font-size:.72rem;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem">Flussi Mensili (6 mesi)</div><canvas id="finBarChart"></canvas></div>
-        <div class="card"><div class="card-title" style="font-size:.72rem;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem">Distribuzione</div><canvas id="finDonutChart"></canvas></div>
-      </div>
-
-      <div class="card">
+      <!-- Admin: crea nuova lista -->
+      <div id="list-admin-panel" class="hidden card" style="margin-bottom:1rem">
         <div class="card-header">
-          <div class="card-title">Transazioni</div>
-          <button class="btn btn-gold" onclick="openTxModal()">+ Aggiungi</button>
+          <div class="card-title">➕ Crea Nuova Lista</div>
+          <button class="btn btn-sm" onclick="document.getElementById('list-admin-panel').classList.add('hidden')">✕</button>
         </div>
-        <div class="fin-filter-row">
-          <div class="search-wrap"><span class="search-icon">🔍</span><input type="text" id="finSearch" placeholder="Cerca..." onkeyup="renderFinTx()"></div>
-          <button class="filter-btn active" onclick="setFinFilter('all',this)">Tutti</button>
-          <button class="filter-btn" onclick="setFinFilter('guadagno',this)">Guadagni</button>
-          <button class="filter-btn" onclick="setFinFilter('spesa',this)">Spese</button>
-          <button class="filter-btn" onclick="setFinFilter('investimento',this)">Investimenti</button>
-          <button class="filter-btn" onclick="setFinFilter('ricavo',this)">Ricavi</button>
+        <div class="form-row-2" style="margin-bottom:.7rem">
+          <div class="form-group"><label>Tipo</label>
+            <select id="newListType">
+              <option value="liberi_sab_pom">Liberi Uscenti Sabato Pomeriggio</option>
+              <option value="liberi_sab_sera">Liberi Uscenti Sabato Sera</option>
+              <option value="liberi_dom_pom">Liberi Uscenti Domenica Pomeriggio</option>
+              <option value="messa">Lista Messa</option>
+              <option value="parlatorio">Lista Parlatorio</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Data *</label><input type="date" id="newListDate"></div>
         </div>
-        <div style="overflow-x:auto">
-          <table class="data-table" id="finTxTable">
-            <thead><tr><th>Data</th><th>Descrizione</th><th>Tipo</th><th>Categoria</th><th>Note</th><th>Importo</th><th></th></tr></thead>
-            <tbody id="finTxBody"></tbody>
-          </table>
-        </div>
-        <div id="finEmpty" class="hidden" style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Nessuna transazione. Aggiungi la prima!</div>
+        <div class="form-group" style="margin-bottom:.7rem"><label>Note</label><input type="text" id="newListNotes" placeholder="Opzionale..."></div>
+        <button class="btn btn-gold" onclick="createList()">✓ Crea Lista</button>
+      </div>
+
+      <div id="list-content">
+        <div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Caricamento…</div>
       </div>
     </div>
 
-    <!-- ── VOTI ── -->
+    <!-- FINANZE -->
+    <div class="page" id="page-finanze">
+      <div class="page-title">Gestione Finanze</div>
+      <div class="page-desc">Entrate · Uscite · Investimenti · Ricavi</div>
+      <div id="fin-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Accesso Non Autorizzato</div><div class="locked-desc">Non hai i permessi per accedere alla sezione Finanze.<br>Contatta un amministratore per richiedere l'accesso.</div></div></div>
+      <div id="fin-content">
+        <div class="fin-kpi">
+          <div class="stat-box top-green"><div class="stat-value ok" id="f-patrimonio">€0</div><div class="stat-label">Patrimonio Netto</div></div>
+          <div class="stat-box top-green"><div class="stat-value ok" id="f-entrate">€0</div><div class="stat-label">Entrate Mese</div></div>
+          <div class="stat-box top-red"><div class="stat-value danger" id="f-uscite">€0</div><div class="stat-label">Uscite Mese</div></div>
+          <div class="stat-box top-blue"><div class="stat-value blue" id="f-investimenti">€0</div><div class="stat-label">Investimenti</div></div>
+        </div>
+        <div class="charts-row">
+          <div class="card"><div class="card-title" style="font-size:.72rem;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem">Flussi Mensili (6 mesi)</div><canvas id="finBarChart"></canvas></div>
+          <div class="card"><div class="card-title" style="font-size:.72rem;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem">Distribuzione</div><canvas id="finDonutChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Transazioni</div>
+            <button class="btn btn-gold" onclick="openTxModal()">+ Aggiungi</button>
+          </div>
+          <div class="fin-filter-row">
+            <div class="search-wrap"><span class="search-icon">🔍</span><input type="text" id="finSearch" placeholder="Cerca..." onkeyup="renderFinTx()"></div>
+            <button class="filter-btn active" onclick="setFinFilter('all',this)">Tutti</button>
+            <button class="filter-btn" onclick="setFinFilter('guadagno',this)">Guadagni</button>
+            <button class="filter-btn" onclick="setFinFilter('spesa',this)">Spese</button>
+            <button class="filter-btn" onclick="setFinFilter('investimento',this)">Investimenti</button>
+            <button class="filter-btn" onclick="setFinFilter('ricavo',this)">Ricavi</button>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="data-table" id="finTxTable">
+              <thead><tr><th>Data</th><th>Descrizione</th><th>Tipo</th><th>Categoria</th><th>Note</th><th>Importo</th><th></th></tr></thead>
+              <tbody id="finTxBody"></tbody>
+            </table>
+          </div>
+          <div id="finEmpty" class="hidden" style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Nessuna transazione. Aggiungi la prima!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VOTI -->
     <div class="page" id="page-voti">
-      <div class="page-title">Registro Voti — Accademia</div>
-      <div class="page-desc">Università · Accertamenti · Ginnastica · Militare · Punizioni</div>
+      <div class="page-title">Registro Voti</div>
+      <div class="page-desc">Università · Ginnastica · Militare · Punizioni</div>
+      <div id="voti-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Accesso Non Autorizzato</div><div class="locked-desc">Non hai i permessi per accedere al Registro Voti.<br>Contatta un amministratore per richiedere l'accesso.</div></div></div>
+      <div id="voti-content">
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchVotiTab('graduatoria',this)">⭐ Graduatoria</button>
+          <button class="tab-btn" onclick="switchVotiTab('universita',this)">🎓 Università</button>
+          <button class="tab-btn" onclick="switchVotiTab('ginnastica',this)">🏅 Ginnastica</button>
+          <button class="tab-btn" onclick="switchVotiTab('militare',this)">🎖 Militare</button>
+          <button class="tab-btn" onclick="switchVotiTab('punizioni',this)">⚠ Punizioni</button>
+          <button class="tab-btn" onclick="switchVotiTab('orario',this)">📅 Orario</button>
+          <button class="tab-btn" onclick="switchVotiTab('note',this)">📝 Note</button>
+          <button class="tab-btn" onclick="switchVotiTab('impostazioni',this)">⚙ Impostazioni</button>
+        </div>
 
-      <div class="tabs">
-        <button class="tab-btn active" onclick="switchVotiTab('graduatoria',this)">⭐ Graduatoria</button>
-        <button class="tab-btn" onclick="switchVotiTab('universita',this)">🎓 Università</button>
-        <button class="tab-btn" onclick="switchVotiTab('accertamenti',this)">📝 Accertamenti</button>
-        <button class="tab-btn" onclick="switchVotiTab('ginnastica',this)">🏅 Ginnastica</button>
-        <button class="tab-btn" onclick="switchVotiTab('militare',this)">🎖 Militare</button>
-        <button class="tab-btn" onclick="switchVotiTab('punizioni',this)">⚠ Punizioni</button>
-        <button class="tab-btn" onclick="switchVotiTab('orario',this)">📅 Orario</button>
-        <button class="tab-btn" onclick="switchVotiTab('note',this)">📝 Note</button>
-        <button class="tab-btn" onclick="switchVotiTab('impostazioni',this)">⚙ Impostazioni</button>
-      </div>
-
-      <!-- GRADUATORIA -->
-      <div class="tab-panel active" id="vtab-graduatoria">
-        <div class="grid-4" style="margin-bottom:1.5rem">
-          <div class="stat-box top-gold"><div class="stat-value" id="g-avg-uni">—</div><div class="stat-label">Media Uni (Esami)</div></div>
-          <div class="stat-box top-blue"><div class="stat-value blue" id="g-avg-acad">—</div><div class="stat-label">Media Acad. (Accer.)</div></div>
-          <div class="stat-box top-red"><div class="stat-value danger" id="g-penalties">0.00</div><div class="stat-label">Penalità Tot.</div></div>
-          <div class="stat-box" style="border-top:2px solid var(--gold)"><div class="stat-value" id="g-final">—</div><div class="stat-label">Punteggio Finale</div></div>
-        </div>
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          ℹ <strong>Media Universitaria</strong>: calcolata solo sugli <em>esami</em> delle materie universitarie (ponderata per CFU). &nbsp;|&nbsp; <strong>Media Accademica</strong>: accertamenti (tutte le materie) + prove ginniche + materie militari + punizioni.
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">Dettaglio Aree</div><div class="card-meta" id="g-formula-text"></div></div>
-          <div id="g-rank-detail"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">Storico Voti</div></div>
-          <div id="g-history" style="max-height:260px;overflow-y:auto"></div>
-        </div>
-      </div>
-
-      <!-- UNIVERSITÀ (esami) -->
-      <div class="tab-panel" id="vtab-universita">
-        <div class="grid-2" style="margin-bottom:1.5rem">
-          <div class="stat-box top-gold"><div class="stat-value" id="u-weighted">—</div><div class="stat-label">Media Ponderata CFU</div></div>
-          <div class="stat-box top-gold"><div class="stat-value" id="u-arithmetic">—</div><div class="stat-label">Media Aritmetica</div></div>
-        </div>
-        <div id="u-list"></div>
-        <button class="btn btn-gold" onclick="openAddSubjectModal('university')" style="margin-top:.5rem">+ Aggiungi Materia</button>
-      </div>
-
-      <!-- ACCERTAMENTI (su tutte le materie) -->
-      <div class="tab-panel" id="vtab-accertamenti">
-        <div class="alert alert-info">Gli accertamenti sono verifiche/test sulle stesse materie degli esami. Contribuiscono alla <strong>Media Accademica</strong> (non alla media universitaria).</div>
-        <div class="grid-3" style="margin:1.5rem 0">
-          <div class="stat-box top-blue"><div class="stat-value blue" id="a-avg-uni">—</div><div class="stat-label">Acc. Materie Uni</div></div>
-          <div class="stat-box top-blue"><div class="stat-value blue" id="a-avg-gym">—</div><div class="stat-label">Acc. Ginnastica</div></div>
-          <div class="stat-box top-blue"><div class="stat-value blue" id="a-avg-mil">—</div><div class="stat-label">Acc. Militari</div></div>
-        </div>
-        <div id="a-list-uni" style="margin-bottom:1.5rem"></div>
-        <div id="a-list-gym" style="margin-bottom:1.5rem"></div>
-        <div id="a-list-mil"></div>
-      </div>
-
-      <!-- GINNASTICA -->
-      <div class="tab-panel" id="vtab-ginnastica">
-        <div class="grid-2" style="margin-bottom:1.5rem">
-          <div class="stat-box top-green"><div class="stat-value ok" id="gym-weighted">—</div><div class="stat-label">Media Ponderata</div></div>
-          <div class="stat-box top-green"><div class="stat-value ok" id="gym-arithmetic">—</div><div class="stat-label">Media Aritmetica</div></div>
-        </div>
-        <div id="gym-list"></div>
-        <button class="btn btn-gold" onclick="openAddSubjectModal('gym')" style="margin-top:.5rem">+ Aggiungi Disciplina</button>
-      </div>
-
-      <!-- MILITARE -->
-      <div class="tab-panel" id="vtab-militare">
-        <div class="grid-2" style="margin-bottom:1.5rem">
-          <div class="stat-box top-green"><div class="stat-value ok" id="mil-weighted">—</div><div class="stat-label">Media Ponderata</div></div>
-          <div class="stat-box top-green"><div class="stat-value ok" id="mil-arithmetic">—</div><div class="stat-label">Media Aritmetica</div></div>
-        </div>
-        <div id="mil-list"></div>
-        <button class="btn btn-gold" onclick="openAddSubjectModal('military')" style="margin-top:.5rem">+ Aggiungi Materia</button>
-      </div>
-
-      <!-- PUNIZIONI -->
-      <div class="tab-panel" id="vtab-punizioni">
-        <div class="grid-3" style="margin-bottom:1.5rem">
-          <div class="stat-box top-red"><div class="stat-value danger" id="p-consegna">0.00</div><div class="stat-label">Punti Consegna</div></div>
-          <div class="stat-box top-red"><div class="stat-value danger" id="p-rigore">0.00</div><div class="stat-label">Punti Rigore</div></div>
-          <div class="stat-box top-red"><div class="stat-value danger" id="p-total">0.00</div><div class="stat-label">Totale Penalità</div></div>
-        </div>
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-header"><div class="card-title">📋 Consegna</div><button class="btn btn-red" onclick="openPenaltyModal('consegna')">+ Aggiungi</button></div>
-            <div class="alert alert-warn">Ogni giorno di consegna detrae <strong id="consegnaRateLabel">0.5</strong> punti</div>
-            <div id="p-consegna-list"></div>
+        <!-- GRADUATORIA -->
+        <div class="tab-panel active" id="vtab-graduatoria">
+          <div class="grid-4" style="margin-bottom:1.5rem">
+            <div class="stat-box top-gold"><div class="stat-value" id="g-avg-uni">—</div><div class="stat-label">Media Uni (Esami)</div></div>
+            <div class="stat-box top-blue"><div class="stat-value blue" id="g-avg-acad">—</div><div class="stat-label">Media Militare Tot.</div></div>
+            <div class="stat-box top-red"><div class="stat-value danger" id="g-penalties">0.00</div><div class="stat-label">Penalità Tot.</div></div>
+            <div class="stat-box" style="border-top:2px solid var(--gold)"><div class="stat-value" id="g-final">—</div><div class="stat-label">Punteggio Finale</div></div>
+          </div>
+          <div class="alert alert-info" style="margin-bottom:1rem">
+            ℹ <strong>Media Universitaria</strong>: esami delle materie universitarie ponderati per CFU. &nbsp;|&nbsp;
+            <strong>Media Militare Totale</strong>: accertamenti militari + esami ginnici + accertamenti uni (con i pesi impostati).
           </div>
           <div class="card">
-            <div class="card-header"><div class="card-title">🔒 Rigore</div><button class="btn btn-red" onclick="openPenaltyModal('rigore')">+ Aggiungi</button></div>
-            <div class="alert alert-warn">Apertura: <strong>−3.5 pt</strong> · Ogni giorno: <strong>−1 pt</strong></div>
-            <div id="p-rigore-list"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ORARIO -->
-      <div class="tab-panel" id="vtab-orario">
-        <div style="margin-bottom:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-          <span class="badge badge-gold">■ Università</span>
-          <span class="badge badge-green">■ Militare</span>
-          <span class="badge badge-blue">■ Ginnastica</span>
-          <button class="btn btn-red btn-sm" onclick="clearSchedule()" style="margin-left:auto">🗑 Svuota</button>
-        </div>
-        <div style="overflow-x:auto"><div class="schedule-grid" id="scheduleGrid" style="min-width:600px"></div></div>
-      </div>
-
-      <!-- NOTE -->
-      <div class="tab-panel" id="vtab-note">
-        <div class="card">
-          <div class="card-header"><div class="card-title">Nuova Nota</div></div>
-          <div class="form-row-2" style="margin-bottom:.7rem">
-            <div class="form-group"><label>Titolo</label><input type="text" id="noteTitleInput" placeholder="Titolo..."></div>
-            <div class="form-group"><label>📌 Fissa</label><select id="notePinInput"><option value="false">No</option><option value="true">Sì</option></select></div>
-          </div>
-          <div class="form-group"><label>Contenuto</label><textarea id="noteBodyInput" placeholder="Scrivi la nota..." rows="4"></textarea></div>
-          <div style="display:flex;justify-content:flex-end;margin-top:.6rem"><button class="btn btn-gold" onclick="saveNote()">💾 Salva Nota</button></div>
-        </div>
-        <div id="notesList"></div>
-      </div>
-
-      <!-- IMPOSTAZIONI VOTI -->
-      <div class="tab-panel" id="vtab-impostazioni">
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-header"><div class="card-title">Dati Allievo</div></div>
-            <div class="form-group" style="margin-bottom:.7rem"><label>Nome Completo</label><input type="text" id="s-name" placeholder="Ten. Mario Rossi"></div>
-            <div class="form-group" style="margin-bottom:.7rem"><label>Grado Militare</label><input type="text" id="s-rank" placeholder="es. Ten."></div>
-            <div class="form-group" style="margin-bottom:.7rem"><label>Anno di Corso</label><select id="s-year"><option>1° Anno</option><option>2° Anno</option><option>3° Anno</option><option>4° Anno</option><option>5° Anno</option></select></div>
-            <div class="form-group" style="margin-bottom:.7rem"><label>Reparto / Plotone</label><input type="text" id="s-platoon" placeholder="es. 3° Plotone Alpha"></div>
-            <button class="btn btn-gold" onclick="saveVotiSettings()">💾 Salva</button>
+            <div class="card-header"><div class="card-title">Dettaglio Aree</div><div class="card-meta" id="g-formula-text"></div></div>
+            <div id="g-rank-detail"></div>
           </div>
           <div class="card">
-            <div class="card-header"><div class="card-title">Pesi Graduatoria (%)</div></div>
-            <div class="alert alert-info">I due pesi principali devono sommare 100%. I sub-pesi (Gin+Mil) devono sommare 100%.</div>
-            <div class="form-row-2" style="margin-bottom:.7rem">
-              <div class="form-group"><label>Peso Media Uni (%)</label><input type="number" id="s-wuni" value="50" min="0" max="100"></div>
-              <div class="form-group"><label>Peso Media Acad. (%)</label><input type="number" id="s-wacad" value="50" min="0" max="100"></div>
+            <div class="card-header"><div class="card-title">Storico Voti</div></div>
+            <div id="g-history" style="max-height:260px;overflow-y:auto"></div>
+          </div>
+        </div>
+
+        <!-- UNIVERSITÀ -->
+        <div class="tab-panel" id="vtab-universita">
+          <div class="grid-2" style="margin-bottom:1.5rem">
+            <div class="stat-box top-gold"><div class="stat-value" id="u-weighted">—</div><div class="stat-label">Media Esami (pond. CFU)</div></div>
+            <div class="stat-box top-gold"><div class="stat-value" id="u-arithmetic">—</div><div class="stat-label">Media Esami (arit.)</div></div>
+          </div>
+          <div id="u-list"></div>
+          <button class="btn btn-gold" onclick="openAddSubjectModal('university')" style="margin-top:.5rem">+ Aggiungi Materia</button>
+        </div>
+
+        <!-- GINNASTICA -->
+        <div class="tab-panel" id="vtab-ginnastica">
+          <div class="alert alert-info" style="margin-bottom:1rem">
+            🏅 Le prove di ginnastica sono <strong>Esami Ginnici</strong>. Contribuiscono alla <strong>Media Ginnastica</strong>, che fa parte della Media Militare Totale.
+          </div>
+          <div class="grid-2" style="margin-bottom:1.5rem">
+            <div class="stat-box top-green"><div class="stat-value ok" id="gym-weighted">—</div><div class="stat-label">Media Ginnastica (pond.)</div></div>
+            <div class="stat-box top-green"><div class="stat-value ok" id="gym-arithmetic">—</div><div class="stat-label">Media Ginnastica (arit.)</div></div>
+          </div>
+          <div id="gym-list"></div>
+          <button class="btn btn-gold" onclick="openAddSubjectModal('gym')" style="margin-top:.5rem">+ Aggiungi Disciplina</button>
+        </div>
+
+        <!-- MILITARE -->
+        <div class="tab-panel" id="vtab-militare">
+          <div class="alert alert-info" style="margin-bottom:1rem">
+            🎖 Le materie militari sono valutate esclusivamente con <strong>Accertamenti</strong>. Contribuiscono alla <strong>Media Militare Totale</strong>.
+          </div>
+          <div class="grid-2" style="margin-bottom:1.5rem">
+            <div class="stat-box top-green"><div class="stat-value ok" id="mil-weighted">—</div><div class="stat-label">Media Militare (pond.)</div></div>
+            <div class="stat-box top-green"><div class="stat-value ok" id="mil-arithmetic">—</div><div class="stat-label">Media Militare (arit.)</div></div>
+          </div>
+          <div id="mil-list"></div>
+          <button class="btn btn-gold" onclick="openAddSubjectModal('military')" style="margin-top:.5rem">+ Aggiungi Materia</button>
+        </div>
+
+        <!-- PUNIZIONI -->
+        <div class="tab-panel" id="vtab-punizioni">
+          <div class="grid-3" style="margin-bottom:1.5rem">
+            <div class="stat-box top-red"><div class="stat-value danger" id="p-consegna">0.00</div><div class="stat-label">Punti Consegna</div></div>
+            <div class="stat-box top-red"><div class="stat-value danger" id="p-rigore">0.00</div><div class="stat-label">Punti Rigore</div></div>
+            <div class="stat-box top-red"><div class="stat-value danger" id="p-total">0.00</div><div class="stat-label">Totale Penalità</div></div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header"><div class="card-title">📋 Consegna</div><button class="btn btn-red" onclick="openPenaltyModal('consegna')">+ Aggiungi</button></div>
+              <div class="alert alert-warn">Ogni giorno di consegna detrae <strong id="consegnaRateLabel">0.5</strong> punti</div>
+              <div id="p-consegna-list"></div>
             </div>
-            <div class="form-row-2" style="margin-bottom:.7rem">
-              <div class="form-group"><label>Sub-peso Ginnastica (%)</label><input type="number" id="s-wgym" value="50" min="0" max="100"></div>
-              <div class="form-group"><label>Sub-peso Militare (%)</label><input type="number" id="s-wmil" value="50" min="0" max="100"></div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">🔒 Rigore</div><button class="btn btn-red" onclick="openPenaltyModal('rigore')">+ Aggiungi</button></div>
+              <div class="alert alert-warn">Apertura: <strong>−3.5 pt</strong> · Ogni giorno: <strong>−1 pt</strong></div>
+              <div id="p-rigore-list"></div>
             </div>
-            <div class="form-group" style="margin-bottom:.7rem"><label>Det. Consegna (pt/giorno)</label><input type="number" id="s-pen" value="0.5" step="0.1" min="0"></div>
-            <button class="btn btn-gold" onclick="saveVotiSettings()">💾 Salva Pesi</button>
           </div>
         </div>
-        <div class="card" style="margin-top:1rem">
-          <div class="card-header"><div class="card-title">Gestione Materie</div></div>
-          <div class="grid-3" id="subjectMgmt"></div>
+
+        <!-- ORARIO -->
+        <div class="tab-panel" id="vtab-orario">
+          <div style="margin-bottom:1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+            <span class="badge badge-gold">■ Università</span>
+            <span class="badge badge-green">■ Militare</span>
+            <span class="badge badge-blue">■ Ginnastica</span>
+            <button class="btn btn-red btn-sm" onclick="clearSchedule()" style="margin-left:auto">🗑 Svuota</button>
+          </div>
+          <div style="overflow-x:auto"><div class="schedule-grid" id="scheduleGrid" style="min-width:600px"></div></div>
         </div>
-      </div>
+
+        <!-- NOTE -->
+        <div class="tab-panel" id="vtab-note">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Nuova Nota</div></div>
+            <div class="form-row-2" style="margin-bottom:.7rem">
+              <div class="form-group"><label>Titolo</label><input type="text" id="noteTitleInput" placeholder="Titolo..."></div>
+              <div class="form-group"><label>📌 Fissa</label><select id="notePinInput"><option value="false">No</option><option value="true">Sì</option></select></div>
+            </div>
+            <div class="form-group"><label>Contenuto</label><textarea id="noteBodyInput" placeholder="Scrivi la nota..." rows="4"></textarea></div>
+            <div style="display:flex;justify-content:flex-end;margin-top:.6rem"><button class="btn btn-gold" onclick="saveNote()">💾 Salva Nota</button></div>
+          </div>
+          <div id="notesList"></div>
+        </div>
+
+        <!-- IMPOSTAZIONI VOTI -->
+        <div class="tab-panel" id="vtab-impostazioni">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header"><div class="card-title">Dati Allievo</div></div>
+              <div class="form-group" style="margin-bottom:.7rem"><label>Nome Completo</label><input type="text" id="s-name" placeholder="Ten. Mario Rossi"></div>
+              <div class="form-group" style="margin-bottom:.7rem"><label>Grado Militare</label><input type="text" id="s-rank" placeholder="es. Ten."></div>
+              <div class="form-group" style="margin-bottom:.7rem"><label>Anno di Corso</label><select id="s-year"><option>1° Anno</option><option>2° Anno</option><option>3° Anno</option><option>4° Anno</option><option>5° Anno</option></select></div>
+              <div class="form-group" style="margin-bottom:.7rem"><label>Reparto / Plotone</label><input type="text" id="s-platoon" placeholder="es. 3° Plotone Alpha"></div>
+              <button class="btn btn-gold" onclick="saveVotiSettings()">💾 Salva</button>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">Pesi Graduatoria (%)</div></div>
+              <div class="alert alert-info">I due pesi principali (Uni + Mil) devono sommare 100%. I sub-pesi (Gin + Mil) pesano la Media Militare Totale.</div>
+              <div class="form-row-2" style="margin-bottom:.7rem">
+                <div class="form-group"><label>Peso Media Uni (%)</label><input type="number" id="s-wuni" value="50" min="0" max="100"></div>
+                <div class="form-group"><label>Peso Media Mil. Tot. (%)</label><input type="number" id="s-wacad" value="50" min="0" max="100"></div>
+              </div>
+              <div class="form-row-2" style="margin-bottom:.7rem">
+                <div class="form-group"><label>Sub-peso Ginnastica (%)</label><input type="number" id="s-wgym" value="50" min="0" max="100"></div>
+                <div class="form-group"><label>Sub-peso Militare (%)</label><input type="number" id="s-wmil" value="50" min="0" max="100"></div>
+              </div>
+              <div class="form-group" style="margin-bottom:.7rem"><label>Det. Consegna (pt/giorno)</label><input type="number" id="s-pen" value="0.5" step="0.1" min="0"></div>
+              <button class="btn btn-gold" onclick="saveVotiSettings()">💾 Salva Pesi</button>
+            </div>
+          </div>
+          <div class="card" style="margin-top:1rem">
+            <div class="card-header"><div class="card-title">Gestione Materie</div></div>
+            <div class="grid-3" id="subjectMgmt"></div>
+          </div>
+        </div>
+      </div><!-- /voti-content -->
     </div><!-- /page-voti -->
 
-    <!-- ── ADMIN ── -->
+    <!-- ADMIN -->
     <div class="page" id="page-admin">
       <div class="page-title">Gestione Utenti</div>
       <div class="page-desc">Assegna permessi · Visualizza registrati · Rimuovi account</div>
@@ -814,13 +666,12 @@ canvas{max-height:220px}
         </div>
       </div>
     </div>
-
   </main>
 </div><!-- /app -->
 
-<!-- ═══════════════════ MODALS ═══════════════════ -->
+<!-- MODALS -->
 
-<!-- TX MODAL (Finanze) -->
+<!-- TX MODAL -->
 <div class="modal-overlay" id="txModal">
   <div class="modal">
     <div class="modal-title" id="txModalTitle">Nuova Transazione</div>
@@ -869,10 +720,10 @@ canvas{max-height:220px}
     <input type="hidden" id="agGradeType">
     <div class="form-row-3">
       <div class="form-group"><label>Voto *</label><input type="number" id="agValue" step="0.1" min="0" max="30" placeholder="27"></div>
-      <div class="form-group"><label id="agWeightLabel">Peso (CFU)</label><input type="number" id="agWeight" value="1" step="0.5" min="0.5"></div>
+      <div class="form-group"><label id="agWeightLabel">Peso</label><input type="number" id="agWeight" value="1" step="0.5" min="0.5"></div>
       <div class="form-group"><label>Data</label><input type="date" id="agDate"></div>
     </div>
-    <div class="form-group"><label>Descrizione</label><input type="text" id="agDesc" placeholder="es. Esame finale..."></div>
+    <div class="form-group"><label>Descrizione</label><input type="text" id="agDesc" placeholder="es. Prova orale..."></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('addGradeModal')">Annulla</button>
       <button class="btn btn-gold" onclick="saveGrade()">✓ Aggiungi</button>
@@ -916,52 +767,57 @@ canvas{max-height:220px}
 
 <div id="toast"></div>
 
-<!-- ═══════════════════ JAVASCRIPT ═══════════════════ -->
 <script>
 'use strict';
 
-// ──────────────────────────────────────────────
-//  CONFIG — cambia l'URL se necessario
-// ──────────────────────────────────────────────
-const API = 'https://sito-allievi-accademia-militare.onrender.com';   // '' = stesso server; oppure 'http://localhost:3000'
+const API = 'https://sito-allievi-accademia-militare.onrender.com';
 
-// ──────────────────────────────────────────────
-//  STATE
-// ──────────────────────────────────────────────
+// ── STATE ──
 let currentUser = null;
 let token = localStorage.getItem('jwt') || '';
-
-// ── Finanze ──
 let transactions = [];
 let txFilter = 'all';
 let editingTxId = null;
 let currentTxType = 'guadagno';
 let finBarChart, finDonutChart;
-
-// ── Voti ──
 let vdb = {
   subjects: { university:[], gym:[], military:[] },
   penalties: { consegna:[], rigore:[] },
-  schedule: {},
-  notes: [],
+  schedule: {}, notes: [],
   settings: { weight_uni:50, weight_acad:50, weight_gym:50, weight_mil:50, pen_consegna_rate:0.5 }
 };
+let allLists = [];
+let currentListTab = 'liberi_sab_pom';
+let bachecaInterval = null;
 
-// ──────────────────────────────────────────────
-//  UTILS
-// ──────────────────────────────────────────────
+const LIST_LABELS = {
+  liberi_sab_pom: 'Liberi Uscenti Sabato Pomeriggio',
+  liberi_sab_sera: 'Liberi Uscenti Sabato Sera',
+  liberi_dom_pom: 'Liberi Uscenti Domenica Pomeriggio',
+  messa: 'Lista Messa',
+  parlatorio: 'Lista Parlatorio'
+};
+
+// ── UTILS ──
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
 function fmt(n,d=2){ if(n==null||isNaN(n)) return '—'; return Number(n).toFixed(d) }
 function fmtEur(n){ return '€ '+Number(n).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}) }
-function fmtDate(d){ if(!d) return '—'; return new Date(d+'T12:00').toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'}) }
+// Fix: gestisce sia '2024-01-15' che '2024-01-15T00:00:00.000Z'
+function fmtDate(d){
+  if(!d) return '—';
+  const s = String(d).slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '—';
+  return new Date(s+'T12:00:00').toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
 function today(){ return new Date().toISOString().slice(0,10) }
+function escHtml(s){ const d=document.createElement('div');d.textContent=s;return d.innerHTML }
 
 function toast(msg,type='ok'){
   const t=document.getElementById('toast');
   t.textContent=(type==='ok'?'✓ ':type==='err'?'✗ ':'ℹ ')+msg;
   t.className='show '+type;
   clearTimeout(t._tm);
-  t._tm=setTimeout(()=>t.className='',3000);
+  t._tm=setTimeout(()=>t.className='',3500);
 }
 
 function openModal(id){ document.getElementById(id).classList.add('open') }
@@ -970,96 +826,92 @@ document.querySelectorAll('.modal-overlay').forEach(o=>{
   o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open') });
 });
 
-// ──────────────────────────────────────────────
-//  API HELPER
-// ──────────────────────────────────────────────
+// ── API ──
 async function api(method, path, body){
-  const opts = {
-    method,
-    headers: { 'Content-Type':'application/json', ...(token ? {'Authorization':'Bearer '+token} : {}) },
-    credentials: 'include'
-  };
-  if(body) opts.body = JSON.stringify(body);
-  const r = await fetch(API+path, opts);
-  const data = await r.json();
+  const opts={method,headers:{'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{})},credentials:'include'};
+  if(body) opts.body=JSON.stringify(body);
+  const r=await fetch(API+path,opts);
+  const data=await r.json();
   if(!r.ok) throw new Error(data.error||'Errore server');
   return data;
 }
 
-// ──────────────────────────────────────────────
-//  NAVIGATION (sections)
-// ──────────────────────────────────────────────
+// ── NAV ──
 function showLanding(){ set('landing'); hide('auth'); hide('app') }
-function showAuth(tab='login'){
-  hide('landing'); set('auth'); hide('app');
-  switchAuthTab(tab);
-}
+function showAuth(tab='login'){ hide('landing'); set('auth'); hide('app'); switchAuthTab(tab) }
 function showApp(){
   hide('landing'); hide('auth'); set('app');
   applyPermissions();
   loadBacheca();
+  startBachecaPolling();
 }
 
 function set(id){ document.getElementById(id).classList.remove('hidden') }
 function hide(id){ document.getElementById(id).classList.add('hidden') }
 
-function showPage(id, link){
+async function showPage(id, link){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(link) link.classList.add('active');
-  if(id==='finanze') { loadFinanze(); }
-  if(id==='voti')    { loadVoti(); }
-  if(id==='admin')   { loadAdminUsers(); }
+  // Aggiorna sempre i permessi prima di caricare la pagina
+  await refreshCurrentUser();
+  if(id==='finanze') loadFinanze();
+  if(id==='voti')    loadVoti();
+  if(id==='liste')   loadListe();
+  if(id==='admin')   loadAdminUsers();
 }
 
 function applyPermissions(){
   if(!currentUser) return;
-  const showFin  = currentUser.can_access_finance || currentUser.is_admin;
-  const showVoti = currentUser.can_access_grades  || currentUser.is_admin;
-  const showAdm  = currentUser.is_admin;
-  document.getElementById('sb-section-fin').style.display  = showFin  ? '' : 'none';
-  document.getElementById('sb-nav-fin').style.display      = showFin  ? '' : 'none';
-  document.getElementById('sb-section-voti').style.display = showVoti ? '' : 'none';
-  document.getElementById('sb-nav-voti').style.display     = showVoti ? '' : 'none';
-  document.getElementById('sb-section-admin').style.display= showAdm  ? '' : 'none';
-  document.getElementById('sb-nav-admin').style.display    = showAdm  ? '' : 'none';
-  document.getElementById('sbUserName').textContent  = currentUser.full_name||currentUser.username;
-  document.getElementById('sbUserRank').textContent  = currentUser.military_rank||'Allievo Ufficiale';
+  const showAdm = currentUser.is_admin;
+  document.getElementById('sb-section-admin').style.display = showAdm ? '' : 'none';
+  document.getElementById('sb-nav-admin').style.display     = showAdm ? '' : 'none';
+  // Liste admin button
+  const btnNewList = document.getElementById('btnNewList');
+  if(btnNewList) btnNewList.classList.toggle('hidden', !showAdm);
+  document.getElementById('sbUserName').textContent = currentUser.full_name||currentUser.username;
+  document.getElementById('sbUserRank').textContent = currentUser.military_rank||'Allievo Ufficiale';
 }
 
-// ──────────────────────────────────────────────
-//  AUTH
-// ──────────────────────────────────────────────
+// Aggiorna currentUser dal server e rinnova il token (permessi sempre freschi)
+async function refreshCurrentUser(){
+  try {
+    const data = await api('GET','/api/auth/me');
+    currentUser = data;
+    if(data.token){ token=data.token; localStorage.setItem('jwt',token); }
+    applyPermissions();
+  } catch {}
+}
+
+// ── AUTH ──
 function switchAuthTab(tab){
-  const isLogin = tab==='login';
-  document.getElementById('formLogin').classList.toggle('hidden', !isLogin);
-  document.getElementById('formRegister').classList.toggle('hidden', isLogin);
-  document.getElementById('tabLogin').classList.toggle('active', isLogin);
-  document.getElementById('tabRegister').classList.toggle('active', !isLogin);
+  const isLogin=tab==='login';
+  document.getElementById('formLogin').classList.toggle('hidden',!isLogin);
+  document.getElementById('formRegister').classList.toggle('hidden',isLogin);
+  document.getElementById('tabLogin').classList.toggle('active',isLogin);
+  document.getElementById('tabRegister').classList.toggle('active',!isLogin);
   document.getElementById('authError').style.display='none';
 }
 
 async function doLogin(){
-  const username = document.getElementById('loginUser').value.trim();
-  const password = document.getElementById('loginPass').value;
+  const username=document.getElementById('loginUser').value.trim();
+  const password=document.getElementById('loginPass').value;
   if(!username||!password){ showAuthError('Inserisci username e password'); return }
   try {
-    const data = await api('POST','/api/auth/login',{username,password});
-    token = data.token;
-    localStorage.setItem('jwt',token);
-    currentUser = data.user;
-    showApp();
+    const data=await api('POST','/api/auth/login',{username,password});
+    token=data.token; localStorage.setItem('jwt',token);
+    currentUser=data.user; showApp();
     toast('Benvenuto, '+currentUser.full_name);
   } catch(e){ showAuthError(e.message) }
 }
 
 async function doRegister(){
-  const username  = document.getElementById('regUser').value.trim();
-  const email     = document.getElementById('regEmail').value.trim();
-  const full_name = document.getElementById('regName').value.trim();
-  const password  = document.getElementById('regPass').value;
-  const password2 = document.getElementById('regPass2').value;
+  const username=document.getElementById('regUser').value.trim();
+  const email=document.getElementById('regEmail').value.trim();
+  const full_name=document.getElementById('regName').value.trim();
+  const password=document.getElementById('regPass').value;
+  const password2=document.getElementById('regPass2').value;
   if(!username||!email||!password){ showAuthError('Compila tutti i campi obbligatori'); return }
   if(password!==password2){ showAuthError('Le password non coincidono'); return }
   if(password.length<6){ showAuthError('Password troppo corta (min 6 caratteri)'); return }
@@ -1067,47 +919,50 @@ async function doRegister(){
     await api('POST','/api/auth/register',{username,email,password,full_name});
     toast('Account creato! Ora accedi.','info');
     switchAuthTab('login');
-    document.getElementById('loginUser').value = username;
+    document.getElementById('loginUser').value=username;
   } catch(e){ showAuthError(e.message) }
 }
 
-function showAuthError(msg){
-  const el=document.getElementById('authError');
-  el.textContent='⚠ '+msg;
-  el.style.display='block';
-}
+function showAuthError(msg){ const el=document.getElementById('authError');el.textContent='⚠ '+msg;el.style.display='block' }
 
-async function doLogout(){
-  token=''; localStorage.removeItem('jwt'); currentUser=null;
-  showLanding();
-}
+async function doLogout(){ token=''; localStorage.removeItem('jwt'); currentUser=null; stopBachecaPolling(); showLanding() }
 
-// Auto-login se token presente
 async function tryAutoLogin(){
   if(!token) return;
   try {
-    currentUser = await api('GET','/api/auth/me');
+    const data=await api('GET','/api/auth/me');
+    currentUser=data;
+    if(data.token){ token=data.token; localStorage.setItem('jwt',token); }
     showApp();
   } catch { token=''; localStorage.removeItem('jwt'); showLanding() }
 }
 
-// ──────────────────────────────────────────────
-//  BACHECA
-// ──────────────────────────────────────────────
+// ── BACHECA + POLLING ──
+function startBachecaPolling(){
+  stopBachecaPolling();
+  bachecaInterval=setInterval(async()=>{
+    if(document.getElementById('page-bacheca').classList.contains('active')){
+      try {
+        const posts=await api('GET','/api/announcements');
+        renderFeed(posts);
+      } catch {}
+    }
+  },15000);
+}
+function stopBachecaPolling(){ if(bachecaInterval){ clearInterval(bachecaInterval); bachecaInterval=null } }
+
 async function loadBacheca(){
-  try {
-    const posts = await api('GET','/api/announcements');
-    renderFeed(posts);
-  } catch(e){ toast(e.message,'err') }
+  try { const posts=await api('GET','/api/announcements'); renderFeed(posts) }
+  catch(e){ toast(e.message,'err') }
 }
 
 function renderFeed(posts){
-  const feed = document.getElementById('feedList');
+  const feed=document.getElementById('feedList');
   if(!posts.length){
     feed.innerHTML='<div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Nessun annuncio. Sii il primo a pubblicare!</div>';
     return;
   }
-  feed.innerHTML = posts.map(p=>`
+  feed.innerHTML=posts.map(p=>`
     <div class="post-card">
       <div class="post-author">
         <span>⚔</span>
@@ -1117,15 +972,12 @@ function renderFeed(posts){
       </div>
       <div class="post-content">${escHtml(p.content)}</div>
       ${(currentUser&&(p.author_id===currentUser.id||currentUser.is_admin))?`
-        <div class="post-actions">
-          <button class="btn btn-sm btn-red" onclick="deletePost(${p.id})">🗑 Elimina</button>
-        </div>`:''
-      }
+        <div class="post-actions"><button class="btn btn-sm btn-red" onclick="deletePost(${p.id})">🗑 Elimina</button></div>`:''}
     </div>`).join('');
 }
 
 async function postAnnouncement(){
-  const content = document.getElementById('postContent').value.trim();
+  const content=document.getElementById('postContent').value.trim();
   if(!content){ toast('Scrivi un messaggio','err'); return }
   try {
     await api('POST','/api/announcements',{content});
@@ -1141,12 +993,8 @@ async function deletePost(id){
   catch(e){ toast(e.message,'err') }
 }
 
-function escHtml(s){ const d=document.createElement('div');d.textContent=s;return d.innerHTML }
-
-// ──────────────────────────────────────────────
-//  FINANZE
-// ──────────────────────────────────────────────
-const FIN_CATS = {
+// ── FINANZE ──
+const FIN_CATS={
   guadagno:['Stipendio','Freelance','Bonus','Altro'],
   spesa:['Casa','Alimentari','Trasporti','Abbonamenti','Salute','Ristoranti','Vestiario','Svago','Altro'],
   investimento:['ETF','Azioni','Obbligazioni','Criptovalute','Immobiliare','Altro'],
@@ -1154,21 +1002,19 @@ const FIN_CATS = {
 };
 
 async function loadFinanze(){
-  try {
-    transactions = await api('GET','/api/finance');
-    refreshFinanze();
-  } catch(e){ toast(e.message,'err') }
+  const locked=!currentUser?.can_access_finance&&!currentUser?.is_admin;
+  document.getElementById('fin-locked').classList.toggle('hidden',!locked);
+  document.getElementById('fin-content').classList.toggle('hidden',locked);
+  if(locked) return;
+  try { transactions=await api('GET','/api/finance'); refreshFinanze() }
+  catch(e){ toast(e.message,'err') }
 }
 
-function refreshFinanze(){
-  computeFinKPI();
-  drawFinCharts();
-  renderFinTx();
-}
+function refreshFinanze(){ computeFinKPI(); drawFinCharts(); renderFinTx() }
 
 function computeFinKPI(){
   const now=new Date(),m=now.getMonth()+1,y=now.getFullYear();
-  const mx=transactions.filter(t=>{const d=new Date(t.date);return d.getMonth()+1===m&&d.getFullYear()===y});
+  const mx=transactions.filter(t=>{ const d=new Date(t.date); return d.getMonth()+1===m&&d.getFullYear()===y });
   const tot=v=>transactions.filter(t=>t.type===v).reduce((s,t)=>s+Number(t.amount),0);
   const totM=v=>mx.filter(t=>t.type===v).reduce((s,t)=>s+Number(t.amount),0);
   const patrimonio=transactions.reduce((s,t)=>t.type==='guadagno'||t.type==='ricavo'?s+Number(t.amount):t.type==='spesa'?s-Number(t.amount):s,0);
@@ -1194,21 +1040,19 @@ function drawFinCharts(){
   const entrate=months.map(({m,y})=>mf('guadagno',m,y)+mf('ricavo',m,y));
   const uscite=months.map(({m,y})=>mf('spesa',m,y));
   const chartOpts={responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#4a5a6a',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#4a5a6a',font:{size:10},callback:v=>'€'+v}}}};
-
   const bCtx=document.getElementById('finBarChart').getContext('2d');
   if(finBarChart) finBarChart.destroy();
   finBarChart=new Chart(bCtx,{type:'bar',data:{labels,datasets:[
     {label:'Entrate',data:entrate,backgroundColor:'rgba(45,122,79,.65)',borderRadius:4,borderSkipped:false},
     {label:'Uscite',data:uscite,backgroundColor:'rgba(139,46,46,.65)',borderRadius:4,borderSkipped:false}
   ]},options:{...chartOpts,plugins:{legend:{display:true,labels:{color:'#8a9ab0',font:{size:10}}},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+fmtEur(ctx.parsed.y)}}}}});
-
   const g=transactions.filter(t=>t.type==='guadagno').reduce((s,t)=>s+Number(t.amount),0);
-  const s=transactions.filter(t=>t.type==='spesa').reduce((s,t)=>s+Number(t.amount),0);
+  const sp=transactions.filter(t=>t.type==='spesa').reduce((s,t)=>s+Number(t.amount),0);
   const inv=transactions.filter(t=>t.type==='investimento').reduce((s,t)=>s+Number(t.amount),0);
   const r=transactions.filter(t=>t.type==='ricavo').reduce((s,t)=>s+Number(t.amount),0);
   const dCtx=document.getElementById('finDonutChart').getContext('2d');
   if(finDonutChart) finDonutChart.destroy();
-  finDonutChart=new Chart(dCtx,{type:'doughnut',data:{labels:['Guadagni','Spese','Investimenti','Ricavi'],datasets:[{data:[g,s,inv,r],backgroundColor:['rgba(45,122,79,.8)','rgba(139,46,46,.8)','rgba(42,95,168,.8)','rgba(184,115,51,.8)'],borderColor:'#111820',borderWidth:2,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtEur(ctx.parsed)}}},cutout:'60%'}});
+  finDonutChart=new Chart(dCtx,{type:'doughnut',data:{labels:['Guadagni','Spese','Investimenti','Ricavi'],datasets:[{data:[g,sp,inv,r],backgroundColor:['rgba(45,122,79,.8)','rgba(139,46,46,.8)','rgba(42,95,168,.8)','rgba(184,115,51,.8)'],borderColor:'#111820',borderWidth:2,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtEur(ctx.parsed)}}},cutout:'60%'}});
 }
 
 function renderFinTx(){
@@ -1226,10 +1070,7 @@ function renderFinTx(){
       <td style="color:var(--text3)">${t.cat||'—'}</td>
       <td style="color:var(--text3);max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.note||'—'}</td>
       <td><span class="${{guadagno:'amount-pos',spesa:'amount-neg',investimento:'amount-blue',ricavo:'amount-amber'}[t.type]}" style="font-family:var(--font-mono)">${{guadagno:'+',ricavo:'+',spesa:'−',investimento:''}[t.type]}${fmtEur(t.amount)}</span></td>
-      <td>
-        <button class="btn btn-sm del-btn" onclick="editTx('${t.id}')">✏</button>
-        <button class="btn btn-sm btn-red del-btn" onclick="deleteTx('${t.id}')">🗑</button>
-      </td>
+      <td><button class="btn btn-sm del-btn" onclick="editTx('${t.id}')">✏</button><button class="btn btn-sm btn-red del-btn" onclick="deleteTx('${t.id}')">🗑</button></td>
     </tr>`).join('');
 }
 
@@ -1240,7 +1081,6 @@ function setFinFilter(f,btn){
   renderFinTx();
 }
 
-// TX MODAL
 function openTxModal(id=null){
   editingTxId=id;
   const t=id?transactions.find(x=>x.id===id):null;
@@ -1253,9 +1093,7 @@ function openTxModal(id=null){
   setTimeout(()=>{ if(t)document.getElementById('tx-cat').value=t.cat },10);
   openModal('txModal');
 }
-
 function closeTxModal(){ closeModal('txModal'); editingTxId=null }
-
 function selectTxType(type){
   currentTxType=type;
   ['guadagno','spesa','investimento','ricavo'].forEach(t=>{
@@ -1281,25 +1119,24 @@ async function saveTx(){
       await api('POST','/api/finance',{id,type:currentTxType,desc,amount,date,cat,note});
       toast('Transazione aggiunta');
     }
-    closeTxModal();
-    loadFinanze();
+    closeTxModal(); loadFinanze();
   } catch(e){ toast(e.message,'err') }
 }
-
 function editTx(id){ openTxModal(id) }
-
 async function deleteTx(id){
   if(!confirm('Eliminare questa transazione?')) return;
   try { await api('DELETE','/api/finance/'+id); loadFinanze(); toast('Eliminata') }
   catch(e){ toast(e.message,'err') }
 }
 
-// ──────────────────────────────────────────────
-//  VOTI
-// ──────────────────────────────────────────────
+// ── VOTI ──
 async function loadVoti(){
+  const locked=!currentUser?.can_access_grades&&!currentUser?.is_admin;
+  document.getElementById('voti-locked').classList.toggle('hidden',!locked);
+  document.getElementById('voti-content').classList.toggle('hidden',locked);
+  if(locked) return;
   try {
-    const data = await api('GET','/api/grades/all');
+    const data=await api('GET','/api/grades/all');
     vdb.subjects  = data.subjects  || {university:[],gym:[],military:[]};
     vdb.penalties = data.penalties || {consegna:[],rigore:[]};
     vdb.schedule  = data.schedule  || {};
@@ -1317,10 +1154,9 @@ async function loadVoti(){
 }
 
 function refreshVoti(){
-  renderSubjectArea('university');
-  renderSubjectArea('gym');
-  renderSubjectArea('military');
-  renderAccertamenti();
+  renderSubjectAreaUni();
+  renderSubjectAreaGym();
+  renderSubjectAreaMil();
   renderPunizioni();
   renderSchedule();
   renderNotes();
@@ -1333,7 +1169,8 @@ function wAvg(grades){ if(!grades||!grades.length) return null; const t=grades.r
 function arAvg(grades){ if(!grades||!grades.length) return null; return grades.reduce((a,g)=>a+g.value,0)/grades.length }
 function subjAvg(s){ return wAvg(s.grades) }
 
-function areaExamAvg(subjects){ // solo esami (grade_type='exam')
+// Media esami universitari ponderata per CFU
+function areaExamAvg(subjects){
   const subs=subjects.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='exam')})).filter(s=>s.grades.length);
   if(!subs.length) return null;
   const tp=subs.reduce((a,s)=>a+wAvg(s.grades)*s.credits,0);
@@ -1341,7 +1178,8 @@ function areaExamAvg(subjects){ // solo esami (grade_type='exam')
   return tc>0?tp/tc:null;
 }
 
-function areaAccertAvg(subjects){ // solo accertamenti (grade_type='accertamento')
+// Media accertamenti uni ponderata per CFU
+function areaAccertAvgUni(subjects){
   const subs=subjects.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='accertamento')})).filter(s=>s.grades.length);
   if(!subs.length) return null;
   const tp=subs.reduce((a,s)=>a+wAvg(s.grades)*s.credits,0);
@@ -1349,14 +1187,14 @@ function areaAccertAvg(subjects){ // solo accertamenti (grade_type='accertamento
   return tc>0?tp/tc:null;
 }
 
-function areaWAvg(subjects){ // tutti i voti (usato per gym/mil che non hanno esami formali)
+// Media ponderata (tutti i voti): per gym e mil
+function areaWAvg(subjects){
   const subs=subjects.filter(s=>s.grades.length);
   if(!subs.length) return null;
   const tp=subs.reduce((a,s)=>a+subjAvg(s)*s.credits,0);
   const tc=subs.reduce((a,s)=>a+s.credits,0);
   return tc>0?tp/tc:null;
 }
-
 function areaArAvg(subjects){ const avgs=subjects.filter(s=>s.grades.length).map(s=>subjAvg(s)); if(!avgs.length) return null; return avgs.reduce((a,b)=>a+b,0)/avgs.length }
 
 function calcPenalties(){
@@ -1367,22 +1205,20 @@ function calcPenalties(){
 }
 
 function renderGraduatoria(){
-  const avgUni  = areaExamAvg(vdb.subjects.university);  // Media Universitaria (solo esami uni)
-  const avgAccUni = areaAccertAvg(vdb.subjects.university); // accertamenti materie uni
-  const avgAccGym = areaWAvg(vdb.subjects.gym.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='accertamento'||true)}))); // gym considera tutti
-  const avgAccMil = areaWAvg(vdb.subjects.military.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='accertamento'||true)})));
-  const avgGym  = areaWAvg(vdb.subjects.gym);
-  const avgMil  = areaWAvg(vdb.subjects.military);
-  const pen     = calcPenalties();
+  const avgUni    = areaExamAvg(vdb.subjects.university);
+  const avgAccUni = areaAccertAvgUni(vdb.subjects.university);
+  const avgGym    = areaWAvg(vdb.subjects.gym);
+  const avgMil    = areaWAvg(vdb.subjects.military);
+  const pen       = calcPenalties();
+  const {weight_uni, weight_acad, weight_gym, weight_mil} = vdb.settings;
+  const wG=parseFloat(weight_gym)||50, wM=parseFloat(weight_mil)||50;
 
-  // Media Accademica: accertamenti uni + prove ginniche + materie militari, ponderata
-  const { weight_uni, weight_acad, weight_gym, weight_mil } = vdb.settings;
-  const wG = parseFloat(weight_gym)||50, wM = parseFloat(weight_mil)||50;
-  let acadComponents = [], acadWeights = [];
-  if(avgAccUni!=null){ acadComponents.push(avgAccUni); acadWeights.push(50) }
+  // Media Militare Totale: gym + mil (accertamenti) + accertamenti uni
+  let acadComponents=[], acadWeights=[];
   if(avgGym!=null){    acadComponents.push(avgGym);    acadWeights.push(wG) }
   if(avgMil!=null){    acadComponents.push(avgMil);    acadWeights.push(wM) }
-  let avgAcad = null;
+  if(avgAccUni!=null){ acadComponents.push(avgAccUni); acadWeights.push(Math.max(wG,wM)) }
+  let avgAcad=null;
   if(acadComponents.length){
     const total=acadComponents.reduce((a,v,i)=>a+v*acadWeights[i],0);
     const wt=acadWeights.reduce((a,b)=>a+b,0);
@@ -1396,38 +1232,37 @@ function renderGraduatoria(){
     if(avgUni!=null){parts.push(avgUni);ws.push(wU)}
     if(avgAcad!=null){parts.push(avgAcad);ws.push(wA)}
     const t=parts.reduce((a,v,i)=>a+v*ws[i],0),w=ws.reduce((a,b)=>a+b,0);
-    finalScore=(w>0?t/w:null);
-    if(finalScore!=null) finalScore=Math.max(0,finalScore-pen.total);
+    finalScore=w>0?Math.max(0,t/w-pen.total):null;
   }
 
-  document.getElementById('g-avg-uni').textContent  = avgUni!=null  ? fmt(avgUni)   : '—';
-  document.getElementById('g-avg-acad').textContent = avgAcad!=null ? fmt(avgAcad)  : '—';
+  document.getElementById('g-avg-uni').textContent  = avgUni!=null  ? fmt(avgUni)  : '—';
+  document.getElementById('g-avg-acad').textContent = avgAcad!=null ? fmt(avgAcad) : '—';
   document.getElementById('g-penalties').textContent= fmt(pen.total);
   document.getElementById('g-final').textContent    = finalScore!=null ? fmt(finalScore) : '—';
-  document.getElementById('g-formula-text').textContent = `Uni ${wU}% · Acad ${wA}% · Penalità: −${fmt(pen.total)}`;
+  document.getElementById('g-formula-text').textContent = `Uni ${wU}% · Mil.Tot. ${wA}% · Penalità: −${fmt(pen.total)}`;
 
-  const maxVal=Math.max(avgUni||0, avgAcad||0, avgGym||0, avgMil||0, 1);
+  const maxVal=Math.max(avgUni||0,avgAcad||0,avgGym||0,avgMil||0,1);
   const items=[
-    {label:'Media Uni (Esami)', val:avgUni, desc:`Materie universitarie, solo esami, ponderata per CFU`},
-    {label:'Media Acad.',       val:avgAcad,desc:`Accertamenti + Ginnastica + Militare`},
-    {label:'Media Ginnastica',  val:avgGym, desc:`Prove ginniche e sportive`},
-    {label:'Media Militare',    val:avgMil, desc:`Materie militari`},
-    {label:'Penalità totali',   val:-pen.total, desc:`Consegna: −${fmt(pen.consegnaPts)} · Rigore: −${fmt(pen.rigorePts)}`}
+    {label:'Media Uni (Esami)',       val:avgUni,    desc:`Materie universitarie — solo esami, pond. per CFU`},
+    {label:'Acc. Universitari',       val:avgAccUni, desc:`Accertamenti delle materie universitarie`},
+    {label:'Media Ginnastica',        val:avgGym,    desc:`Esami ginnici ponderati`},
+    {label:'Media Militare',          val:avgMil,    desc:`Accertamenti militari ponderati`},
+    {label:'Media Mil. Totale',       val:avgAcad,   desc:`Combinazione: Gin + Mil + Acc.Uni`},
+    {label:'Penalità totali',         val:pen.total>0?-pen.total:null, desc:`Consegna: −${fmt(pen.consegnaPts)} · Rigore: −${fmt(pen.rigorePts)}`}
   ].filter(x=>x.val!=null);
+
   document.getElementById('g-rank-detail').innerHTML=items.map(item=>`
     <div class="rank-row">
-      <div style="width:160px;font-family:var(--font-mono);font-size:.72rem;color:var(--text2)">${item.label}</div>
+      <div style="width:170px;font-family:var(--font-mono);font-size:.72rem;color:var(--text2)">${item.label}</div>
       <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${(Math.abs(item.val)/maxVal*100).toFixed(1)}%${item.val<0?';background:var(--red)':''}"></div></div>
       <div style="width:55px;text-align:right;font-family:var(--font-mono);font-size:.82rem;color:${item.val<0?'var(--red-light)':'var(--gold)'}">${item.val<0?'−':'+'}${fmt(Math.abs(item.val))}</div>
-      <div style="width:220px;font-family:var(--font-mono);font-size:.6rem;color:var(--text3)">${item.desc}</div>
+      <div style="width:240px;font-family:var(--font-mono);font-size:.6rem;color:var(--text3)">${item.desc}</div>
     </div>`).join('')||'<div style="color:var(--text3);padding:1rem;font-family:var(--font-mono);font-size:.72rem">Inserisci voti per visualizzare</div>';
 
-  // Storico
+  // Storico voti
   const allG=[];
   ['university','gym','military'].forEach(type=>{
-    vdb.subjects[type].forEach(s=>{
-      s.grades.forEach(g=>allG.push({...g,subjectName:s.name,stype:type}));
-    });
+    vdb.subjects[type].forEach(s=>{ s.grades.forEach(g=>allG.push({...g,subjectName:s.name,stype:type})) });
   });
   allG.sort((a,b)=>b.date>a.date?1:-1);
   document.getElementById('g-history').innerHTML=allG.length?`
@@ -1435,7 +1270,7 @@ function renderGraduatoria(){
     ${allG.map(g=>`<tr>
       <td>${fmtDate(g.date)}</td><td>${g.subjectName}</td>
       <td><span class="badge badge-${g.stype==='university'?'gold':g.stype==='gym'?'blue':'green'}">${g.stype==='university'?'Uni':g.stype==='gym'?'Gin':'Mil'}</span></td>
-      <td><span class="badge badge-${g.grade_type==='exam'?'gold':'purple'}">${g.grade_type==='exam'?'Esame':'Accer.'}</span></td>
+      <td><span class="badge badge-${g.grade_type==='exam'?'gold':'purple'}">${g.stype==='gym'?'Es. Gin.':g.grade_type==='exam'?'Esame':'Accer.'}</span></td>
       <td><span class="badge ${badgeGradeClass(g.value)}">${g.value}</span></td>
       <td style="color:var(--text2)">${g.description||'—'}</td>
     </tr>`).join('')}
@@ -1445,104 +1280,125 @@ function renderGraduatoria(){
 
 function badgeGradeClass(v){ if(v>=27)return'badge-green'; if(v>=24)return'badge-gold'; if(v>=18)return'badge-amber'; return'badge-red' }
 
-// ── RENDER AREA ──
-function renderSubjectArea(type){
-  const listId={university:'u-list',gym:'gym-list',military:'mil-list'}[type];
-  const pfx={university:'u',gym:'gym',military:'mil'}[type];
-  const subjects=vdb.subjects[type];
-  const examGrades=subjects.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='exam')}));
-  const wa=areaExamAvg(subjects)||areaWAvg(subjects);
-  const aa=areaArAvg(subjects);
-  if(type==='university'){
-    document.getElementById('u-weighted').textContent   = areaExamAvg(subjects)!=null ? fmt(areaExamAvg(subjects)) : '—';
-    document.getElementById('u-arithmetic').textContent = areaArAvg(examGrades)!=null ? fmt(areaArAvg(examGrades)) : '—';
-  } else {
-    document.getElementById(pfx+'-weighted').textContent   = wa!=null ? fmt(wa):'—';
-    document.getElementById(pfx+'-arithmetic').textContent = aa!=null ? fmt(aa):'—';
-  }
-  document.getElementById(listId).innerHTML=subjects.map(s=>buildSubjectCard(s,type,'exam')).join('');
+// ── RENDER SOGGETTO (tabella voti) ──
+function buildGradeTable(grades, type){
+  if(!grades.length) return `<div style="color:var(--text3);font-family:var(--font-mono);font-size:.7rem;padding:.4rem 0">Nessun voto inserito</div>`;
+  return `<table class="data-table"><thead><tr><th>Data</th><th>Voto</th><th>Peso</th><th>Descrizione</th><th></th></tr></thead><tbody>
+  ${grades.map(g=>`<tr>
+    <td>${fmtDate(g.date)}</td>
+    <td><span class="badge ${badgeGradeClass(g.value)}">${g.value}</span></td>
+    <td style="color:var(--text3)">${g.weight}</td>
+    <td style="color:var(--text2)">${g.description||'—'}</td>
+    <td><button class="btn btn-sm btn-red del-btn" onclick="deleteGrade('${g.id}','${type}')">✕</button></td>
+  </tr>`).join('')}
+  </tbody></table>
+  <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text2);padding:.5rem .3rem;display:flex;gap:1.5rem">
+    <span>Media pond.: <strong style="color:var(--gold)">${fmt(wAvg(grades))}</strong></span>
+    <span>Media arit.: <strong style="color:var(--gold)">${fmt(arAvg(grades))}</strong></span>
+  </div>`;
 }
 
-function renderAccertamenti(){
-  ['university','gym','military'].forEach(type=>{
-    const listId={university:'a-list-uni',gym:'a-list-gym',military:'a-list-mil'}[type];
-    const pfx={university:'a-avg-uni',gym:'a-avg-gym',military:'a-avg-mil'}[type];
-    const subjects=vdb.subjects[type];
-    const accertSubjs=subjects.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='accertamento')}));
-    const avg=areaWAvg(accertSubjs);
-    document.getElementById(pfx).textContent=avg!=null?fmt(avg):'—';
-    if(!subjects.length){
-      document.getElementById(listId).innerHTML=`<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:1rem">Nessuna materia di tipo ${type}</div>`;
-    } else {
-      const label={university:'📚 Materie Universitarie — Accertamenti',gym:'🏅 Ginnastica — Accertamenti',military:'🎖 Militare — Accertamenti'}[type];
-      document.getElementById(listId).innerHTML=`<div style="font-family:var(--font-display);font-size:.85rem;color:var(--gold);margin-bottom:.6rem;letter-spacing:.08em">${label}</div>`+
-        subjects.map(s=>buildSubjectCard(s,type,'accertamento')).join('');
-    }
-  });
+// ── UNIVERSITÀ: esami + accertamenti separati per materia ──
+function renderSubjectAreaUni(){
+  const subjects = vdb.subjects.university;
+  const examGrades = subjects.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='exam')}));
+  document.getElementById('u-weighted').textContent  = areaExamAvg(subjects)!=null ? fmt(areaExamAvg(subjects)) : '—';
+  document.getElementById('u-arithmetic').textContent= areaArAvg(examGrades)!=null  ? fmt(areaArAvg(examGrades)) : '—';
+  document.getElementById('u-list').innerHTML = subjects.length
+    ? subjects.map(s=>buildUniSubjectCard(s)).join('')
+    : '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.75rem;padding:1rem">Nessuna materia universitaria aggiunta.</div>';
 }
 
-function buildSubjectCard(s,type,gradeType){
-  const filtered=s.grades.filter(g=>g.grade_type===gradeType);
-  const avg=filtered.length?fmt(wAvg(filtered)):'—';
+function buildUniSubjectCard(s){
+  const exams   = s.grades.filter(g=>g.grade_type==='exam');
+  const accerts = s.grades.filter(g=>g.grade_type==='accertamento');
   return `
-  <div class="subject-section">
-    <div class="subject-toggle" onclick="toggleSubject('${s.id}-${gradeType}')">
-      <div class="subject-toggle-name">${s.name}</div>
-      <div class="subject-toggle-stats">
-        <span>${type==='university'?s.credits+' CFU':'peso '+s.credits}</span>
-        <span>${filtered.length} vot${filtered.length===1?'o':'i'}</span>
-        <span style="color:var(--gold)">${avg}</span>
-        <button class="btn btn-sm btn-gold" style="font-size:.58rem" onclick="event.stopPropagation();openAddGradeModal('${type}','${s.id}','${gradeType}')">+</button>
+  <div class="uni-subject-card">
+    <div class="uni-subject-header">
+      <div>
+        <div style="font-family:var(--font-display);font-size:.9rem;color:var(--text);letter-spacing:.05em">${s.name}</div>
+        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.15rem">${s.credits} CFU</div>
+      </div>
+      <div style="display:flex;gap:.4rem;font-family:var(--font-mono);font-size:.68rem;color:var(--text2)">
+        <span>Esami: <strong style="color:var(--gold)">${exams.length?fmt(wAvg(exams)):'—'}</strong></span>
+        <span style="color:var(--text3)">|</span>
+        <span>Acc.: <strong style="color:var(--blue-light)">${accerts.length?fmt(wAvg(accerts)):'—'}</strong></span>
       </div>
     </div>
-    <div class="subject-body" id="sbody-${s.id}-${gradeType}">
-      ${filtered.length?`
-      <table class="data-table"><thead><tr><th>Data</th><th>Voto</th><th>Peso</th><th>Descrizione</th><th></th></tr></thead><tbody>
-      ${filtered.map(g=>`<tr>
-        <td>${fmtDate(g.date)}</td>
-        <td><span class="badge ${badgeGradeClass(g.value)}">${g.value}</span></td>
-        <td>${g.weight}</td>
-        <td style="color:var(--text2)">${g.description||'—'}</td>
-        <td><button class="btn btn-sm btn-red del-btn" onclick="deleteGrade('${g.id}','${type}')">✕</button></td>
-      </tr>`).join('')}
-      </tbody></table>
-      <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text2);padding:.5rem .3rem;display:flex;gap:1.5rem">
-        <span>Media pond.: <strong style="color:var(--gold)">${fmt(wAvg(filtered))}</strong></span>
-        <span>Media arit.: <strong style="color:var(--gold)">${fmt(arAvg(filtered))}</strong></span>
-      </div>`
-      :'<div style="color:var(--text3);font-family:var(--font-mono);font-size:.7rem;padding:.5rem 0">Nessun voto di tipo \''+gradeType+'\' inserito</div>'}
+    <div class="uni-subject-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <span style="font-family:var(--font-mono);font-size:.65rem;color:var(--gold);letter-spacing:.08em;text-transform:uppercase">📋 Esami (${exams.length})</span>
+        <button class="btn btn-sm btn-gold" style="font-size:.58rem" onclick="openAddGradeModal('university','${s.id}','exam')">+ Aggiungi Esame</button>
+      </div>
+      ${buildGradeTable(exams,'university')}
+    </div>
+    <div class="uni-subject-section" style="border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <span style="font-family:var(--font-mono);font-size:.65rem;color:var(--blue-light);letter-spacing:.08em;text-transform:uppercase">📝 Accertamenti (${accerts.length})</span>
+        <button class="btn btn-sm btn-blue" style="font-size:.58rem" onclick="openAddGradeModal('university','${s.id}','accertamento')">+ Aggiungi Acc.</button>
+      </div>
+      ${buildGradeTable(accerts,'university')}
     </div>
   </div>`;
 }
 
-function toggleSubject(id){
-  const el=document.getElementById('sbody-'+id);
-  if(el) el.classList.toggle('open');
+// ── GINNASTICA: solo esami ginnici ──
+function renderSubjectAreaGym(){
+  const subjects=vdb.subjects.gym;
+  document.getElementById('gym-weighted').textContent   = areaWAvg(subjects)!=null ? fmt(areaWAvg(subjects)) : '—';
+  document.getElementById('gym-arithmetic').textContent = areaArAvg(subjects)!=null ? fmt(areaArAvg(subjects)) : '—';
+  document.getElementById('gym-list').innerHTML = subjects.length
+    ? subjects.map(s=>buildGymSubjectCard(s)).join('')
+    : '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.75rem;padding:1rem">Nessuna disciplina ginnica aggiunta.</div>';
 }
 
-// ── SUBJECT MODAL ──
-function openAddSubjectModal(type){
-  document.getElementById('addSubjType').value=type;
-  document.getElementById('addSubjName').value='';
-  document.getElementById('addSubjCredits').value=type==='university'?6:1;
-  document.getElementById('addSubjCfuLabel').textContent=type==='university'?'Crediti CFU':'Peso (1=normale)';
-  openModal('addSubjModal');
+function buildGymSubjectCard(s){
+  return `
+  <div class="subject-section">
+    <div class="subject-toggle" onclick="toggleSubject('${s.id}')">
+      <div class="subject-toggle-name">${s.name}</div>
+      <div class="subject-toggle-stats">
+        <span>Peso ${s.credits}</span>
+        <span>${s.grades.length} esam${s.grades.length===1?'e':'i'} ginni${s.grades.length===1?'co':'ci'}</span>
+        <span style="color:var(--green-light)">${s.grades.length?fmt(wAvg(s.grades)):'—'}</span>
+        <button class="btn btn-sm btn-green" style="font-size:.58rem" onclick="event.stopPropagation();openAddGradeModal('gym','${s.id}','exam')">+ Esame Ginnico</button>
+      </div>
+    </div>
+    <div class="subject-body" id="sbody-${s.id}">
+      ${buildGradeTable(s.grades,'gym')}
+    </div>
+  </div>`;
 }
 
-async function addSubject(){
-  const type=document.getElementById('addSubjType').value;
-  const name=document.getElementById('addSubjName').value.trim();
-  const credits=parseFloat(document.getElementById('addSubjCredits').value)||1;
-  if(!name){ toast('Inserisci il nome','err'); return }
-  const id=uid();
-  try {
-    await api('POST','/api/grades/subjects',{id,type,name,credits});
-    vdb.subjects[type].push({id,type,name,credits,grades:[]});
-    closeModal('addSubjModal');
-    refreshVoti();
-    toast('Materia aggiunta');
-  } catch(e){ toast(e.message,'err') }
+// ── MILITARE: solo accertamenti ──
+function renderSubjectAreaMil(){
+  const subjects=vdb.subjects.military;
+  document.getElementById('mil-weighted').textContent   = areaWAvg(subjects)!=null ? fmt(areaWAvg(subjects)) : '—';
+  document.getElementById('mil-arithmetic').textContent = areaArAvg(subjects)!=null ? fmt(areaArAvg(subjects)) : '—';
+  document.getElementById('mil-list').innerHTML = subjects.length
+    ? subjects.map(s=>buildMilSubjectCard(s)).join('')
+    : '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.75rem;padding:1rem">Nessuna materia militare aggiunta.</div>';
 }
+
+function buildMilSubjectCard(s){
+  return `
+  <div class="subject-section">
+    <div class="subject-toggle" onclick="toggleSubject('${s.id}')">
+      <div class="subject-toggle-name">${s.name}</div>
+      <div class="subject-toggle-stats">
+        <span>Peso ${s.credits}</span>
+        <span>${s.grades.length} accer${s.grades.length===1?'tamento':'tamenti'}</span>
+        <span style="color:var(--green-light)">${s.grades.length?fmt(wAvg(s.grades)):'—'}</span>
+        <button class="btn btn-sm btn-green" style="font-size:.58rem" onclick="event.stopPropagation();openAddGradeModal('military','${s.id}','accertamento')">+ Accertamento</button>
+      </div>
+    </div>
+    <div class="subject-body" id="sbody-${s.id}">
+      ${buildGradeTable(s.grades,'military')}
+    </div>
+  </div>`;
+}
+
+function toggleSubject(id){ const el=document.getElementById('sbody-'+id); if(el) el.classList.toggle('open') }
 
 // ── GRADE MODAL ──
 function openAddGradeModal(type, subjectId, gradeType){
@@ -1550,7 +1406,13 @@ function openAddGradeModal(type, subjectId, gradeType){
   document.getElementById('agType').value=type;
   document.getElementById('agSubjId').value=subjectId;
   document.getElementById('agGradeType').value=gradeType;
-  document.getElementById('addGradeTitle').textContent=(gradeType==='exam'?'Aggiungi Esame':'Aggiungi Accertamento')+' — '+s.name;
+  const titles={
+    'university-exam':'Aggiungi Esame',
+    'university-accertamento':'Aggiungi Accertamento',
+    'gym-exam':'Aggiungi Esame Ginnico',
+    'military-accertamento':'Aggiungi Accertamento Militare'
+  };
+  document.getElementById('addGradeTitle').textContent=(titles[type+'-'+gradeType]||'Aggiungi Voto')+' — '+s.name;
   document.getElementById('agValue').value='';
   document.getElementById('agWeight').value=s.credits||1;
   document.getElementById('agDate').value=today();
@@ -1588,6 +1450,37 @@ async function deleteGrade(gradeId, type){
   } catch(e){ toast(e.message,'err') }
 }
 
+// ── SUBJECT MODAL ──
+function openAddSubjectModal(type){
+  document.getElementById('addSubjType').value=type;
+  document.getElementById('addSubjName').value='';
+  document.getElementById('addSubjCredits').value=type==='university'?6:1;
+  document.getElementById('addSubjCfuLabel').textContent=type==='university'?'Crediti CFU':'Peso (1=normale)';
+  openModal('addSubjModal');
+}
+
+async function addSubject(){
+  const type=document.getElementById('addSubjType').value;
+  const name=document.getElementById('addSubjName').value.trim();
+  const credits=parseFloat(document.getElementById('addSubjCredits').value)||1;
+  if(!name){ toast('Inserisci il nome','err'); return }
+  const id=uid();
+  try {
+    await api('POST','/api/grades/subjects',{id,type,name,credits});
+    vdb.subjects[type].push({id,type,name,credits,grades:[]});
+    closeModal('addSubjModal'); refreshVoti(); toast('Materia aggiunta');
+  } catch(e){ toast(e.message,'err') }
+}
+
+async function deleteSubject(id,type){
+  if(!confirm('Eliminare questa materia e tutti i suoi voti?')) return;
+  try {
+    await api('DELETE','/api/grades/subjects/'+id);
+    vdb.subjects[type]=vdb.subjects[type].filter(s=>s.id!==id);
+    refreshVoti(); toast('Materia eliminata');
+  } catch(e){ toast(e.message,'err') }
+}
+
 // ── PUNIZIONI ──
 function renderPunizioni(){
   const pen=calcPenalties();
@@ -1596,11 +1489,10 @@ function renderPunizioni(){
   document.getElementById('p-total').textContent=fmt(pen.total);
   document.getElementById('consegnaRateLabel').textContent=vdb.settings.pen_consegna_rate||0.5;
   const rate=parseFloat(vdb.settings.pen_consegna_rate)||0.5;
-
   function renderList(type,elId){
     const el=document.getElementById(elId);
     const items=vdb.penalties[type];
-    el.innerHTML=items.length?`<table class="data-table"><thead><tr><th>Data</th><th>Giorni</th><th>Penalità</th><th>Motivazione</th><th></th></tr></thead><tbody>
+    el.innerHTML=items.length?`<table class="data-table"><thead><tr><th>Data</th><th>Giorni</th><th>Penalità</th><th>Motivazione</th><th></th></tr></thead>
     ${items.map(p=>`<tr>
       <td>${fmtDate(p.date)}</td><td>${p.days}</td>
       <td style="color:var(--red-light)">${type==='consegna'?'−'+fmt(p.days*rate)+' pt':'−'+fmt(3.5+p.days)+' pt'}</td>
