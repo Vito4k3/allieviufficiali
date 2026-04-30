@@ -20,13 +20,13 @@ const JWT_SECRET = process.env.JWT_SECRET || 'accademia_modena_jwt_secret_2024_C
 const PORT       = parseInt(process.env.PORT || '3000');
 
 const DB_CONFIG = {
-  host             : process.env.DB_HOST || 'localhost',
+  host             : process.env.DB_HOST || 'sql7.freesqldatabase.com',
   port             : parseInt(process.env.DB_PORT || '3306'),
-  user             : process.env.DB_USER || 'root',
-  password         : process.env.DB_PASS || '',
-  database         : process.env.DB_NAME || 'accademia_modena',
+  user             : process.env.DB_USER || 'sql7824955',
+  password         : process.env.DB_PASS || '5Nfb39Cmdz',
+  database         : process.env.DB_NAME || 'sql7824955',
   waitForConnections: true,
-  connectionLimit  : 10,
+  connectionLimit  : 52,
   charset          : 'utf8mb4'
 };
 
