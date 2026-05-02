@@ -13,7 +13,7 @@ let vdb = {
   schedule: {}, notes: [],
   settings: { weight_uni:50, weight_acad:50, weight_gym:50, weight_mil:50, pen_consegna_rate:0.5 }
 };
-let allLists = [], currentListTab = 'liberi_sab_pom';
+let allLists = [], currentListTab = 'liberi_sab_pom', openListId = null;
 let bachecaInterval = null;
 
 const LIST_LABELS = {
@@ -198,6 +198,7 @@ async function loadListe(){
 }
 function switchListTab(type, btn){
   currentListTab=type;
+  openListId=null; // chiudi qualsiasi card aperta quando cambi tab
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   renderListContent();
@@ -226,8 +227,12 @@ async function createList(){
 }
 async function deleteList(id){
   if(!confirm('Eliminare questa lista e tutte le iscrizioni?')) return;
-  try { await api('DELETE','/api/lists/'+id); toast('Lista eliminata'); await loadListe() }
-  catch(e){ toast(e.message,'err') }
+  try {
+    await api('DELETE','/api/lists/'+id);
+    if(openListId===id) openListId=null;
+    toast('Lista eliminata');
+    await loadListe();
+  } catch(e){ toast(e.message,'err') }
 }
 
 function renderListContent(){
@@ -286,35 +291,53 @@ function renderSignupList(l,isAdmin,isParlatorio){
     </div>`).join('');
 }
 
+// Riapre il body della lista aperta dopo ogni re-render del DOM
+function _applyOpenList(){
+  if(!openListId) return;
+  const el=document.getElementById('lbody-'+openListId);
+  if(el) el.classList.add('open');
+}
+
 async function loadListDetail(listId){
   try {
     const detail=await api('GET','/api/lists/'+listId);
     const idx=allLists.findIndex(l=>l.id===listId);
     if(idx>=0) allLists[idx]={...allLists[idx],...detail,signup_count:detail.signups.length};
     renderListContent();
+    // renderListContent distrugge il DOM: riapri il card corretto
+    _applyOpenList();
   } catch(e){ toast(e.message,'err') }
 }
 
 function toggleListCard(id){
-  const el=document.getElementById(id);
-  if(!el) return;
-  const isOpen=el.classList.contains('open');
-  // Carica dettaglio se apre per la prima volta
-  if(!isOpen){
-    const listId=id.replace('lbody-','');
-    const list=allLists.find(l=>l.id===listId);
-    if(list&&!list.signups) loadListDetail(listId);
-    else renderListContent();
+  const listId=id.replace('lbody-','');
+  if(openListId===listId){
+    // Era gia aperto: chiudi
+    openListId=null;
+    const el=document.getElementById(id);
+    if(el) el.classList.remove('open');
+    return;
   }
-  el.classList.toggle('open',!isOpen);
+  // Apri questo
+  openListId=listId;
+  const list=allLists.find(l=>l.id===listId);
+  if(list&&!list.signups){
+    // Prima apertura: carica iscritti dal server
+    // loadListDetail chiamera _applyOpenList dopo il render
+    loadListDetail(listId);
+  } else {
+    // Dati gia presenti: apri subito
+    renderListContent();
+    _applyOpenList();
+  }
 }
 
 async function signupList(listId){
   try {
     await api('POST','/api/lists/'+listId+'/signup',{signup_id:uid()});
     toast('Iscritto!');
+    openListId=listId;
     await loadListDetail(listId);
-    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
 async function unsignupList(listId){
@@ -322,8 +345,8 @@ async function unsignupList(listId){
   try {
     await api('DELETE','/api/lists/'+listId+'/signup');
     toast('Iscrizione rimossa');
+    openListId=listId;
     await loadListDetail(listId);
-    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
 async function removeSignup(listId,userId){
@@ -331,8 +354,8 @@ async function removeSignup(listId,userId){
   try {
     await api('DELETE','/api/lists/'+listId+'/signup/'+userId);
     toast('Iscritto rimosso');
+    openListId=listId;
     await loadListDetail(listId);
-    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
 function openParlatorioModal(listId){
@@ -351,8 +374,8 @@ async function confirmParlatorioSignup(){
   try {
     await api('POST','/api/lists/'+listId+'/signup',{signup_id:uid(),relative_name,relative_relation,relative_id_card});
     closeModal('parlatorioModal'); toast('Iscritto al parlatorio!');
+    openListId=listId;
     await loadListDetail(listId);
-    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
 
