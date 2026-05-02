@@ -34,7 +34,7 @@ const DB_CONFIG = {
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'Public')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ── DB POOL ───────────────────────────────────────────────────
 let pool;
@@ -612,7 +612,7 @@ app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
 
 // ── FALLBACK: SPA ─────────────────────────────────────────────
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'Public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ── START ─────────────────────────────────────────────────────
