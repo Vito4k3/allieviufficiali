@@ -1,5 +1,5 @@
 // ============================================================
-//  ACCADEMIA MILITARE DI MODENA — Backend Server
+//  Portale Allievi Ufficiali — Backend Server
 //  Node.js + Express + MySQL
 //  Avvio: npm install && node server.js
 // ============================================================
@@ -16,7 +16,7 @@ const path         = require('path');
 const app = express();
 
 // ── CONFIG ────────────────────────────────────────────────────
-const JWT_SECRET = process.env.JWT_SECRET || 'accademia_modena_jwt_secret_2024_CAMBIA_IN_PROD';
+const JWT_SECRET = process.env.JWT_SECRET || 'portale_au_jwt_secret_2024_CAMBIA_IN_PROD';
 const PORT       = parseInt(process.env.PORT || '3000');
 
 const DB_CONFIG = {
@@ -34,7 +34,7 @@ const DB_CONFIG = {
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'Public')));
 
 // ── DB POOL ───────────────────────────────────────────────────
 let pool;
@@ -72,7 +72,6 @@ function requireAdmin(req, res, next) {
 }
 
 // ── SETUP (primo avvio) ───────────────────────────────────────
-// POST /api/setup  →  crea il primo admin se non esiste nessun utente
 app.post('/api/setup', async (req, res) => {
   try {
     const c = await db();
@@ -143,6 +142,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// /api/auth/me — legge sempre da DB e rilascia nuovo token con permessi aggiornati
 app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
@@ -155,7 +155,19 @@ app.get('/api/auth/me', auth, async (req, res) => {
     u.can_access_finance = !!u.can_access_finance;
     u.can_access_grades  = !!u.can_access_grades;
     u.is_admin           = !!u.is_admin;
-    res.json(u);
+
+    // Rilascia un token fresco con i permessi attuali dal DB
+    const payload = {
+      id: u.id, username: u.username, full_name: u.full_name,
+      military_rank: u.military_rank,
+      can_access_finance: u.can_access_finance,
+      can_access_grades:  u.can_access_grades,
+      is_admin: u.is_admin
+    };
+    const freshToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('token', freshToken, { httpOnly: true, maxAge: 7 * 86400 * 1000 });
+
+    res.json({ ...u, token: freshToken });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -165,14 +177,20 @@ app.get('/api/auth/me', auth, async (req, res) => {
 app.get('/api/announcements', auth, async (req, res) => {
   try {
     const c = await db();
-    const [rows] = await c.execute(`
+    // Supporta long-polling leggero: ?since=id per prendere solo i nuovi
+    const sinceId = parseInt(req.query.since) || 0;
+    let query = `
       SELECT a.id, a.content, a.created_at,
              u.id AS author_id, u.username, u.full_name, u.military_rank
       FROM announcements a
-      JOIN users u ON a.user_id = u.id
-      ORDER BY a.created_at DESC
-      LIMIT 100
-    `);
+      JOIN users u ON a.user_id = u.id`;
+    const params = [];
+    if (sinceId > 0) {
+      query += ' WHERE a.id > ?';
+      params.push(sinceId);
+    }
+    query += ' ORDER BY a.created_at DESC LIMIT 100';
+    const [rows] = await c.execute(query, params);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -207,7 +225,10 @@ app.get('/api/finance', auth, requireFinance, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,type,description AS `desc`,amount,date,category AS cat,note FROM finance_transactions WHERE user_id=? ORDER BY date DESC',
+      `SELECT id,type,description AS \`desc\`,amount,
+              DATE_FORMAT(date,'%Y-%m-%d') AS date,
+              category AS cat,note
+       FROM finance_transactions WHERE user_id=? ORDER BY date DESC`,
       [req.user.id]
     );
     res.json(rows);
@@ -445,6 +466,112 @@ app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── LISTE ──────────────────────────────────────────────────────
+// GET tutte le liste (tutti gli utenti autenticati le vedono)
+app.get('/api/lists', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [lists] = await c.execute(`
+      SELECT l.id, l.list_type, DATE_FORMAT(l.list_date,'%Y-%m-%d') AS list_date,
+             l.notes, l.created_at,
+             u.full_name AS creator_name,
+             COUNT(s.id) AS signup_count
+      FROM lists l
+      LEFT JOIN users u ON l.created_by = u.id
+      LEFT JOIN list_signups s ON l.id = s.list_id
+      GROUP BY l.id
+      ORDER BY l.list_date DESC, l.list_type
+    `);
+    res.json(lists);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET dettaglio lista con iscritti
+app.get('/api/lists/:id', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [[list]] = await c.execute(
+      `SELECT id, list_type, DATE_FORMAT(list_date,'%Y-%m-%d') AS list_date, notes, created_at FROM lists WHERE id=?`,
+      [req.params.id]
+    );
+    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
+    const [signups] = await c.execute(`
+      SELECT s.id, s.user_id, s.relative_name, s.relative_relation, s.relative_id_card, s.signed_up_at,
+             u.full_name, u.military_rank, u.username
+      FROM list_signups s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.list_id = ?
+      ORDER BY s.signed_up_at
+    `, [req.params.id]);
+    res.json({ ...list, signups });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST crea nuova lista (solo admin)
+app.post('/api/lists', auth, requireAdmin, async (req, res) => {
+  const { id, list_type, list_date, notes } = req.body;
+  if (!id || !list_type || !list_date)
+    return res.status(400).json({ error: 'Tipo lista e data obbligatori' });
+  try {
+    const c = await db();
+    await c.execute(
+      'INSERT INTO lists (id, list_type, list_date, created_by, notes) VALUES (?,?,?,?,?)',
+      [id, list_type, list_date, req.user.id, notes || '']
+    );
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE elimina lista (solo admin)
+app.delete('/api/lists/:id', auth, requireAdmin, async (req, res) => {
+  try {
+    const c = await db();
+    await c.execute('DELETE FROM list_signups WHERE list_id=?', [req.params.id]);
+    await c.execute('DELETE FROM lists WHERE id=?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST iscriviti a una lista
+app.post('/api/lists/:id/signup', auth, async (req, res) => {
+  const { signup_id, relative_name, relative_relation, relative_id_card } = req.body;
+  try {
+    const c = await db();
+    // Verifica che la lista esista
+    const [[list]] = await c.execute('SELECT id, list_type FROM lists WHERE id=?', [req.params.id]);
+    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
+    await c.execute(
+      'INSERT INTO list_signups (id, list_id, user_id, relative_name, relative_relation, relative_id_card) VALUES (?,?,?,?,?,?)',
+      [signup_id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6)),
+       req.params.id, req.user.id,
+       relative_name || '', relative_relation || '', relative_id_card || '']
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY')
+      return res.status(400).json({ error: 'Sei già iscritto a questa lista' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE cancella iscrizione
+app.delete('/api/lists/:id/signup', auth, async (req, res) => {
+  try {
+    const c = await db();
+    await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE rimuovi singolo iscritto (admin)
+app.delete('/api/lists/:id/signup/:userId', auth, requireAdmin, async (req, res) => {
+  try {
+    const c = await db();
+    await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── ADMIN ─────────────────────────────────────────────────────
 app.get('/api/admin/users', auth, requireAdmin, async (req, res) => {
   try {
@@ -485,12 +612,41 @@ app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
 
 // ── FALLBACK: SPA ─────────────────────────────────────────────
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'Public', 'index.html'));
 });
 
 // ── START ─────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n⚔  Accademia Modena — Server avviato`);
+app.listen(PORT, async () => {
+  // Crea le tabelle delle liste se non esistono
+  try {
+    const c = await db();
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS lists (
+        id VARCHAR(32) PRIMARY KEY,
+        list_type VARCHAR(50) NOT NULL,
+        list_date DATE NOT NULL,
+        created_by INT NOT NULL,
+        notes TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS list_signups (
+        id VARCHAR(32) PRIMARY KEY,
+        list_id VARCHAR(32) NOT NULL,
+        user_id INT NOT NULL,
+        relative_name VARCHAR(255) DEFAULT '',
+        relative_relation VARCHAR(100) DEFAULT '',
+        relative_id_card VARCHAR(100) DEFAULT '',
+        signed_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_list_user (list_id, user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+  } catch (e) {
+    console.error('   Attenzione — init tabelle liste:', e.message);
+  }
+
+  console.log(`\n  Portale AU — Server avviato`);
   console.log(`   URL:  http://localhost:${PORT}`);
   console.log(`   DB:   ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}\n`);
 });
