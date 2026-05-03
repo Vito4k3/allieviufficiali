@@ -328,7 +328,7 @@ function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
     if(isMessa)
       return `<button class="btn btn-gold" onclick="openMessaModal('${l.id}')">✋ Iscriviti alla Messa</button>`;
     if(isCustom)
-      return `<button class="btn btn-gold" onclick="openCustomSignupModal('${l.id}',${JSON.stringify(l.custom_field_label||'')})">✋ Iscriviti</button>`;
+      return `<button class="btn btn-gold" onclick="openCustomSignupModal('${l.id}')">✋ Iscriviti</button>`;
     return `<button class="btn btn-gold" onclick="signupList('${l.id}')">✋ Iscriviti</button>`;
   }
 
@@ -465,10 +465,11 @@ async function confirmMessaSignup(){
 
 // ── LISTA PERSONALIZZATA (iscrizione con campo custom) ──
 let _customSignupListId = '', _customSignupLabel = '';
-function openCustomSignupModal(listId, label){
+function openCustomSignupModal(listId){
   _customSignupListId = listId;
-  _customSignupLabel  = label;
-  document.getElementById('customSignupLabel').textContent = label || 'Nota / Info';
+  const list = allLists.find(l => l.id === listId);
+  _customSignupLabel  = list?.custom_field_label || '';
+  document.getElementById('customSignupLabel').textContent = _customSignupLabel || 'Nota / Info';
   document.getElementById('customSignupValue').value = '';
   openModal('customSignupModal');
 }
