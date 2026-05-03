@@ -34,7 +34,7 @@ const DB_CONFIG = {
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'Public')));
 
 // ── DB POOL ───────────────────────────────────────────────────
 let pool;
@@ -467,12 +467,14 @@ app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
 });
 
 // ── LISTE ──────────────────────────────────────────────────────
-// GET tutte le liste (tutti gli utenti autenticati le vedono)
+
+// GET tutte le liste
 app.get('/api/lists', auth, async (req, res) => {
   try {
     const c = await db();
     const [lists] = await c.execute(`
-      SELECT l.id, l.list_type, DATE_FORMAT(l.list_date,'%Y-%m-%d') AS list_date,
+      SELECT l.id, l.list_type, l.custom_name, l.custom_field_label,
+             DATE_FORMAT(l.list_date,'%Y-%m-%d') AS list_date,
              l.notes, l.created_at,
              u.full_name AS creator_name,
              COUNT(s.id) AS signup_count
@@ -480,43 +482,64 @@ app.get('/api/lists', auth, async (req, res) => {
       LEFT JOIN users u ON l.created_by = u.id
       LEFT JOIN list_signups s ON l.id = s.list_id
       GROUP BY l.id
-      ORDER BY l.list_date DESC, l.list_type
+      ORDER BY l.list_date DESC, l.created_at DESC
     `);
     res.json(lists);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET dettaglio lista con iscritti
+// GET dettaglio lista con iscritti + parenti (parlatorio) + nota (messa/custom)
 app.get('/api/lists/:id', auth, async (req, res) => {
   try {
     const c = await db();
     const [[list]] = await c.execute(
-      `SELECT id, list_type, DATE_FORMAT(list_date,'%Y-%m-%d') AS list_date, notes, created_at FROM lists WHERE id=?`,
+      `SELECT id, list_type, custom_name, custom_field_label,
+              DATE_FORMAT(list_date,'%Y-%m-%d') AS list_date, notes, created_at
+       FROM lists WHERE id=?`,
       [req.params.id]
     );
     if (!list) return res.status(404).json({ error: 'Lista non trovata' });
+
     const [signups] = await c.execute(`
-      SELECT s.id, s.user_id, s.relative_name, s.relative_relation, s.relative_id_card, s.signed_up_at,
+      SELECT s.id, s.user_id, s.note, s.relative_name, s.relative_relation, s.relative_id_card, s.signed_up_at,
              u.full_name, u.military_rank, u.username
       FROM list_signups s
       JOIN users u ON s.user_id = u.id
       WHERE s.list_id = ?
       ORDER BY s.signed_up_at
     `, [req.params.id]);
+
+    // Per il parlatorio: carica i parenti aggiuntivi per ogni iscritto
+    if (list.list_type === 'parlatorio') {
+      const userIds = signups.map(s => s.user_id);
+      if (userIds.length > 0) {
+        const placeholders = userIds.map(() => '?').join(',');
+        const [relatives] = await c.execute(
+          `SELECT * FROM list_signup_relatives WHERE list_id=? AND user_id IN (${placeholders}) ORDER BY created_at`,
+          [req.params.id, ...userIds]
+        );
+        signups.forEach(s => {
+          s.relatives = relatives.filter(r => r.user_id === s.user_id);
+        });
+      }
+    }
+
     res.json({ ...list, signups });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // POST crea nuova lista (solo admin)
 app.post('/api/lists', auth, requireAdmin, async (req, res) => {
-  const { id, list_type, list_date, notes } = req.body;
+  const { id, list_type, list_date, notes, custom_name, custom_field_label } = req.body;
   if (!id || !list_type || !list_date)
     return res.status(400).json({ error: 'Tipo lista e data obbligatori' });
+  if (list_type === 'custom' && !custom_name)
+    return res.status(400).json({ error: 'Inserisci il nome della lista personalizzata' });
   try {
     const c = await db();
     await c.execute(
-      'INSERT INTO lists (id, list_type, list_date, created_by, notes) VALUES (?,?,?,?,?)',
-      [id, list_type, list_date, req.user.id, notes || '']
+      'INSERT INTO lists (id,list_type,list_date,created_by,notes,custom_name,custom_field_label) VALUES (?,?,?,?,?,?,?)',
+      [id, list_type, list_date, req.user.id, notes||'', custom_name||'', custom_field_label||'']
     );
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -526,25 +549,24 @@ app.post('/api/lists', auth, requireAdmin, async (req, res) => {
 app.delete('/api/lists/:id', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
+    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=?', [req.params.id]);
     await c.execute('DELETE FROM list_signups WHERE list_id=?', [req.params.id]);
     await c.execute('DELETE FROM lists WHERE id=?', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST iscriviti a una lista
+// POST iscriviti a una lista (con nota opzionale per messa/custom, senza parenti per parlatorio)
 app.post('/api/lists/:id/signup', auth, async (req, res) => {
-  const { signup_id, relative_name, relative_relation, relative_id_card } = req.body;
+  const { signup_id, note, relative_name, relative_relation, relative_id_card } = req.body;
   try {
     const c = await db();
-    // Verifica che la lista esista
-    const [[list]] = await c.execute('SELECT id, list_type FROM lists WHERE id=?', [req.params.id]);
+    const [[list]] = await c.execute('SELECT id,list_type FROM lists WHERE id=?', [req.params.id]);
     if (!list) return res.status(404).json({ error: 'Lista non trovata' });
+    const sid = signup_id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
     await c.execute(
-      'INSERT INTO list_signups (id, list_id, user_id, relative_name, relative_relation, relative_id_card) VALUES (?,?,?,?,?,?)',
-      [signup_id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6)),
-       req.params.id, req.user.id,
-       relative_name || '', relative_relation || '', relative_id_card || '']
+      'INSERT INTO list_signups (id,list_id,user_id,note,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?,?)',
+      [sid, req.params.id, req.user.id, note||'', relative_name||'', relative_relation||'', relative_id_card||'']
     );
     res.json({ ok: true });
   } catch (e) {
@@ -554,10 +576,11 @@ app.post('/api/lists/:id/signup', auth, async (req, res) => {
   }
 });
 
-// DELETE cancella iscrizione
+// DELETE cancella iscrizione (+ tutti i parenti se parlatorio)
 app.delete('/api/lists/:id/signup', auth, async (req, res) => {
   try {
     const c = await db();
+    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
     await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -567,7 +590,50 @@ app.delete('/api/lists/:id/signup', auth, async (req, res) => {
 app.delete('/api/lists/:id/signup/:userId', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
+    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
     await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST aggiungi parente al parlatorio (può chiamarsi più volte)
+app.post('/api/lists/:id/relatives', auth, async (req, res) => {
+  const { id, relative_name, relative_relation, relative_id_card } = req.body;
+  if (!relative_name) return res.status(400).json({ error: 'Nome parente obbligatorio' });
+  try {
+    const c = await db();
+    // Verifica che l'utente sia iscritto
+    const [[signup]] = await c.execute(
+      'SELECT id FROM list_signups WHERE list_id=? AND user_id=?',
+      [req.params.id, req.user.id]
+    );
+    if (!signup) return res.status(400).json({ error: 'Devi prima iscriverti alla lista' });
+    const rid = id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+    await c.execute(
+      'INSERT INTO list_signup_relatives (id,list_id,user_id,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?)',
+      [rid, req.params.id, req.user.id, relative_name, relative_relation||'', relative_id_card||'']
+    );
+    res.json({ ok: true, id: rid });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE rimuovi un singolo parente
+app.delete('/api/lists/:id/relatives/:relId', auth, async (req, res) => {
+  try {
+    const c = await db();
+    await c.execute(
+      'DELETE FROM list_signup_relatives WHERE id=? AND list_id=? AND user_id=?',
+      [req.params.relId, req.params.id, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE rimuovi tutti i parenti di un utente (admin)
+app.delete('/api/lists/:id/relatives/user/:userId', auth, requireAdmin, async (req, res) => {
+  try {
+    const c = await db();
+    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -612,34 +678,57 @@ app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
 
 // ── FALLBACK: SPA ─────────────────────────────────────────────
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'Public', 'index.html'));
 });
 
 // ── START ─────────────────────────────────────────────────────
 app.listen(PORT, async () => {
-  // Crea le tabelle delle liste se non esistono
+  // Crea/aggiorna tabelle liste
   try {
     const c = await db();
+    // Tabella lists (con nuovi campi custom)
     await c.execute(`
       CREATE TABLE IF NOT EXISTS lists (
-        id VARCHAR(32) PRIMARY KEY,
-        list_type VARCHAR(50) NOT NULL,
-        list_date DATE NOT NULL,
-        created_by INT NOT NULL,
-        notes TEXT DEFAULT '',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id                 VARCHAR(32)  PRIMARY KEY,
+        list_type          VARCHAR(50)  NOT NULL,
+        list_date          DATE         NOT NULL,
+        created_by         INT          NOT NULL,
+        notes              TEXT         DEFAULT '',
+        custom_name        VARCHAR(200) DEFAULT '',
+        custom_field_label VARCHAR(200) DEFAULT '',
+        created_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+    // Aggiunge le colonne custom se la tabella esisteva già senza di esse
+    try { await c.execute("ALTER TABLE lists ADD COLUMN custom_name VARCHAR(200) DEFAULT ''") } catch {}
+    try { await c.execute("ALTER TABLE lists ADD COLUMN custom_field_label VARCHAR(200) DEFAULT ''") } catch {}
+
+    // Tabella list_signups (con campo note per messa/custom)
     await c.execute(`
       CREATE TABLE IF NOT EXISTS list_signups (
-        id VARCHAR(32) PRIMARY KEY,
-        list_id VARCHAR(32) NOT NULL,
-        user_id INT NOT NULL,
-        relative_name VARCHAR(255) DEFAULT '',
+        id                VARCHAR(32)  PRIMARY KEY,
+        list_id           VARCHAR(32)  NOT NULL,
+        user_id           INT          NOT NULL,
+        note              TEXT         DEFAULT '',
+        relative_name     VARCHAR(255) DEFAULT '',
         relative_relation VARCHAR(100) DEFAULT '',
-        relative_id_card VARCHAR(100) DEFAULT '',
-        signed_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        relative_id_card  VARCHAR(100) DEFAULT '',
+        signed_up_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_list_user (list_id, user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    try { await c.execute("ALTER TABLE list_signups ADD COLUMN note TEXT DEFAULT ''") } catch {}
+
+    // Tabella parenti aggiuntivi (parlatorio multi-parente)
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS list_signup_relatives (
+        id                VARCHAR(32)  PRIMARY KEY,
+        list_id           VARCHAR(32)  NOT NULL,
+        user_id           INT          NOT NULL,
+        relative_name     VARCHAR(200) NOT NULL,
+        relative_relation VARCHAR(100) DEFAULT '',
+        relative_id_card  VARCHAR(100) DEFAULT '',
+        created_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
   } catch (e) {
