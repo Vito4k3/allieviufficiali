@@ -33,7 +33,7 @@ const DB_CONFIG = {
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'Public')));
 
 // ── DB POOL ───────────────────────────────────────────────────
 let pool;
@@ -101,6 +101,26 @@ async function initDB() {
         UNIQUE KEY unique_signup (list_id, user_id)
       )
     `);
+
+    // colonne custom liste
+try { await c.execute("ALTER TABLE lists ADD COLUMN custom_name VARCHAR(200) DEFAULT ''") } catch {}
+try { await c.execute("ALTER TABLE lists ADD COLUMN custom_field_label VARCHAR(200) DEFAULT ''") } catch {}
+
+// campo note signup
+try { await c.execute("ALTER TABLE list_signups ADD COLUMN note TEXT DEFAULT ''") } catch {}
+
+// tabella parenti
+await c.execute(`
+  CREATE TABLE IF NOT EXISTS list_signup_relatives (
+    id VARCHAR(32) PRIMARY KEY,
+    list_id VARCHAR(32),
+    user_id INT,
+    relative_name VARCHAR(200),
+    relative_relation VARCHAR(100),
+    relative_id_card VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`);
 
     console.log('   DB: tabelle inizializzate');
   } catch(e) {
@@ -606,174 +626,81 @@ app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
 });
 
 // ── LISTE ─────────────────────────────────────────────────────
-// GET tutte le liste
 app.get('/api/lists', auth, async (req, res) => {
   try {
     const c = await db();
     const [lists] = await c.execute(`
-      SELECT l.id, l.list_type, l.custom_name, l.custom_field_label,
-             DATE_FORMAT(l.list_date,'%Y-%m-%d') AS list_date,
-             l.notes, l.created_at,
-             u.full_name AS creator_name,
-             COUNT(s.id) AS signup_count
-      FROM lists l
-      LEFT JOIN users u ON l.created_by = u.id
-      LEFT JOIN list_signups s ON l.id = s.list_id
-      GROUP BY l.id
-      ORDER BY l.list_date DESC, l.created_at DESC
+      SELECT l.*, COUNT(s.id) AS signup_count
+      FROM lists l LEFT JOIN list_signups s ON l.id=s.list_id
+      GROUP BY l.id ORDER BY l.list_date DESC, l.created_at DESC
     `);
     res.json(lists);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET dettaglio lista con iscritti + parenti (parlatorio) + nota (messa/custom)
-app.get('/api/lists/:id', auth, async (req, res) => {
-  try {
-    const c = await db();
-    const [[list]] = await c.execute(
-      `SELECT id, list_type, custom_name, custom_field_label,
-              DATE_FORMAT(list_date,'%Y-%m-%d') AS list_date, notes, created_at
-       FROM lists WHERE id=?`,
-      [req.params.id]
-    );
-    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
-
-    const [signups] = await c.execute(`
-      SELECT s.id, s.user_id, s.note, s.relative_name, s.relative_relation, s.relative_id_card, s.signed_up_at,
-             u.full_name, u.military_rank, u.username
-      FROM list_signups s
-      JOIN users u ON s.user_id = u.id
-      WHERE s.list_id = ?
-      ORDER BY s.signed_up_at
-    `, [req.params.id]);
-
-    // Per il parlatorio: carica i parenti aggiuntivi per ogni iscritto
-    if (list.list_type === 'parlatorio') {
-      const userIds = signups.map(s => s.user_id);
-      if (userIds.length > 0) {
-        const placeholders = userIds.map(() => '?').join(',');
-        const [relatives] = await c.execute(
-          `SELECT * FROM list_signup_relatives WHERE list_id=? AND user_id IN (${placeholders}) ORDER BY created_at`,
-          [req.params.id, ...userIds]
-        );
-        signups.forEach(s => {
-          s.relatives = relatives.filter(r => r.user_id === s.user_id);
-        });
-      }
-    }
-
-    res.json({ ...list, signups });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// POST crea nuova lista (solo admin)
 app.post('/api/lists', auth, requireAdmin, async (req, res) => {
-  const { id, list_type, list_date, notes, custom_name, custom_field_label } = req.body;
-  if (!id || !list_type || !list_date)
-    return res.status(400).json({ error: 'Tipo lista e data obbligatori' });
-  if (list_type === 'custom' && !custom_name)
-    return res.status(400).json({ error: 'Inserisci il nome della lista personalizzata' });
+  const { id, list_type, list_date, notes } = req.body;
+  if (!list_date) return res.status(400).json({ error: 'Data obbligatoria' });
   try {
     const c = await db();
-    await c.execute(
-      'INSERT INTO lists (id,list_type,list_date,created_by,notes,custom_name,custom_field_label) VALUES (?,?,?,?,?,?,?)',
-      [id, list_type, list_date, req.user.id, notes||'', custom_name||'', custom_field_label||'']
-    );
+    await c.execute('INSERT INTO lists (id,list_type,list_date,notes,created_by) VALUES (?,?,?,?,?)',
+      [id, list_type, list_date, notes || '', req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE elimina lista (solo admin)
 app.delete('/api/lists/:id', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=?', [req.params.id]);
     await c.execute('DELETE FROM list_signups WHERE list_id=?', [req.params.id]);
     await c.execute('DELETE FROM lists WHERE id=?', [req.params.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST iscriviti a una lista (con nota opzionale per messa/custom, senza parenti per parlatorio)
-app.post('/api/lists/:id/signup', auth, async (req, res) => {
-  const { signup_id, note, relative_name, relative_relation, relative_id_card } = req.body;
+app.get('/api/lists/:id', auth, async (req, res) => {
   try {
     const c = await db();
-    const [[list]] = await c.execute('SELECT id,list_type FROM lists WHERE id=?', [req.params.id]);
-    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
-    const sid = signup_id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+    const [lists] = await c.execute('SELECT * FROM lists WHERE id=?', [req.params.id]);
+    if (!lists.length) return res.status(404).json({ error: 'Lista non trovata' });
+    const [signups] = await c.execute(`
+      SELECT s.*, u.username, u.full_name, u.military_rank
+      FROM list_signups s JOIN users u ON s.user_id=u.id
+      WHERE s.list_id=? ORDER BY s.created_at ASC
+    `, [req.params.id]);
+    res.json({ ...lists[0], signups });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/lists/:id/signup', auth, async (req, res) => {
+  const { signup_id, relative_name, relative_relation, relative_id_card } = req.body;
+  try {
+    const c = await db();
     await c.execute(
-      'INSERT INTO list_signups (id,list_id,user_id,note,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?,?)',
-      [sid, req.params.id, req.user.id, note||'', relative_name||'', relative_relation||'', relative_id_card||'']
+      'INSERT INTO list_signups (id,list_id,user_id,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?)',
+      [signup_id, req.params.id, req.user.id, relative_name || null, relative_relation || null, relative_id_card || null]
     );
     res.json({ ok: true });
-  } catch (e) {
-    if (e.code === 'ER_DUP_ENTRY')
-      return res.status(400).json({ error: 'Sei già iscritto a questa lista' });
+  } catch(e) {
+    if (e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Già iscritto a questa lista' });
     res.status(500).json({ error: e.message });
   }
 });
 
-// DELETE cancella iscrizione (+ tutti i parenti se parlatorio)
 app.delete('/api/lists/:id/signup', auth, async (req, res) => {
   try {
     const c = await db();
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
     await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE rimuovi singolo iscritto (admin)
-app.delete('/api/lists/:id/signup/:userId', auth, requireAdmin, async (req, res) => {
+app.delete('/api/lists/:listId/signup/:userId', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
-    await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
+    await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.listId, req.params.userId]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// POST aggiungi parente al parlatorio (può chiamarsi più volte)
-app.post('/api/lists/:id/relatives', auth, async (req, res) => {
-  const { id, relative_name, relative_relation, relative_id_card } = req.body;
-  if (!relative_name) return res.status(400).json({ error: 'Nome parente obbligatorio' });
-  try {
-    const c = await db();
-    // Verifica che l'utente sia iscritto
-    const [[signup]] = await c.execute(
-      'SELECT id FROM list_signups WHERE list_id=? AND user_id=?',
-      [req.params.id, req.user.id]
-    );
-    if (!signup) return res.status(400).json({ error: 'Devi prima iscriverti alla lista' });
-    const rid = id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-    await c.execute(
-      'INSERT INTO list_signup_relatives (id,list_id,user_id,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?)',
-      [rid, req.params.id, req.user.id, relative_name, relative_relation||'', relative_id_card||'']
-    );
-    res.json({ ok: true, id: rid });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// DELETE rimuovi un singolo parente
-app.delete('/api/lists/:id/relatives/:relId', auth, async (req, res) => {
-  try {
-    const c = await db();
-    await c.execute(
-      'DELETE FROM list_signup_relatives WHERE id=? AND list_id=? AND user_id=?',
-      [req.params.relId, req.params.id, req.user.id]
-    );
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// DELETE rimuovi tutti i parenti di un utente (admin)
-app.delete('/api/lists/:id/relatives/user/:userId', auth, requireAdmin, async (req, res) => {
-  try {
-    const c = await db();
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── ADMIN ─────────────────────────────────────────────────────
@@ -814,10 +741,9 @@ app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
 // ── FALLBACK SPA ──────────────────────────────────────────────
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'Public', 'index.html'));
 });
 
 // ── START ─────────────────────────────────────────────────────
