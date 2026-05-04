@@ -32,7 +32,7 @@ const DB_CONFIG = {
 
 // ── MIDDLEWARE ────────────────────────────────────────────────
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -71,6 +71,12 @@ function requireAdmin(req, res, next) {
   return res.status(403).json({ error: 'Solo gli amministratori possono eseguire questa operazione' });
 }
 
+const ROLES_WITH_COM_WRITE = ['allievo_servizio', 'capo_compagnia', 'vice_capo_compagnia', 'tenente'];
+ 
+function canWriteComunicazioni(user) {
+  return user.is_admin || ROLES_WITH_COM_WRITE.includes(user.role);
+}
+
 // ── SETUP (primo avvio) ───────────────────────────────────────
 app.post('/api/setup', async (req, res) => {
   try {
@@ -81,7 +87,7 @@ app.post('/api/setup', async (req, res) => {
     if (!username || !email || !password) return res.status(400).json({ error: 'Campi obbligatori mancanti' });
     const hash = await bcrypt.hash(password, 12);
     await c.execute(
-      'INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_grades) VALUES (?,?,?,?,1,1,1)',
+      'INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_grades, role) VALUES (?,?,?,?,1,1,1, 'none')',
       [username, email, hash, full_name || username]
     );
     res.json({ ok: true, message: 'Amministratore creato con successo' });
@@ -101,7 +107,7 @@ app.post('/api/auth/register', async (req, res) => {
     const c    = await db();
     const hash = await bcrypt.hash(password, 12);
     const [result] = await c.execute(
-      'INSERT INTO users (username,email,password_hash,full_name) VALUES (?,?,?,?)',
+      'INSERT INTO users (username,email,password_hash,full_name, role) VALUES (?,?,?,?, 'none')',
       [username.trim(), email.trim().toLowerCase(), hash, full_name?.trim() || '']
     );
     res.json({ ok: true, id: result.insertId });
@@ -130,6 +136,7 @@ app.post('/api/auth/login', async (req, res) => {
     const payload = {
       id: user.id, username: user.username, full_name: user.full_name,
       military_rank: user.military_rank,
+      role: user.role || 'none',
       can_access_finance: !!user.can_access_finance,
       can_access_grades:  !!user.can_access_grades,
       is_admin: !!user.is_admin
@@ -147,7 +154,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,military_rank,platoon,academic_year,can_access_finance,can_access_grades,is_admin FROM users WHERE id=?',
+      'SELECT id,username,email,full_name,is_admin,military_rank,platoon,academic_year,can_access_finance,can_access_grades,role FROM users WHERE id=?',
       [req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
@@ -155,6 +162,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
     u.can_access_finance = !!u.can_access_finance;
     u.can_access_grades  = !!u.can_access_grades;
     u.is_admin           = !!u.is_admin;
+    u.role               = u.role || 'none';
 
     // Rilascia un token fresco con i permessi attuali dal DB
     const payload = {
@@ -162,7 +170,8 @@ app.get('/api/auth/me', auth, async (req, res) => {
       military_rank: u.military_rank,
       can_access_finance: u.can_access_finance,
       can_access_grades:  u.can_access_grades,
-      is_admin: u.is_admin
+      is_admin: u.is_admin,
+      role: u.role
     };
     const freshToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('token', freshToken, { httpOnly: true, maxAge: 7 * 86400 * 1000 });
@@ -172,7 +181,18 @@ app.get('/api/auth/me', auth, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
-
+// ── PROFILO ───────────────────────────────────────────────────
+app.put('/api/profile', auth, async (req, res) => {
+  const { full_name, military_rank, platoon, academic_year } = req.body;
+  try {
+    const c = await db();
+    await c.execute(
+      'UPDATE users SET full_name=?, military_rank=?, platoon=?, academic_year=? WHERE id=?',
+      [full_name || '', military_rank || '', platoon || '', academic_year || '1° Anno', req.user.id]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 // ── ANNUNCI ───────────────────────────────────────────────────
 app.get('/api/announcements', auth, async (req, res) => {
   try {
@@ -181,7 +201,7 @@ app.get('/api/announcements', auth, async (req, res) => {
     const sinceId = parseInt(req.query.since) || 0;
     let query = `
       SELECT a.id, a.content, a.created_at,
-             u.id AS author_id, u.username, u.full_name, u.military_rank
+             u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
       FROM announcements a
       JOIN users u ON a.user_id = u.id`;
     const params = [];
@@ -219,7 +239,101 @@ app.delete('/api/announcements/:id', auth, async (req, res) => {
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
+// ── COMUNICAZIONI: CHAT ───────────────────────────────────────
+app.get('/api/comunicazioni/chat', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute(`
+      SELECT m.id, m.content, m.created_at,
+             u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
+      FROM comunicazioni_chat m
+      JOIN users u ON m.user_id = u.id
+      ORDER BY m.created_at ASC LIMIT 300
+    `);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+ 
+app.post('/api/comunicazioni/chat', auth, async (req, res) => {
+  if (!canWriteComunicazioni(req.user))
+    return res.status(403).json({ error: 'Non hai i permessi per scrivere in Comunicazioni' });
+  const { id, content } = req.body;
+  if (!content?.trim()) return res.status(400).json({ error: 'Messaggio vuoto' });
+  try {
+    const c = await db();
+    await c.execute('INSERT INTO comunicazioni_chat (id,user_id,content) VALUES (?,?,?)',
+      [id, req.user.id, content.trim()]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+ 
+app.delete('/api/comunicazioni/chat/:id', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute('SELECT user_id FROM comunicazioni_chat WHERE id=?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Messaggio non trovato' });
+    if (rows[0].user_id !== req.user.id && !req.user.is_admin)
+      return res.status(403).json({ error: 'Non puoi eliminare questo messaggio' });
+    await c.execute('DELETE FROM comunicazioni_chat WHERE id=?', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+ 
+// ── COMUNICAZIONI: COMUNICATI UFFICIALI ───────────────────────
+app.get('/api/comunicazioni/posts', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute(`
+      SELECT p.id, p.title, p.content, p.file_name, p.file_type, p.created_at,
+             u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
+      FROM comunicazioni_posts p
+      JOIN users u ON p.user_id = u.id
+      ORDER BY p.created_at DESC LIMIT 50
+    `);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+ 
+app.get('/api/comunicazioni/posts/:id/file', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute(
+      'SELECT file_name,file_data,file_type FROM comunicazioni_posts WHERE id=?',
+      [req.params.id]
+    );
+    if (!rows.length || !rows[0].file_data)
+      return res.status(404).json({ error: 'File non trovato' });
+    res.json({ file_name: rows[0].file_name, file_data: rows[0].file_data, file_type: rows[0].file_type });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+ 
+app.post('/api/comunicazioni/posts', auth, async (req, res) => {
+  if (!canWriteComunicazioni(req.user))
+    return res.status(403).json({ error: 'Non hai i permessi per pubblicare comunicati' });
+  const { id, title, content, file_name, file_data, file_type } = req.body;
+  if (!title?.trim() && !content?.trim())
+    return res.status(400).json({ error: 'Inserisci almeno un titolo o un contenuto' });
+  try {
+    const c = await db();
+    await c.execute(
+      'INSERT INTO comunicazioni_posts (id,user_id,title,content,file_name,file_data,file_type) VALUES (?,?,?,?,?,?,?)',
+      [id, req.user.id, title || '', content || '', file_name || null, file_data || null, file_type || null]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+ 
+app.delete('/api/comunicazioni/posts/:id', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute('SELECT user_id FROM comunicazioni_posts WHERE id=?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Comunicato non trovato' });
+    if (rows[0].user_id !== req.user.id && !req.user.is_admin)
+      return res.status(403).json({ error: 'Non puoi eliminare questo comunicato' });
+    await c.execute('DELETE FROM comunicazioni_posts WHERE id=?', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 // ── FINANZE ───────────────────────────────────────────────────
 app.get('/api/finance', auth, requireFinance, async (req, res) => {
   try {
@@ -643,24 +757,25 @@ app.get('/api/admin/users', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,military_rank,can_access_finance,can_access_grades,is_admin,created_at FROM users ORDER BY created_at DESC'
+      'SELECT id,username,email,full_name,military_rank,role,can_access_finance,can_access_grades,is_admin,created_at FROM users ORDER BY created_at DESC'
     );
     rows.forEach(u => {
       u.can_access_finance = !!u.can_access_finance;
       u.can_access_grades  = !!u.can_access_grades;
       u.is_admin           = !!u.is_admin;
+      u.role               = u.role || 'none';
     });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
-  const { can_access_finance, can_access_grades, is_admin } = req.body;
+  const { can_access_finance, can_access_grades, is_admin , role} = req.body;
   try {
     const c = await db();
     await c.execute(
-      'UPDATE users SET can_access_finance=?,can_access_grades=?,is_admin=? WHERE id=?',
-      [can_access_finance ? 1 : 0, can_access_grades ? 1 : 0, is_admin ? 1 : 0, req.params.id]
+      'UPDATE users SET can_access_finance=?,can_access_grades=?,is_admin=?, role=? WHERE id=?',
+      [can_access_finance ? 1 : 0, can_access_grades ? 1 : 0, is_admin ? 1 : 0, role || 'none', req.params.id]
     );
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -686,6 +801,36 @@ app.listen(PORT, async () => {
   // Crea/aggiorna tabelle liste
   try {
     const c = await db();
+
+    // Aggiungi colonna role se non esiste
+    try {
+      await c.execute("ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'none'");
+    } catch(e) { /* colonna già esistente */ }
+
+    // Tabella chat comunicazioni
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS comunicazioni_chat (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id INT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+ 
+    // Tabella comunicati ufficiali (con file opzionale)
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS comunicazioni_posts (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id INT NOT NULL,
+        title VARCHAR(255) DEFAULT '',
+        content LONGTEXT,
+        file_name VARCHAR(255),
+        file_data LONGTEXT,
+        file_type VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
     // Tabella lists (con nuovi campi custom)
     await c.execute(`
       CREATE TABLE IF NOT EXISTS lists (
