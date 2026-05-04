@@ -14,6 +14,7 @@ let vdb = {
   settings: { weight_uni:50, weight_acad:50, weight_gym:50, weight_mil:50, pen_consegna_rate:0.5 }
 };
 let allLists = [], currentListTab = 'liberi_sab_pom';
+let openListId = null;
 let bachecaInterval = null;
 let comChatInterval = null;
 let currentComTab = 'chat';
