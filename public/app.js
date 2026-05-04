@@ -1449,6 +1449,11 @@ async function loadAdminUsers(){
         <td style="color:var(--text3)">${u.id}</td>
         <td>${escHtml(u.username)}</td>
         <td style="color:var(--text2)">${escHtml(u.full_name||'—')}</td>
+        <td>
+          <select class="role-select" onchange="setUserRole(${u.id},this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:.2rem .4rem;font-family:var(--font-mono);font-size:.65rem">
+            ${Object.entries(ROLE_LABELS).map(([val,lbl])=>`<option value="${val}" ${u.role===val?'selected':''}>${lbl}</option>`).join('')}
+          </select>
+        </td>
         <td style="color:var(--text3);font-size:.65rem">${fmtDate(u.created_at?.slice(0,10))}</td>
         <td><span class="perm-toggle ${u.can_access_finance?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'finance',${!u.can_access_finance})">${u.can_access_finance?'✓ Sì':'✗ No'}</span></td>
         <td><span class="perm-toggle ${u.can_access_grades?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'grades',${!u.can_access_grades})">${u.can_access_grades?'✓ Sì':'✗ No'}</span></td>
@@ -1478,7 +1483,8 @@ async function togglePerm(id,field,val){
     const upd={
       can_access_finance: field==='finance'?val:u.can_access_finance,
       can_access_grades:  field==='grades' ?val:u.can_access_grades,
-      is_admin:           field==='admin'  ?val:u.is_admin
+      is_admin:           field==='admin'  ?val:u.is_admin,
+      role: u.role
     };
     await api('PUT','/api/admin/users/'+id,upd);
     loadAdminUsers();toast('Permessi aggiornati — effettivi immediatamente per l\'utente','ok');
