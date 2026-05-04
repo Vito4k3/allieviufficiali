@@ -1,7 +1,6 @@
 // ============================================================
-//  Portale Allievi Ufficiali — Backend Server
+//  ACCADEMIA MILITARE DI MODENA — Backend Server
 //  Node.js + Express + MySQL
-//  Avvio: npm install && node server.js
 // ============================================================
 'use strict';
 
@@ -16,7 +15,7 @@ const path         = require('path');
 const app = express();
 
 // ── CONFIG ────────────────────────────────────────────────────
-const JWT_SECRET = process.env.JWT_SECRET || 'portale_au_jwt_secret_2024_CAMBIA_IN_PROD';
+const JWT_SECRET = process.env.JWT_SECRET || 'accademia_modena_jwt_secret_2024_CAMBIA_IN_PROD';
 const PORT       = parseInt(process.env.PORT || '3000');
 
 const DB_CONFIG = {
@@ -32,7 +31,7 @@ const DB_CONFIG = {
 
 // ── MIDDLEWARE ────────────────────────────────────────────────
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -41,6 +40,72 @@ let pool;
 async function db() {
   if (!pool) pool = mysql.createPool(DB_CONFIG);
   return pool;
+}
+
+// ── DB INIT ───────────────────────────────────────────────────
+async function initDB() {
+  try {
+    const c = await db();
+
+    // Aggiungi colonna role se non esiste
+    try {
+      await c.execute("ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'none'");
+    } catch(e) { /* colonna già esistente */ }
+
+    // Tabella chat comunicazioni
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS comunicazioni_chat (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id INT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Tabella comunicati ufficiali (con file opzionale)
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS comunicazioni_posts (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id INT NOT NULL,
+        title VARCHAR(255) DEFAULT '',
+        content LONGTEXT,
+        file_name VARCHAR(255),
+        file_data LONGTEXT,
+        file_type VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Tabella liste
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS lists (
+        id VARCHAR(64) PRIMARY KEY,
+        list_type VARCHAR(50) NOT NULL,
+        list_date DATE NOT NULL,
+        notes VARCHAR(500),
+        created_by INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Tabella iscrizioni liste
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS list_signups (
+        id VARCHAR(64) PRIMARY KEY,
+        list_id VARCHAR(64) NOT NULL,
+        user_id INT NOT NULL,
+        relative_name VARCHAR(255),
+        relative_relation VARCHAR(100),
+        relative_id_card VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_signup (list_id, user_id)
+      )
+    `);
+
+    console.log('   DB: tabelle inizializzate');
+  } catch(e) {
+    console.error('   DB init error:', e.message);
+  }
 }
 
 // ── AUTH MIDDLEWARE ───────────────────────────────────────────
@@ -71,7 +136,13 @@ function requireAdmin(req, res, next) {
   return res.status(403).json({ error: 'Solo gli amministratori possono eseguire questa operazione' });
 }
 
-// ── SETUP (primo avvio) ───────────────────────────────────────
+const ROLES_WITH_COM_WRITE = ['allievo_servizio', 'capo_compagnia', 'vice_capo_compagnia', 'tenente'];
+
+function canWriteComunicazioni(user) {
+  return user.is_admin || ROLES_WITH_COM_WRITE.includes(user.role);
+}
+
+// ── SETUP ─────────────────────────────────────────────────────
 app.post('/api/setup', async (req, res) => {
   try {
     const c = await db();
@@ -81,13 +152,11 @@ app.post('/api/setup', async (req, res) => {
     if (!username || !email || !password) return res.status(400).json({ error: 'Campi obbligatori mancanti' });
     const hash = await bcrypt.hash(password, 12);
     await c.execute(
-      'INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_grades) VALUES (?,?,?,?,1,1,1)',
+      "INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_grades,role) VALUES (?,?,?,?,1,1,1,'none')",
       [username, email, hash, full_name || username]
     );
     res.json({ ok: true, message: 'Amministratore creato con successo' });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── AUTH ──────────────────────────────────────────────────────
@@ -101,7 +170,7 @@ app.post('/api/auth/register', async (req, res) => {
     const c    = await db();
     const hash = await bcrypt.hash(password, 12);
     const [result] = await c.execute(
-      'INSERT INTO users (username,email,password_hash,full_name) VALUES (?,?,?,?)',
+      "INSERT INTO users (username,email,password_hash,full_name,role) VALUES (?,?,?,?,'none')",
       [username.trim(), email.trim().toLowerCase(), hash, full_name?.trim() || '']
     );
     res.json({ ok: true, id: result.insertId });
@@ -130,6 +199,7 @@ app.post('/api/auth/login', async (req, res) => {
     const payload = {
       id: user.id, username: user.username, full_name: user.full_name,
       military_rank: user.military_rank,
+      role: user.role || 'none',
       can_access_finance: !!user.can_access_finance,
       can_access_grades:  !!user.can_access_grades,
       is_admin: !!user.is_admin
@@ -137,17 +207,14 @@ app.post('/api/auth/login', async (req, res) => {
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('token', token, { httpOnly: true, maxAge: 7 * 86400 * 1000 });
     res.json({ token, user: payload });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// /api/auth/me — legge sempre da DB e rilascia nuovo token con permessi aggiornati
 app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,military_rank,platoon,academic_year,can_access_finance,can_access_grades,is_admin FROM users WHERE id=?',
+      'SELECT id,username,email,full_name,military_rank,platoon,academic_year,role,can_access_finance,can_access_grades,is_admin FROM users WHERE id=?',
       [req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
@@ -155,42 +222,35 @@ app.get('/api/auth/me', auth, async (req, res) => {
     u.can_access_finance = !!u.can_access_finance;
     u.can_access_grades  = !!u.can_access_grades;
     u.is_admin           = !!u.is_admin;
+    u.role               = u.role || 'none';
+    res.json(u);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
-    // Rilascia un token fresco con i permessi attuali dal DB
-    const payload = {
-      id: u.id, username: u.username, full_name: u.full_name,
-      military_rank: u.military_rank,
-      can_access_finance: u.can_access_finance,
-      can_access_grades:  u.can_access_grades,
-      is_admin: u.is_admin
-    };
-    const freshToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('token', freshToken, { httpOnly: true, maxAge: 7 * 86400 * 1000 });
-
-    res.json({ ...u, token: freshToken });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+// ── PROFILO ───────────────────────────────────────────────────
+app.put('/api/profile', auth, async (req, res) => {
+  const { full_name, military_rank, platoon, academic_year } = req.body;
+  try {
+    const c = await db();
+    await c.execute(
+      'UPDATE users SET full_name=?, military_rank=?, platoon=?, academic_year=? WHERE id=?',
+      [full_name || '', military_rank || '', platoon || '', academic_year || '1° Anno', req.user.id]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── ANNUNCI ───────────────────────────────────────────────────
 app.get('/api/announcements', auth, async (req, res) => {
   try {
     const c = await db();
-    // Supporta long-polling leggero: ?since=id per prendere solo i nuovi
-    const sinceId = parseInt(req.query.since) || 0;
-    let query = `
+    const [rows] = await c.execute(`
       SELECT a.id, a.content, a.created_at,
-             u.id AS author_id, u.username, u.full_name, u.military_rank
+             u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
       FROM announcements a
-      JOIN users u ON a.user_id = u.id`;
-    const params = [];
-    if (sinceId > 0) {
-      query += ' WHERE a.id > ?';
-      params.push(sinceId);
-    }
-    query += ' ORDER BY a.created_at DESC LIMIT 100';
-    const [rows] = await c.execute(query, params);
+      JOIN users u ON a.user_id = u.id
+      ORDER BY a.created_at DESC LIMIT 100
+    `);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -220,15 +280,108 @@ app.delete('/api/announcements/:id', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── COMUNICAZIONI: CHAT ───────────────────────────────────────
+app.get('/api/comunicazioni/chat', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute(`
+      SELECT m.id, m.content, m.created_at,
+             u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
+      FROM comunicazioni_chat m
+      JOIN users u ON m.user_id = u.id
+      ORDER BY m.created_at ASC LIMIT 300
+    `);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/comunicazioni/chat', auth, async (req, res) => {
+  if (!canWriteComunicazioni(req.user))
+    return res.status(403).json({ error: 'Non hai i permessi per scrivere in Comunicazioni' });
+  const { id, content } = req.body;
+  if (!content?.trim()) return res.status(400).json({ error: 'Messaggio vuoto' });
+  try {
+    const c = await db();
+    await c.execute('INSERT INTO comunicazioni_chat (id,user_id,content) VALUES (?,?,?)',
+      [id, req.user.id, content.trim()]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/comunicazioni/chat/:id', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute('SELECT user_id FROM comunicazioni_chat WHERE id=?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Messaggio non trovato' });
+    if (rows[0].user_id !== req.user.id && !req.user.is_admin)
+      return res.status(403).json({ error: 'Non puoi eliminare questo messaggio' });
+    await c.execute('DELETE FROM comunicazioni_chat WHERE id=?', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── COMUNICAZIONI: COMUNICATI UFFICIALI ───────────────────────
+app.get('/api/comunicazioni/posts', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute(`
+      SELECT p.id, p.title, p.content, p.file_name, p.file_type, p.created_at,
+             u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
+      FROM comunicazioni_posts p
+      JOIN users u ON p.user_id = u.id
+      ORDER BY p.created_at DESC LIMIT 50
+    `);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/comunicazioni/posts/:id/file', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute(
+      'SELECT file_name,file_data,file_type FROM comunicazioni_posts WHERE id=?',
+      [req.params.id]
+    );
+    if (!rows.length || !rows[0].file_data)
+      return res.status(404).json({ error: 'File non trovato' });
+    res.json({ file_name: rows[0].file_name, file_data: rows[0].file_data, file_type: rows[0].file_type });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/comunicazioni/posts', auth, async (req, res) => {
+  if (!canWriteComunicazioni(req.user))
+    return res.status(403).json({ error: 'Non hai i permessi per pubblicare comunicati' });
+  const { id, title, content, file_name, file_data, file_type } = req.body;
+  if (!title?.trim() && !content?.trim())
+    return res.status(400).json({ error: 'Inserisci almeno un titolo o un contenuto' });
+  try {
+    const c = await db();
+    await c.execute(
+      'INSERT INTO comunicazioni_posts (id,user_id,title,content,file_name,file_data,file_type) VALUES (?,?,?,?,?,?,?)',
+      [id, req.user.id, title || '', content || '', file_name || null, file_data || null, file_type || null]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/comunicazioni/posts/:id', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute('SELECT user_id FROM comunicazioni_posts WHERE id=?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Comunicato non trovato' });
+    if (rows[0].user_id !== req.user.id && !req.user.is_admin)
+      return res.status(403).json({ error: 'Non puoi eliminare questo comunicato' });
+    await c.execute('DELETE FROM comunicazioni_posts WHERE id=?', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── FINANZE ───────────────────────────────────────────────────
 app.get('/api/finance', auth, requireFinance, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      `SELECT id,type,description AS \`desc\`,amount,
-              DATE_FORMAT(date,'%Y-%m-%d') AS date,
-              category AS cat,note
-       FROM finance_transactions WHERE user_id=? ORDER BY date DESC`,
+      'SELECT id,type,description AS `desc`,amount,date,category AS cat,note FROM finance_transactions WHERE user_id=? ORDER BY date DESC',
       [req.user.id]
     );
     res.json(rows);
@@ -269,7 +422,7 @@ app.delete('/api/finance/:id', auth, requireFinance, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── VOTI: carica tutto in un colpo ───────────────────────────
+// ── VOTI ──────────────────────────────────────────────────────
 app.get('/api/grades/all', auth, requireGrades, async (req, res) => {
   try {
     const c  = await db();
@@ -304,14 +457,12 @@ app.get('/api/grades/all', auth, requireGrades, async (req, res) => {
         consegna: penalties.filter(p => p.type === 'consegna'),
         rigore:   penalties.filter(p => p.type === 'rigore')
       },
-      schedule: schedMap,
-      notes,
+      schedule: schedMap, notes,
       settings: { ...settings, pen_consegna_rate: parseFloat(settings.pen_consegna_rate) }
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── VOTI: materie ─────────────────────────────────────────────
 app.post('/api/grades/subjects', auth, requireGrades, async (req, res) => {
   const { id, type, name, credits } = req.body;
   try {
@@ -341,7 +492,6 @@ app.delete('/api/grades/subjects/:id', auth, requireGrades, async (req, res) => 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── VOTI: singoli voti ────────────────────────────────────────
 app.post('/api/grades/grades', auth, requireGrades, async (req, res) => {
   const { id, subject_id, grade_type, value, weight, date, description } = req.body;
   try {
@@ -362,7 +512,6 @@ app.delete('/api/grades/grades/:id', auth, requireGrades, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── VOTI: punizioni ───────────────────────────────────────────
 app.post('/api/grades/penalties', auth, requireGrades, async (req, res) => {
   const { id, type, days, date, reason } = req.body;
   try {
@@ -381,7 +530,6 @@ app.delete('/api/grades/penalties/:id', auth, requireGrades, async (req, res) =>
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── VOTI: orario ─────────────────────────────────────────────
 app.post('/api/grades/schedule/upsert', auth, requireGrades, async (req, res) => {
   const { day_index, hour, subject, room, type } = req.body;
   try {
@@ -413,7 +561,6 @@ app.post('/api/grades/schedule/clear', auth, requireGrades, async (req, res) => 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── VOTI: note ────────────────────────────────────────────────
 app.post('/api/grades/notes', auth, requireGrades, async (req, res) => {
   const { id, title, body, pinned, date } = req.body;
   try {
@@ -442,10 +589,8 @@ app.delete('/api/grades/notes/:id', auth, requireGrades, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── VOTI: impostazioni ────────────────────────────────────────
 app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
-  const { weight_uni, weight_acad, weight_gym, weight_mil, pen_consegna_rate,
-          full_name, military_rank, platoon, academic_year } = req.body;
+  const { weight_uni, weight_acad, weight_gym, weight_mil, pen_consegna_rate } = req.body;
   try {
     const c = await db();
     await c.execute(`
@@ -456,186 +601,86 @@ app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
         weight_gym=VALUES(weight_gym), weight_mil=VALUES(weight_mil),
         pen_consegna_rate=VALUES(pen_consegna_rate)
     `, [req.user.id, weight_uni, weight_acad, weight_gym, weight_mil, pen_consegna_rate]);
-    if (full_name !== undefined) {
-      await c.execute(
-        'UPDATE users SET full_name=?,military_rank=?,platoon=?,academic_year=? WHERE id=?',
-        [full_name, military_rank || '', platoon || '', academic_year || '1° Anno', req.user.id]
-      );
-    }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── LISTE ──────────────────────────────────────────────────────
-
-// GET tutte le liste
+// ── LISTE ─────────────────────────────────────────────────────
 app.get('/api/lists', auth, async (req, res) => {
   try {
     const c = await db();
     const [lists] = await c.execute(`
-      SELECT l.id, l.list_type, l.custom_name, l.custom_field_label,
-             DATE_FORMAT(l.list_date,'%Y-%m-%d') AS list_date,
-             l.notes, l.created_at,
-             u.full_name AS creator_name,
-             COUNT(s.id) AS signup_count
-      FROM lists l
-      LEFT JOIN users u ON l.created_by = u.id
-      LEFT JOIN list_signups s ON l.id = s.list_id
-      GROUP BY l.id
-      ORDER BY l.list_date DESC, l.created_at DESC
+      SELECT l.*, COUNT(s.id) AS signup_count
+      FROM lists l LEFT JOIN list_signups s ON l.id=s.list_id
+      GROUP BY l.id ORDER BY l.list_date DESC, l.created_at DESC
     `);
     res.json(lists);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET dettaglio lista con iscritti + parenti (parlatorio) + nota (messa/custom)
-app.get('/api/lists/:id', auth, async (req, res) => {
-  try {
-    const c = await db();
-    const [[list]] = await c.execute(
-      `SELECT id, list_type, custom_name, custom_field_label,
-              DATE_FORMAT(list_date,'%Y-%m-%d') AS list_date, notes, created_at
-       FROM lists WHERE id=?`,
-      [req.params.id]
-    );
-    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
-
-    const [signups] = await c.execute(`
-      SELECT s.id, s.user_id, s.note, s.relative_name, s.relative_relation, s.relative_id_card, s.signed_up_at,
-             u.full_name, u.military_rank, u.username
-      FROM list_signups s
-      JOIN users u ON s.user_id = u.id
-      WHERE s.list_id = ?
-      ORDER BY s.signed_up_at
-    `, [req.params.id]);
-
-    // Per il parlatorio: carica i parenti aggiuntivi per ogni iscritto
-    if (list.list_type === 'parlatorio') {
-      const userIds = signups.map(s => s.user_id);
-      if (userIds.length > 0) {
-        const placeholders = userIds.map(() => '?').join(',');
-        const [relatives] = await c.execute(
-          `SELECT * FROM list_signup_relatives WHERE list_id=? AND user_id IN (${placeholders}) ORDER BY created_at`,
-          [req.params.id, ...userIds]
-        );
-        signups.forEach(s => {
-          s.relatives = relatives.filter(r => r.user_id === s.user_id);
-        });
-      }
-    }
-
-    res.json({ ...list, signups });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// POST crea nuova lista (solo admin)
 app.post('/api/lists', auth, requireAdmin, async (req, res) => {
-  const { id, list_type, list_date, notes, custom_name, custom_field_label } = req.body;
-  if (!id || !list_type || !list_date)
-    return res.status(400).json({ error: 'Tipo lista e data obbligatori' });
-  if (list_type === 'custom' && !custom_name)
-    return res.status(400).json({ error: 'Inserisci il nome della lista personalizzata' });
+  const { id, list_type, list_date, notes } = req.body;
+  if (!list_date) return res.status(400).json({ error: 'Data obbligatoria' });
   try {
     const c = await db();
-    await c.execute(
-      'INSERT INTO lists (id,list_type,list_date,created_by,notes,custom_name,custom_field_label) VALUES (?,?,?,?,?,?,?)',
-      [id, list_type, list_date, req.user.id, notes||'', custom_name||'', custom_field_label||'']
-    );
+    await c.execute('INSERT INTO lists (id,list_type,list_date,notes,created_by) VALUES (?,?,?,?,?)',
+      [id, list_type, list_date, notes || '', req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE elimina lista (solo admin)
 app.delete('/api/lists/:id', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=?', [req.params.id]);
     await c.execute('DELETE FROM list_signups WHERE list_id=?', [req.params.id]);
     await c.execute('DELETE FROM lists WHERE id=?', [req.params.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST iscriviti a una lista (con nota opzionale per messa/custom, senza parenti per parlatorio)
-app.post('/api/lists/:id/signup', auth, async (req, res) => {
-  const { signup_id, note, relative_name, relative_relation, relative_id_card } = req.body;
+app.get('/api/lists/:id', auth, async (req, res) => {
   try {
     const c = await db();
-    const [[list]] = await c.execute('SELECT id,list_type FROM lists WHERE id=?', [req.params.id]);
-    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
-    const sid = signup_id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+    const [lists] = await c.execute('SELECT * FROM lists WHERE id=?', [req.params.id]);
+    if (!lists.length) return res.status(404).json({ error: 'Lista non trovata' });
+    const [signups] = await c.execute(`
+      SELECT s.*, u.username, u.full_name, u.military_rank
+      FROM list_signups s JOIN users u ON s.user_id=u.id
+      WHERE s.list_id=? ORDER BY s.created_at ASC
+    `, [req.params.id]);
+    res.json({ ...lists[0], signups });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/lists/:id/signup', auth, async (req, res) => {
+  const { signup_id, relative_name, relative_relation, relative_id_card } = req.body;
+  try {
+    const c = await db();
     await c.execute(
-      'INSERT INTO list_signups (id,list_id,user_id,note,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?,?)',
-      [sid, req.params.id, req.user.id, note||'', relative_name||'', relative_relation||'', relative_id_card||'']
+      'INSERT INTO list_signups (id,list_id,user_id,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?)',
+      [signup_id, req.params.id, req.user.id, relative_name || null, relative_relation || null, relative_id_card || null]
     );
     res.json({ ok: true });
-  } catch (e) {
-    if (e.code === 'ER_DUP_ENTRY')
-      return res.status(400).json({ error: 'Sei già iscritto a questa lista' });
+  } catch(e) {
+    if (e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Già iscritto a questa lista' });
     res.status(500).json({ error: e.message });
   }
 });
 
-// DELETE cancella iscrizione (+ tutti i parenti se parlatorio)
 app.delete('/api/lists/:id/signup', auth, async (req, res) => {
   try {
     const c = await db();
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
     await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE rimuovi singolo iscritto (admin)
-app.delete('/api/lists/:id/signup/:userId', auth, requireAdmin, async (req, res) => {
+app.delete('/api/lists/:listId/signup/:userId', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
-    await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
+    await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.listId, req.params.userId]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// POST aggiungi parente al parlatorio (può chiamarsi più volte)
-app.post('/api/lists/:id/relatives', auth, async (req, res) => {
-  const { id, relative_name, relative_relation, relative_id_card } = req.body;
-  if (!relative_name) return res.status(400).json({ error: 'Nome parente obbligatorio' });
-  try {
-    const c = await db();
-    // Verifica che l'utente sia iscritto
-    const [[signup]] = await c.execute(
-      'SELECT id FROM list_signups WHERE list_id=? AND user_id=?',
-      [req.params.id, req.user.id]
-    );
-    if (!signup) return res.status(400).json({ error: 'Devi prima iscriverti alla lista' });
-    const rid = id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-    await c.execute(
-      'INSERT INTO list_signup_relatives (id,list_id,user_id,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?)',
-      [rid, req.params.id, req.user.id, relative_name, relative_relation||'', relative_id_card||'']
-    );
-    res.json({ ok: true, id: rid });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// DELETE rimuovi un singolo parente
-app.delete('/api/lists/:id/relatives/:relId', auth, async (req, res) => {
-  try {
-    const c = await db();
-    await c.execute(
-      'DELETE FROM list_signup_relatives WHERE id=? AND list_id=? AND user_id=?',
-      [req.params.relId, req.params.id, req.user.id]
-    );
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// DELETE rimuovi tutti i parenti di un utente (admin)
-app.delete('/api/lists/:id/relatives/user/:userId', auth, requireAdmin, async (req, res) => {
-  try {
-    const c = await db();
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── ADMIN ─────────────────────────────────────────────────────
@@ -643,24 +688,25 @@ app.get('/api/admin/users', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,military_rank,can_access_finance,can_access_grades,is_admin,created_at FROM users ORDER BY created_at DESC'
+      'SELECT id,username,email,full_name,military_rank,role,can_access_finance,can_access_grades,is_admin,created_at FROM users ORDER BY created_at DESC'
     );
     rows.forEach(u => {
       u.can_access_finance = !!u.can_access_finance;
       u.can_access_grades  = !!u.can_access_grades;
       u.is_admin           = !!u.is_admin;
+      u.role               = u.role || 'none';
     });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
-  const { can_access_finance, can_access_grades, is_admin } = req.body;
+  const { can_access_finance, can_access_grades, is_admin, role } = req.body;
   try {
     const c = await db();
     await c.execute(
-      'UPDATE users SET can_access_finance=?,can_access_grades=?,is_admin=? WHERE id=?',
-      [can_access_finance ? 1 : 0, can_access_grades ? 1 : 0, is_admin ? 1 : 0, req.params.id]
+      'UPDATE users SET can_access_finance=?,can_access_grades=?,is_admin=?,role=? WHERE id=?',
+      [can_access_finance ? 1 : 0, can_access_grades ? 1 : 0, is_admin ? 1 : 0, role || 'none', req.params.id]
     );
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -676,66 +722,15 @@ app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── FALLBACK: SPA ─────────────────────────────────────────────
+// ── FALLBACK SPA ──────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ── START ─────────────────────────────────────────────────────
 app.listen(PORT, async () => {
-  // Crea/aggiorna tabelle liste
-  try {
-    const c = await db();
-    // Tabella lists (con nuovi campi custom)
-    await c.execute(`
-      CREATE TABLE IF NOT EXISTS lists (
-        id                 VARCHAR(32)  PRIMARY KEY,
-        list_type          VARCHAR(50)  NOT NULL,
-        list_date          DATE         NOT NULL,
-        created_by         INT          NOT NULL,
-        notes              TEXT         DEFAULT '',
-        custom_name        VARCHAR(200) DEFAULT '',
-        custom_field_label VARCHAR(200) DEFAULT '',
-        created_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-    // Aggiunge le colonne custom se la tabella esisteva già senza di esse
-    try { await c.execute("ALTER TABLE lists ADD COLUMN custom_name VARCHAR(200) DEFAULT ''") } catch {}
-    try { await c.execute("ALTER TABLE lists ADD COLUMN custom_field_label VARCHAR(200) DEFAULT ''") } catch {}
-
-    // Tabella list_signups (con campo note per messa/custom)
-    await c.execute(`
-      CREATE TABLE IF NOT EXISTS list_signups (
-        id                VARCHAR(32)  PRIMARY KEY,
-        list_id           VARCHAR(32)  NOT NULL,
-        user_id           INT          NOT NULL,
-        note              TEXT         DEFAULT '',
-        relative_name     VARCHAR(255) DEFAULT '',
-        relative_relation VARCHAR(100) DEFAULT '',
-        relative_id_card  VARCHAR(100) DEFAULT '',
-        signed_up_at      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_list_user (list_id, user_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-    try { await c.execute("ALTER TABLE list_signups ADD COLUMN note TEXT DEFAULT ''") } catch {}
-
-    // Tabella parenti aggiuntivi (parlatorio multi-parente)
-    await c.execute(`
-      CREATE TABLE IF NOT EXISTS list_signup_relatives (
-        id                VARCHAR(32)  PRIMARY KEY,
-        list_id           VARCHAR(32)  NOT NULL,
-        user_id           INT          NOT NULL,
-        relative_name     VARCHAR(200) NOT NULL,
-        relative_relation VARCHAR(100) DEFAULT '',
-        relative_id_card  VARCHAR(100) DEFAULT '',
-        created_at        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-  } catch (e) {
-    console.error('   Attenzione — init tabelle liste:', e.message);
-  }
-
-  console.log(`\n  Portale AU — Server avviato`);
+  console.log(`\n⚔  Accademia Modena — Server avviato`);
   console.log(`   URL:  http://localhost:${PORT}`);
   console.log(`   DB:   ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}\n`);
+  await initDB();
 });
