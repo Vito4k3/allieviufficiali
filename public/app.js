@@ -15,6 +15,10 @@ let vdb = {
 };
 let allLists = [], currentListTab = 'liberi_sab_pom', openListId = null;
 let bachecaInterval = null;
+let comChatInterval = null;
+let currentComTab = 'chat';
+let comChatMessages = [], comPosts = [];
+let pendingComFile = null;
 
 const LIST_LABELS = {
   liberi_sab_pom:  'Liberi Uscenti Sabato Pomeriggio',
@@ -23,6 +27,23 @@ const LIST_LABELS = {
   messa:           'Lista Messa',
   parlatorio:      'Lista Parlatorio'
 };
+const ROLE_LABELS = {
+  'none':               'Allievo',
+  'allievo_servizio':   'Allievo di Servizio',
+  'capo_compagnia':     'Capo Compagnia',
+  'vice_capo_compagnia':'Vice Capo Compagnia',
+  'tenente':            'Tenente'
+};
+ 
+const ROLE_CLASSES = {
+  'none':               'role-none',
+  'allievo_servizio':   'role-servizio',
+  'capo_compagnia':     'role-capo',
+  'vice_capo_compagnia':'role-vice',
+  'tenente':            'role-tenente'
+};
+ 
+const ROLES_WITH_WRITE = ['allievo_servizio','capo_compagnia','vice_capo_compagnia','tenente'];
 
 // ── UTILS ──────────────────────────────────────────────────────────
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
@@ -34,9 +55,37 @@ function fmtDate(d){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '—';
   return new Date(s+'T12:00:00').toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});
 }
+function fmtTime(d){
+  if(!d) return '';
+  const dt = new Date(d);
+  return dt.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+}
+function fmtDateTime(d){
+  if(!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+fmtTime(d);
+}
 function today(){ return new Date().toISOString().slice(0,10) }
 function escHtml(s){ const d=document.createElement('div');d.textContent=s;return d.innerHTML }
-
+function roleBadge(role, isAdmin) {
+  if (isAdmin) return '<span class="role-badge role-admin">⭐ Amministratore</span>';
+  const r = role || 'none';
+  const label = ROLE_LABELS[r] || r;
+  const cls = ROLE_CLASSES[r] || 'role-none';
+  if (r === 'none') return '';
+  const icons = { allievo_servizio:'🎯', capo_compagnia:'⚔', vice_capo_compagnia:'🛡', tenente:'🎖' };
+  return `<span class="role-badge ${cls}">${icons[r]||''} ${label}</span>`;
+}
+ 
+function canWriteCom() {
+  if (!currentUser) return false;
+  return currentUser.is_admin || ROLES_WITH_WRITE.includes(currentUser.role);
+}
+ 
+function getInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+}
 function toast(msg,type='ok'){
   const t=document.getElementById('toast');
   t.textContent=(type==='ok'?'✓ ':type==='err'?'✗ ':'ℹ ')+msg;
@@ -74,10 +123,12 @@ async function showPage(id, link){
   if(link) link.classList.add('active');
   // Aggiorna sempre permessi dal server prima di caricare sezione
   await refreshCurrentUser();
-  if(id==='finanze') loadFinanze();
-  if(id==='voti')    loadVoti();
-  if(id==='liste')   loadListe();
-  if(id==='admin')   loadAdminUsers();
+  if(id==='finanze')        loadFinanze();
+  if(id==='voti')           loadVoti();
+  if(id==='liste')          loadListe();
+  if(id==='admin')          loadAdminUsers();
+  if(id==='comunicazioni')  loadComunicazioni();
+  if(id==='profilo')        loadProfile();
 }
 
 // Ricarica currentUser dal server (permessi sempre freschi, nessun re-login)
@@ -99,6 +150,8 @@ function applyPermissions(){
   if(btnNew) btnNew.classList.toggle('hidden', !isAdmin);
   document.getElementById('sbUserName').textContent = currentUser.full_name||currentUser.username;
   document.getElementById('sbUserRank').textContent = currentUser.military_rank||'Allievo Ufficiale';
+  const rbEl = document.getElementById('sbUserRole');
+  if(rbEl) rbEl.innerHTML = roleBadge(currentUser.role, isAdmin);
 }
 
 // ── AUTH ───────────────────────────────────────────────────────────
@@ -147,6 +200,43 @@ async function tryAutoLogin(){
     showApp();
   } catch { token='';localStorage.removeItem('jwt');showLanding() }
 }
+// ── PROFILO ────────────────────────────────────────────────────────
+async function loadProfile(){
+  if(!currentUser) return;
+  document.getElementById('prof-avatar').textContent = getInitials(currentUser.full_name||currentUser.username);
+  document.getElementById('prof-username').textContent = '@'+currentUser.username;
+  document.getElementById('prof-email').textContent = currentUser.email||'—';
+  document.getElementById('prof-role-badge').innerHTML = roleBadge(currentUser.role, currentUser.is_admin) ||
+    '<span class="role-badge role-none">Allievo</span>';
+ 
+  // Form fields
+  document.getElementById('prof-name').value     = currentUser.full_name||'';
+  document.getElementById('prof-rank').value     = currentUser.military_rank||'';
+  document.getElementById('prof-platoon').value  = currentUser.platoon||'';
+  document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
+ 
+  // Permessi
+  document.getElementById('prof-perm-finance').textContent = currentUser.can_access_finance ? '✓ Abilitato' : '✗ Non abilitato';
+  document.getElementById('prof-perm-finance').className   = 'perm-indicator '+(currentUser.can_access_finance?'perm-ok':'perm-no');
+  document.getElementById('prof-perm-grades').textContent  = currentUser.can_access_grades ? '✓ Abilitato' : '✗ Non abilitato';
+  document.getElementById('prof-perm-grades').className    = 'perm-indicator '+(currentUser.can_access_grades?'perm-ok':'perm-no');
+  document.getElementById('prof-perm-com').textContent     = canWriteCom() ? '✓ Abilitato' : '✗ Solo lettura';
+  document.getElementById('prof-perm-com').className       = 'perm-indicator '+(canWriteCom()?'perm-ok':'perm-no');
+}
+ 
+async function saveProfile(){
+  const full_name     = document.getElementById('prof-name').value.trim();
+  const military_rank = document.getElementById('prof-rank').value.trim();
+  const platoon       = document.getElementById('prof-platoon').value.trim();
+  const academic_year = document.getElementById('prof-year').value;
+  try {
+    await api('PUT','/api/profile',{full_name,military_rank,platoon,academic_year});
+    // Aggiorna currentUser localmente
+    Object.assign(currentUser, {full_name,military_rank,platoon,academic_year});
+    applyPermissions();
+    toast('Profilo aggiornato');
+  } catch(e){ toast(e.message,'err') }
+}
 
 // ── BACHECA + POLLING ──────────────────────────────────────────────
 function startBachecaPolling(){
@@ -158,7 +248,7 @@ function startBachecaPolling(){
   },15000);
 }
 function stopBachecaPolling(){ if(bachecaInterval){ clearInterval(bachecaInterval); bachecaInterval=null } }
-
+ 
 async function loadBacheca(){
   try { renderFeed(await api('GET','/api/announcements')) } catch(e){ toast(e.message,'err') }
 }
@@ -168,8 +258,10 @@ function renderFeed(posts){
   feed.innerHTML=posts.map(p=>`
     <div class="post-card">
       <div class="post-author">
-        <span>⚔</span><span>${p.military_rank?p.military_rank+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
-        <span class="post-rank">@${p.username}</span>
+        <span>⚔</span>
+        <span>${p.military_rank?p.military_rank+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
+        ${roleBadge(p.role, p.is_admin)}
+        <span class="post-rank">@${escHtml(p.username)}</span>
         <span class="post-time">${fmtDate(p.created_at?.slice(0,10))}</span>
       </div>
       <div class="post-content">${escHtml(p.content)}</div>
@@ -181,14 +273,235 @@ function renderFeed(posts){
 async function postAnnouncement(){
   const content=document.getElementById('postContent').value.trim();
   if(!content){ toast('Scrivi un messaggio','err'); return }
-  try { await api('POST','/api/announcements',{content}); document.getElementById('postContent').value=''; toast('Annuncio pubblicato'); loadBacheca() }
-  catch(e){ toast(e.message,'err') }
+  try {
+    await api('POST','/api/announcements',{content});
+    document.getElementById('postContent').value='';
+    toast('Annuncio pubblicato');
+    loadBacheca();
+  } catch(e){ toast(e.message,'err') }
 }
 async function deletePost(id){
   if(!confirm('Eliminare questo annuncio?')) return;
-  try { await api('DELETE','/api/announcements/'+id); loadBacheca(); toast('Eliminato') } catch(e){ toast(e.message,'err') }
+  try { await api('DELETE','/api/announcements/'+id); loadBacheca(); toast('Eliminato') }
+  catch(e){ toast(e.message,'err') }
 }
-
+// ── COMUNICAZIONI ──────────────────────────────────────────────────
+function startComPolling(){
+  stopComPolling();
+  comChatInterval = setInterval(async()=>{
+    if(document.getElementById('page-comunicazioni').classList.contains('active') && currentComTab==='chat'){
+      try {
+        const msgs = await api('GET','/api/comunicazioni/chat');
+        const prevCount = comChatMessages.length;
+        comChatMessages = msgs;
+        renderComChat(msgs, prevCount < msgs.length);
+      } catch {}
+    }
+  }, 15000);
+}
+function stopComPolling(){ if(comChatInterval){ clearInterval(comChatInterval); comChatInterval=null } }
+ 
+async function loadComunicazioni(){
+  startComPolling();
+  switchComTab(currentComTab);
+}
+ 
+function switchComTab(tab, btn){
+  currentComTab = tab;
+  document.querySelectorAll('.com-tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.com-tab-btn').forEach(b=>b.classList.remove('active'));
+  const panel = document.getElementById('com-'+tab);
+  if(panel) panel.classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(tab==='chat')     loadComChat();
+  if(tab==='ufficiali') loadComPosts();
+}
+ 
+async function loadComChat(){
+  try {
+    const msgs = await api('GET','/api/comunicazioni/chat');
+    comChatMessages = msgs;
+    renderComChat(msgs, true);
+  } catch(e){ toast(e.message,'err') }
+}
+ 
+function renderComChat(msgs, scrollToBottom=false){
+  const container = document.getElementById('chatMessages');
+  if(!container) return;
+ 
+  if(!msgs.length){
+    container.innerHTML='<div class="chat-empty">Nessun messaggio. '+(canWriteCom()?'Scrivi il primo!':'Solo i ruoli autorizzati possono scrivere.')+'</div>';
+    return;
+  }
+ 
+  let lastDate = null;
+  container.innerHTML = msgs.map(m=>{
+    const isOwn = currentUser && m.author_id === currentUser.id;
+    const msgDate = m.created_at ? new Date(m.created_at).toLocaleDateString('it-IT') : '';
+    let dateSep = '';
+    if(msgDate !== lastDate){
+      lastDate = msgDate;
+      dateSep = `<div class="chat-date-sep"><span>${msgDate}</span></div>`;
+    }
+    const initials = getInitials(m.full_name||m.username);
+    const canDel = currentUser && (m.author_id===currentUser.id || currentUser.is_admin);
+    return `${dateSep}
+    <div class="chat-row ${isOwn?'chat-row-own':''}">
+      ${!isOwn?`<div class="chat-avatar">${escHtml(initials)}</div>`:''}
+      <div class="chat-bubble-wrap">
+        ${!isOwn?`<div class="chat-meta">${m.military_rank?escHtml(m.military_rank)+' ':''}<strong>${escHtml(m.full_name||m.username)}</strong> ${roleBadge(m.role,m.is_admin)}</div>`:''}
+        <div class="chat-bubble ${isOwn?'chat-bubble-own':'chat-bubble-other'}">
+          <span>${escHtml(m.content)}</span>
+          ${canDel?`<button class="chat-del-btn" onclick="deleteComMsg('${m.id}')" title="Elimina">✕</button>`:''}
+        </div>
+        <div class="chat-time">${fmtTime(m.created_at)}</div>
+      </div>
+    </div>`;
+  }).join('');
+ 
+  if(scrollToBottom){
+    container.scrollTop = container.scrollHeight;
+  }
+ 
+  // Mostra/nascondi input
+  const inputArea = document.getElementById('chatInputArea');
+  const lockedMsg = document.getElementById('chatLockedMsg');
+  if(inputArea) inputArea.classList.toggle('hidden', !canWriteCom());
+  if(lockedMsg) lockedMsg.classList.toggle('hidden', canWriteCom());
+}
+ 
+async function sendComMsg(){
+  const input = document.getElementById('chatInput');
+  const content = input.value.trim();
+  if(!content) return;
+  try {
+    await api('POST','/api/comunicazioni/chat',{id:uid(),content});
+    input.value = '';
+    await loadComChat();
+  } catch(e){ toast(e.message,'err') }
+}
+ 
+async function deleteComMsg(id){
+  if(!confirm('Eliminare questo messaggio?')) return;
+  try {
+    await api('DELETE','/api/comunicazioni/chat/'+id);
+    await loadComChat();
+    toast('Messaggio eliminato');
+  } catch(e){ toast(e.message,'err') }
+}
+ 
+async function loadComPosts(){
+  try {
+    const posts = await api('GET','/api/comunicazioni/posts');
+    comPosts = posts;
+    renderComPosts(posts);
+  } catch(e){ toast(e.message,'err') }
+}
+ 
+function renderComPosts(posts){
+  const el = document.getElementById('comPostsList');
+  if(!el) return;
+ 
+  // Mostra/nascondi pulsante nuovo comunicato
+  const btnNew = document.getElementById('btnNewComPost');
+  if(btnNew) btnNew.classList.toggle('hidden', !canWriteCom());
+ 
+  if(!posts.length){
+    el.innerHTML='<div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Nessun comunicato ufficiale.</div>';
+    return;
+  }
+ 
+  el.innerHTML = posts.map(p=>`
+    <div class="com-post-card">
+      <div class="com-post-header">
+        <div>
+          <div class="com-post-title">${escHtml(p.title||'Senza titolo')}</div>
+          <div class="com-post-meta">
+            <span>📅 ${fmtDateTime(p.created_at)}</span>
+            <span>·</span>
+            <span>${p.military_rank?escHtml(p.military_rank)+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
+            ${roleBadge(p.role,p.is_admin)}
+          </div>
+        </div>
+        ${(currentUser&&(p.author_id===currentUser.id||currentUser.is_admin))?
+          `<button class="btn btn-sm btn-red" onclick="deleteComPost('${p.id}')">🗑</button>`:''}
+      </div>
+      ${p.content?`<div class="com-post-content">${escHtml(p.content)}</div>`:''}
+      ${p.file_name?`
+        <div class="com-post-file">
+          <span>📎 ${escHtml(p.file_name)}</span>
+          <button class="btn btn-sm btn-gold" onclick="downloadComFile('${p.id}','${escHtml(p.file_name)}')">⬇ Scarica</button>
+        </div>`:''
+      }
+    </div>`).join('');
+}
+ 
+function openComPostModal(){
+  document.getElementById('comPostTitle').value='';
+  document.getElementById('comPostContent').value='';
+  document.getElementById('comPostFile').value='';
+  document.getElementById('comFileInfo').textContent='';
+  pendingComFile = null;
+  openModal('comPostModal');
+}
+ 
+document.addEventListener('DOMContentLoaded', ()=>{
+  const fileInput = document.getElementById('comPostFile');
+  if(fileInput){
+    fileInput.addEventListener('change', async (e)=>{
+      const file = e.target.files[0];
+      if(!file){ pendingComFile=null; document.getElementById('comFileInfo').textContent=''; return; }
+      if(file.size > 5*1024*1024){ toast('File troppo grande (max 5MB)','err'); fileInput.value=''; return; }
+      document.getElementById('comFileInfo').textContent='⏳ '+file.name;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        pendingComFile = {
+          file_data: ev.target.result.split(',')[1],
+          file_name: file.name,
+          file_type: file.type
+        };
+        document.getElementById('comFileInfo').textContent='📎 '+file.name;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+});
+ 
+async function saveComPost(){
+  const title   = document.getElementById('comPostTitle').value.trim();
+  const content = document.getElementById('comPostContent').value.trim();
+  if(!title && !content){ toast('Inserisci titolo o contenuto','err'); return; }
+  try {
+    const body = { id:uid(), title, content };
+    if(pendingComFile) Object.assign(body, pendingComFile);
+    await api('POST','/api/comunicazioni/posts', body);
+    closeModal('comPostModal');
+    toast('Comunicato pubblicato');
+    await loadComPosts();
+  } catch(e){ toast(e.message,'err') }
+}
+ 
+async function deleteComPost(id){
+  if(!confirm('Eliminare questo comunicato?')) return;
+  try {
+    await api('DELETE','/api/comunicazioni/posts/'+id);
+    toast('Comunicato eliminato');
+    await loadComPosts();
+  } catch(e){ toast(e.message,'err') }
+}
+ 
+async function downloadComFile(postId, fileName){
+  try {
+    const data = await api('GET','/api/comunicazioni/posts/'+postId+'/file');
+    const link = document.createElement('a');
+    link.href = 'data:'+data.file_type+';base64,'+data.file_data;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch(e){ toast(e.message,'err') }
+}
+ 
 // ── LISTE ──────────────────────────────────────────────────────────
 
 async function loadListe(){
@@ -1143,6 +1456,20 @@ async function loadAdminUsers(){
         <td><button class="btn btn-sm btn-red" onclick="deleteUser(${u.id},'${escHtml(u.username)}')">🗑</button></td>
       </tr>`).join('');
   } catch(e){toast(e.message,'err')}
+}
+async function setUserRole(id, role){
+  try {
+    const users = await api('GET','/api/admin/users');
+    const u = users.find(x=>x.id===id);
+    if(!u) return;
+    await api('PUT','/api/admin/users/'+id,{
+      can_access_finance: u.can_access_finance,
+      can_access_grades:  u.can_access_grades,
+      is_admin:           u.is_admin,
+      role
+    });
+    toast('Ruolo aggiornato');
+  } catch(e){ toast(e.message,'err'); loadAdminUsers(); }
 }
 async function togglePerm(id,field,val){
   try {
