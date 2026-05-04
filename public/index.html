@@ -453,12 +453,47 @@ canvas{max-height:220px}
 #toast.err{border-left:3px solid var(--red-light)}
 #toast.info{border-left:3px solid var(--blue-light)}
 
+  /* ═══════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════ */
 @media(max-width:900px){
-  #app{grid-template-columns:1fr}aside{display:none}
-  .fin-kpi,.grid-4{grid-template-columns:1fr 1fr}.grid-3,.grid-2{grid-template-columns:1fr}
-  .land-features{grid-template-columns:1fr}.land-stats{gap:2rem;flex-wrap:wrap}.land-nav{padding:1rem 1.5rem}.charts-row{grid-template-columns:1fr}
+  #app { grid-template-columns:1fr; } aside { display:none; }
+  .fin-kpi,.grid-4 { grid-template-columns:1fr 1fr; }
+  .grid-3,.grid-2 { grid-template-columns:1fr; }
+  .land-features { grid-template-columns:1fr; background:none; border:none; gap:1px; }
+  .feat-card { border:1px solid var(--border); border-radius:var(--radius); }
+  .land-stats { flex-wrap:wrap; }
+  .stat-item { min-width:calc(50% - 1px); border-right:none; border-bottom:1px solid var(--border); }
+  .land-nav { padding:1rem 1.5rem; }
+  .charts-row { grid-template-columns:1fr; }
 }
-@media(max-width:600px){.fin-kpi,.grid-4{grid-template-columns:1fr}.type-selector{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){
+  .fin-kpi,.grid-4 { grid-template-columns:1fr; }
+  .type-selector { grid-template-columns:repeat(2,1fr); }
+  .land-hero { padding:5rem 1.5rem 3rem; }
+  .form-row-2,.form-row-3 { grid-template-columns:1fr; }
+}
+ 
+/* ═══════════════════════════════════════════════════════════
+   ORNAMENTAL DETAILS
+   ═══════════════════════════════════════════════════════════ */
+/* Fancy page title underline */
+.page-title::after {
+  content:''; display:block; width:40px; height:2px;
+  background:linear-gradient(90deg, var(--gold), transparent);
+  margin-top:.5rem;
+}
+ 
+/* Subtle inner glow on stat boxes */
+.stat-box.top-gold::after {
+  background: radial-gradient(ellipse 60% 40% at 50% 120%, rgba(201,168,76,0.06) 0%, transparent 70%);
+}
+ 
+/* Auth corner decoration */
+.auth-box .corner-tl,
+.auth-box .corner-br {
+  position:absolute; width:16px; height:16px; pointer-events:none;
+}
 </style>
 </head>
 <body>
@@ -472,6 +507,10 @@ canvas{max-height:220px}
       <div><div class="land-logo-text">Portale AU</div><div class="land-logo-sub">Allievi Ufficiali</div></div>
     </div>
     <div class="land-nav-btns">
+        <button class="theme-toggle" onclick="toggleTheme()" title="Cambia tema">
+          <span class="icon-sun">☀</span>
+          <span class="icon-moon">☾</span>
+      </button>
       <button class="btn" onclick="showAuth('login')">Accedi</button>
       <button class="btn btn-gold" onclick="showAuth('register')">Registrati</button>
     </div>
@@ -577,6 +616,10 @@ canvas{max-height:220px}
     <div class="sb-footer">
       <button class="btn btn-sm w-full" style="justify-content:center;margin-bottom:.4rem" onclick="showPage('profilo',null)">👤 Il mio Profilo</button>
       <button class="btn btn-sm btn-red w-full" style="justify-content:center" onclick="doLogout()">⏻ Esci</button>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Cambia tema">
+        <span class="icon-sun">☀</span>
+        <span class="icon-moon">☾</span>
+      </button>
     </div>
   </aside>
  
