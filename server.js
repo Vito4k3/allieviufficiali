@@ -1,7 +1,6 @@
 // ============================================================
 //  ACCADEMIA MILITARE DI MODENA — Backend Server
 //  Node.js + Express + MySQL
-//  Versione Unificata: Ripristino Liste + Nuove Funzionalità
 // ============================================================
 'use strict';
 
@@ -43,17 +42,17 @@ async function db() {
   return pool;
 }
 
-// ── DB INIT (Integrazione tabelle mancanti) ────────────────────
+// ── DB INIT ───────────────────────────────────────────────────
 async function initDB() {
   try {
     const c = await db();
 
-    // Utenti e permessi
+    // Aggiungi colonna role se non esiste
     try {
       await c.execute("ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'none'");
-    } catch(e) {}
+    } catch(e) { /* colonna già esistente */ }
 
-    // Comunicazioni
+    // Tabella chat comunicazioni
     await c.execute(`
       CREATE TABLE IF NOT EXISTS comunicazioni_chat (
         id VARCHAR(64) PRIMARY KEY,
@@ -62,6 +61,8 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Tabella comunicati ufficiali (con file opzionale)
     await c.execute(`
       CREATE TABLE IF NOT EXISTS comunicazioni_posts (
         id VARCHAR(64) PRIMARY KEY,
@@ -75,24 +76,24 @@ async function initDB() {
       )
     `);
 
-    // --- RIPRISTINO LOGICA LISTE ---
+    // Tabella liste
     await c.execute(`
       CREATE TABLE IF NOT EXISTS lists (
         id VARCHAR(64) PRIMARY KEY,
         list_type VARCHAR(50) NOT NULL,
         list_date DATE NOT NULL,
-        notes TEXT,
+        notes VARCHAR(500),
         created_by INT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
+    // Tabella iscrizioni liste
     await c.execute(`
       CREATE TABLE IF NOT EXISTS list_signups (
         id VARCHAR(64) PRIMARY KEY,
         list_id VARCHAR(64) NOT NULL,
         user_id INT NOT NULL,
-        note TEXT,
         relative_name VARCHAR(255),
         relative_relation VARCHAR(100),
         relative_id_card VARCHAR(100),
@@ -100,23 +101,8 @@ async function initDB() {
         UNIQUE KEY unique_signup (list_id, user_id)
       )
     `);
-    
-    // Tentativo aggiunta colonna note se mancante
-    try { await c.execute("ALTER TABLE list_signups ADD COLUMN note TEXT") } catch(e) {}
 
-    await c.execute(`
-      CREATE TABLE IF NOT EXISTS list_signup_relatives (
-        id VARCHAR(64) PRIMARY KEY,
-        list_id VARCHAR(64) NOT NULL,
-        user_id INT NOT NULL,
-        relative_name VARCHAR(255) NOT NULL,
-        relative_relation VARCHAR(100),
-        relative_id_card VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    console.log('   DB: Tabelle inizializzate correttamente.');
+    console.log('   DB: tabelle inizializzate');
   } catch(e) {
     console.error('   DB init error:', e.message);
   }
@@ -135,30 +121,88 @@ function auth(req, res, next) {
   }
 }
 
+function requireFinance(req, res, next) {
+  if (req.user.is_admin || req.user.can_access_finance) return next();
+  return res.status(403).json({ error: 'Accesso alla sezione Finanze non autorizzato' });
+}
+
+function requireGrades(req, res, next) {
+  if (req.user.is_admin || req.user.can_access_grades) return next();
+  return res.status(403).json({ error: 'Accesso alla sezione Voti non autorizzato' });
+}
+
 function requireAdmin(req, res, next) {
   if (req.user.is_admin) return next();
   return res.status(403).json({ error: 'Solo gli amministratori possono eseguire questa operazione' });
 }
 
 const ROLES_WITH_COM_WRITE = ['allievo_servizio', 'capo_compagnia', 'vice_capo_compagnia', 'tenente'];
+
 function canWriteComunicazioni(user) {
   return user.is_admin || ROLES_WITH_COM_WRITE.includes(user.role);
 }
 
-// ── AUTH & PROFILE (Nuove versioni) ──────────────────────────
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
+// ── SETUP ─────────────────────────────────────────────────────
+app.post('/api/setup', async (req, res) => {
   try {
     const c = await db();
-    const [rows] = await c.execute('SELECT * FROM users WHERE username=? OR email=?', [username, username]);
+    const [rows] = await c.execute('SELECT COUNT(*) AS n FROM users');
+    if (rows[0].n > 0) return res.status(400).json({ error: 'Setup già completato. Usa il login.' });
+    const { username, email, password, full_name } = req.body;
+    if (!username || !email || !password) return res.status(400).json({ error: 'Campi obbligatori mancanti' });
+    const hash = await bcrypt.hash(password, 12);
+    await c.execute(
+      "INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_grades,role) VALUES (?,?,?,?,1,1,1,'none')",
+      [username, email, hash, full_name || username]
+    );
+    res.json({ ok: true, message: 'Amministratore creato con successo' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── AUTH ──────────────────────────────────────────────────────
+app.post('/api/auth/register', async (req, res) => {
+  const { username, email, password, full_name } = req.body;
+  if (!username || !email || !password)
+    return res.status(400).json({ error: 'Username, email e password sono obbligatori' });
+  if (password.length < 6)
+    return res.status(400).json({ error: 'La password deve avere almeno 6 caratteri' });
+  try {
+    const c    = await db();
+    const hash = await bcrypt.hash(password, 12);
+    const [result] = await c.execute(
+      "INSERT INTO users (username,email,password_hash,full_name,role) VALUES (?,?,?,?,'none')",
+      [username.trim(), email.trim().toLowerCase(), hash, full_name?.trim() || '']
+    );
+    res.json({ ok: true, id: result.insertId });
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY')
+      return res.status(400).json({ error: 'Username o email già registrati' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password)
+    return res.status(400).json({ error: 'Credenziali mancanti' });
+  try {
+    const c = await db();
+    const [rows] = await c.execute(
+      'SELECT * FROM users WHERE username=? OR email=?',
+      [username.trim(), username.trim().toLowerCase()]
+    );
     if (!rows.length) return res.status(401).json({ error: 'Credenziali non valide' });
     const user = rows[0];
-    const ok = await bcrypt.compare(password, user.password_hash);
+    const ok   = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Credenziali non valide' });
 
     const payload = {
       id: user.id, username: user.username, full_name: user.full_name,
-      role: user.role || 'none', is_admin: !!user.is_admin
+      military_rank: user.military_rank,
+      role: user.role || 'none',
+      can_access_finance: !!user.can_access_finance,
+      can_access_grades:  !!user.can_access_grades,
+      is_admin: !!user.is_admin
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('token', token, { httpOnly: true, maxAge: 7 * 86400 * 1000 });
@@ -169,102 +213,97 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
-    const [rows] = await c.execute('SELECT id,username,email,full_name,role,is_admin FROM users WHERE id=?', [req.user.id]);
+    const [rows] = await c.execute(
+      'SELECT id,username,email,full_name,military_rank,platoon,academic_year,role,can_access_finance,can_access_grades,is_admin FROM users WHERE id=?',
+      [req.user.id]
+    );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
-    res.json(rows[0]);
+    const u = rows[0];
+    u.can_access_finance = !!u.can_access_finance;
+    u.can_access_grades  = !!u.can_access_grades;
+    u.is_admin           = !!u.is_admin;
+    u.role               = u.role || 'none';
+    res.json(u);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── LISTE: ENDPOINT RIPRISTINATI ──────────────────────────────
-app.get('/api/lists', auth, async (req, res) => {
+// ── PROFILO ───────────────────────────────────────────────────
+app.put('/api/profile', auth, async (req, res) => {
+  const { full_name, military_rank, platoon, academic_year } = req.body;
   try {
     const c = await db();
-    const [rows] = await c.execute('SELECT * FROM lists ORDER BY list_date DESC, created_at DESC');
+    await c.execute(
+      'UPDATE users SET full_name=?, military_rank=?, platoon=?, academic_year=? WHERE id=?',
+      [full_name || '', military_rank || '', platoon || '', academic_year || '1° Anno', req.user.id]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── ANNUNCI ───────────────────────────────────────────────────
+app.get('/api/announcements', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute(`
+      SELECT a.id, a.content, a.created_at,
+             u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
+      FROM announcements a
+      JOIN users u ON a.user_id = u.id
+      ORDER BY a.created_at DESC LIMIT 100
+    `);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/lists', auth, async (req, res) => {
-  if (!canWriteComunicazioni(req.user)) return res.status(403).json({ error: 'Non autorizzato' });
-  const { id, list_type, list_date, notes } = req.body;
+app.post('/api/announcements', auth, async (req, res) => {
+  const { content } = req.body;
+  if (!content?.trim()) return res.status(400).json({ error: 'Il messaggio non può essere vuoto' });
   try {
     const c = await db();
-    await c.execute('INSERT INTO lists (id, list_type, list_date, notes, created_by) VALUES (?,?,?,?,?)',
-      [id, list_type, list_date, notes || '', req.user.id]);
+    const [result] = await c.execute(
+      'INSERT INTO announcements (user_id,content) VALUES (?,?)',
+      [req.user.id, content.trim()]
+    );
+    res.json({ ok: true, id: result.insertId });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/announcements/:id', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute('SELECT user_id FROM announcements WHERE id=?', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Annuncio non trovato' });
+    if (rows[0].user_id !== req.user.id && !req.user.is_admin)
+      return res.status(403).json({ error: 'Non puoi eliminare questo annuncio' });
+    await c.execute('DELETE FROM announcements WHERE id=?', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/lists/:id', auth, async (req, res) => {
-  if (!canWriteComunicazioni(req.user)) return res.status(403).json({ error: 'Non autorizzato' });
-  try {
-    const c = await db();
-    await c.execute('DELETE FROM lists WHERE id=?', [req.params.id]);
-    await c.execute('DELETE FROM list_signups WHERE list_id=?', [req.params.id]);
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=?', [req.params.id]);
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/api/lists/:id/signups', auth, async (req, res) => {
-  try {
-    const c = await db();
-    const [signups] = await c.execute(`
-      SELECT s.*, u.full_name, u.username 
-      FROM list_signups s
-      JOIN users u ON s.user_id = u.id
-      WHERE s.list_id = ?
-    `, [req.params.id]);
-    
-    const [relatives] = await c.execute('SELECT * FROM list_signup_relatives WHERE list_id = ?', [req.params.id]);
-    
-    res.json({ signups, relatives });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/lists/:id/signup', auth, async (req, res) => {
-  const { id, note, relative_name, relative_relation, relative_id_card, extra_relatives } = req.body;
-  try {
-    const c = await db();
-    await c.execute(`
-      INSERT INTO list_signups (id, list_id, user_id, note, relative_name, relative_relation, relative_id_card)
-      VALUES (?,?,?,?,?,?,?)
-      ON DUPLICATE KEY UPDATE note=VALUES(note), relative_name=VALUES(relative_name), 
-      relative_relation=VALUES(relative_relation), relative_id_card=VALUES(relative_id_card)
-    `, [id, req.params.id, req.user.id, note || '', relative_name || '', relative_relation || '', relative_id_card || '']);
-
-    // Gestione parenti extra
-    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
-    if (extra_relatives && extra_relatives.length > 0) {
-      for (const r of extra_relatives) {
-        await c.execute(`
-          INSERT INTO list_signup_relatives (id, list_id, user_id, relative_name, relative_relation, relative_id_card)
-          VALUES (?,?,?,?,?,?)
-        `, [r.id, req.params.id, req.user.id, r.relative_name, r.relative_relation || '', r.relative_id_card || '']);
-      }
-    }
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// ── COMUNICAZIONI & ALTRE ROTTE (Mantenute dal file nuovo) ─────
+// ── COMUNICAZIONI: CHAT ───────────────────────────────────────
 app.get('/api/comunicazioni/chat', auth, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(`
-      SELECT m.*, u.full_name, u.role FROM comunicazioni_chat m 
-      JOIN users u ON m.user_id = u.id ORDER BY m.created_at ASC
+      SELECT m.id, m.content, m.created_at,
+             u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
+      FROM comunicazioni_chat m
+      JOIN users u ON m.user_id = u.id
+      ORDER BY m.created_at ASC LIMIT 300
     `);
     res.json(rows);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/comunicazioni/chat', auth, async (req, res) => {
-  if (!canWriteComunicazioni(req.user)) return res.status(403).json({ error: 'Permesso negato' });
+  if (!canWriteComunicazioni(req.user))
+    return res.status(403).json({ error: 'Non hai i permessi per scrivere in Comunicazioni' });
   const { id, content } = req.body;
+  if (!content?.trim()) return res.status(400).json({ error: 'Messaggio vuoto' });
   try {
     const c = await db();
-    await c.execute('INSERT INTO comunicazioni_chat (id, user_id, content) VALUES (?,?,?)', [id, req.user.id, content]);
+    await c.execute('INSERT INTO comunicazioni_chat (id,user_id,content) VALUES (?,?,?)',
+      [id, req.user.id, content.trim()]);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -567,81 +606,174 @@ app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
 });
 
 // ── LISTE ─────────────────────────────────────────────────────
+// GET tutte le liste
 app.get('/api/lists', auth, async (req, res) => {
   try {
     const c = await db();
     const [lists] = await c.execute(`
-      SELECT l.*, COUNT(s.id) AS signup_count
-      FROM lists l LEFT JOIN list_signups s ON l.id=s.list_id
-      GROUP BY l.id ORDER BY l.list_date DESC, l.created_at DESC
+      SELECT l.id, l.list_type, l.custom_name, l.custom_field_label,
+             DATE_FORMAT(l.list_date,'%Y-%m-%d') AS list_date,
+             l.notes, l.created_at,
+             u.full_name AS creator_name,
+             COUNT(s.id) AS signup_count
+      FROM lists l
+      LEFT JOIN users u ON l.created_by = u.id
+      LEFT JOIN list_signups s ON l.id = s.list_id
+      GROUP BY l.id
+      ORDER BY l.list_date DESC, l.created_at DESC
     `);
     res.json(lists);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/lists', auth, requireAdmin, async (req, res) => {
-  const { id, list_type, list_date, notes } = req.body;
-  if (!list_date) return res.status(400).json({ error: 'Data obbligatoria' });
-  try {
-    const c = await db();
-    await c.execute('INSERT INTO lists (id,list_type,list_date,notes,created_by) VALUES (?,?,?,?,?)',
-      [id, list_type, list_date, notes || '', req.user.id]);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/lists/:id', auth, requireAdmin, async (req, res) => {
-  try {
-    const c = await db();
-    await c.execute('DELETE FROM list_signups WHERE list_id=?', [req.params.id]);
-    await c.execute('DELETE FROM lists WHERE id=?', [req.params.id]);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
+// GET dettaglio lista con iscritti + parenti (parlatorio) + nota (messa/custom)
 app.get('/api/lists/:id', auth, async (req, res) => {
   try {
     const c = await db();
-    const [lists] = await c.execute('SELECT * FROM lists WHERE id=?', [req.params.id]);
-    if (!lists.length) return res.status(404).json({ error: 'Lista non trovata' });
+    const [[list]] = await c.execute(
+      `SELECT id, list_type, custom_name, custom_field_label,
+              DATE_FORMAT(list_date,'%Y-%m-%d') AS list_date, notes, created_at
+       FROM lists WHERE id=?`,
+      [req.params.id]
+    );
+    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
+
     const [signups] = await c.execute(`
-      SELECT s.*, u.username, u.full_name, u.military_rank
-      FROM list_signups s JOIN users u ON s.user_id=u.id
-      WHERE s.list_id=? ORDER BY s.created_at ASC
+      SELECT s.id, s.user_id, s.note, s.relative_name, s.relative_relation, s.relative_id_card, s.signed_up_at,
+             u.full_name, u.military_rank, u.username
+      FROM list_signups s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.list_id = ?
+      ORDER BY s.signed_up_at
     `, [req.params.id]);
-    res.json({ ...lists[0], signups });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+
+    // Per il parlatorio: carica i parenti aggiuntivi per ogni iscritto
+    if (list.list_type === 'parlatorio') {
+      const userIds = signups.map(s => s.user_id);
+      if (userIds.length > 0) {
+        const placeholders = userIds.map(() => '?').join(',');
+        const [relatives] = await c.execute(
+          `SELECT * FROM list_signup_relatives WHERE list_id=? AND user_id IN (${placeholders}) ORDER BY created_at`,
+          [req.params.id, ...userIds]
+        );
+        signups.forEach(s => {
+          s.relatives = relatives.filter(r => r.user_id === s.user_id);
+        });
+      }
+    }
+
+    res.json({ ...list, signups });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/lists/:id/signup', auth, async (req, res) => {
-  const { signup_id, relative_name, relative_relation, relative_id_card } = req.body;
+// POST crea nuova lista (solo admin)
+app.post('/api/lists', auth, requireAdmin, async (req, res) => {
+  const { id, list_type, list_date, notes, custom_name, custom_field_label } = req.body;
+  if (!id || !list_type || !list_date)
+    return res.status(400).json({ error: 'Tipo lista e data obbligatori' });
+  if (list_type === 'custom' && !custom_name)
+    return res.status(400).json({ error: 'Inserisci il nome della lista personalizzata' });
   try {
     const c = await db();
     await c.execute(
-      'INSERT INTO list_signups (id,list_id,user_id,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?)',
-      [signup_id, req.params.id, req.user.id, relative_name || null, relative_relation || null, relative_id_card || null]
+      'INSERT INTO lists (id,list_type,list_date,created_by,notes,custom_name,custom_field_label) VALUES (?,?,?,?,?,?,?)',
+      [id, list_type, list_date, req.user.id, notes||'', custom_name||'', custom_field_label||'']
     );
     res.json({ ok: true });
-  } catch(e) {
-    if (e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Già iscritto a questa lista' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE elimina lista (solo admin)
+app.delete('/api/lists/:id', auth, requireAdmin, async (req, res) => {
+  try {
+    const c = await db();
+    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=?', [req.params.id]);
+    await c.execute('DELETE FROM list_signups WHERE list_id=?', [req.params.id]);
+    await c.execute('DELETE FROM lists WHERE id=?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST iscriviti a una lista (con nota opzionale per messa/custom, senza parenti per parlatorio)
+app.post('/api/lists/:id/signup', auth, async (req, res) => {
+  const { signup_id, note, relative_name, relative_relation, relative_id_card } = req.body;
+  try {
+    const c = await db();
+    const [[list]] = await c.execute('SELECT id,list_type FROM lists WHERE id=?', [req.params.id]);
+    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
+    const sid = signup_id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+    await c.execute(
+      'INSERT INTO list_signups (id,list_id,user_id,note,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?,?)',
+      [sid, req.params.id, req.user.id, note||'', relative_name||'', relative_relation||'', relative_id_card||'']
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY')
+      return res.status(400).json({ error: 'Sei già iscritto a questa lista' });
     res.status(500).json({ error: e.message });
   }
 });
 
+// DELETE cancella iscrizione (+ tutti i parenti se parlatorio)
 app.delete('/api/lists/:id/signup', auth, async (req, res) => {
   try {
     const c = await db();
+    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
     await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/lists/:listId/signup/:userId', auth, requireAdmin, async (req, res) => {
+// DELETE rimuovi singolo iscritto (admin)
+app.delete('/api/lists/:id/signup/:userId', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
-    await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.listId, req.params.userId]);
+    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
+    await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST aggiungi parente al parlatorio (può chiamarsi più volte)
+app.post('/api/lists/:id/relatives', auth, async (req, res) => {
+  const { id, relative_name, relative_relation, relative_id_card } = req.body;
+  if (!relative_name) return res.status(400).json({ error: 'Nome parente obbligatorio' });
+  try {
+    const c = await db();
+    // Verifica che l'utente sia iscritto
+    const [[signup]] = await c.execute(
+      'SELECT id FROM list_signups WHERE list_id=? AND user_id=?',
+      [req.params.id, req.user.id]
+    );
+    if (!signup) return res.status(400).json({ error: 'Devi prima iscriverti alla lista' });
+    const rid = id || (Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+    await c.execute(
+      'INSERT INTO list_signup_relatives (id,list_id,user_id,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?)',
+      [rid, req.params.id, req.user.id, relative_name, relative_relation||'', relative_id_card||'']
+    );
+    res.json({ ok: true, id: rid });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE rimuovi un singolo parente
+app.delete('/api/lists/:id/relatives/:relId', auth, async (req, res) => {
+  try {
+    const c = await db();
+    await c.execute(
+      'DELETE FROM list_signup_relatives WHERE id=? AND list_id=? AND user_id=?',
+      [req.params.relId, req.params.id, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE rimuovi tutti i parenti di un utente (admin)
+app.delete('/api/lists/:id/relatives/user/:userId', auth, requireAdmin, async (req, res) => {
+  try {
+    const c = await db();
+    await c.execute('DELETE FROM list_signup_relatives WHERE list_id=? AND user_id=?', [req.params.id, req.params.userId]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── ADMIN ─────────────────────────────────────────────────────
