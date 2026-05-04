@@ -32,6 +32,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-body);min-hei
 .mono{font-family:var(--font-mono)}.display{font-family:var(--font-display)}.w-full{width:100%}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
+  /* ── ROLE BADGES ─────────────────────────────────────────── */
+.role-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.12rem .55rem;border-radius:20px;font-family:var(--font-mono);font-size:.6rem;font-weight:500;letter-spacing:.05em;white-space:nowrap;vertical-align:middle}
+.role-admin{background:rgba(200,168,75,.2);color:var(--gold);border:1px solid rgba(200,168,75,.4)}
+.role-tenente{background:rgba(232,160,80,.18);color:var(--amber-light);border:1px solid rgba(232,160,80,.4)}
+.role-capo{background:rgba(90,158,245,.18);color:var(--blue-light);border:1px solid rgba(90,158,245,.4)}
+.role-vice{background:rgba(74,171,114,.18);color:var(--green-light);border:1px solid rgba(74,171,114,.4)}
+.role-servizio{background:rgba(167,139,250,.18);color:var(--purple-light);border:1px solid rgba(167,139,250,.4)}
+.role-none{background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
+  
 /* LANDING */
 #landing{position:relative;min-height:100vh;overflow:hidden}
 .land-bg{position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(200,168,75,0.06) 0%,transparent 70%),radial-gradient(ellipse 50% 80% at 80% 50%,rgba(42,95,168,0.04) 0%,transparent 60%),var(--bg);z-index:-1}
@@ -157,6 +166,18 @@ main{overflow-x:hidden}
 .locked-title{font-family:var(--font-display);font-size:1.1rem;color:var(--text2);letter-spacing:.1em;margin-bottom:.5rem}
 .locked-desc{font-family:var(--font-mono);font-size:.72rem;color:var(--text3)}
 
+  /* ── PROFILO ─────────────────────────────────────────────── */
+.profile-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:2rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:2rem}
+.profile-avatar{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--gold-dim),var(--blue-dim));border:2px solid var(--gold-dim);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.8rem;color:var(--gold);flex-shrink:0}
+.profile-info-name{font-family:var(--font-display);font-size:1.3rem;color:var(--text);letter-spacing:.08em;margin-bottom:.2rem}
+.profile-info-meta{font-family:var(--font-mono);font-size:.68rem;color:var(--text3);letter-spacing:.1em;margin-bottom:.5rem}
+.perm-indicator{display:inline-flex;align-items:center;padding:.18rem .55rem;border-radius:4px;font-family:var(--font-mono);font-size:.65rem;font-weight:500}
+.perm-ok{background:var(--green-dim);color:var(--green-light);border:1px solid var(--green)}
+.perm-no{background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
+.perm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-top:1rem}
+.perm-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.8rem 1rem}
+.perm-box-label{font-family:var(--font-mono);font-size:.58rem;color:var(--text3);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.4rem}
+  
 /* BACHECA */
 .post-form{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:1.25rem;margin-bottom:1.5rem}
 .feed{display:flex;flex-direction:column;gap:.8rem}
@@ -170,6 +191,48 @@ main{overflow-x:hidden}
 .post-card:hover .post-actions{opacity:1}
 .poll-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green-light);animation:pulse 2s infinite;margin-right:.4rem;vertical-align:middle}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* ── COMUNICAZIONI ───────────────────────────────────────── */
+.com-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.5rem;gap:0}
+.com-tab-btn{font-family:var(--font-display);font-size:.72rem;letter-spacing:.12em;padding:.85rem 1.4rem;border:none;background:none;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;text-transform:uppercase}
+.com-tab-btn:hover{color:var(--text2)}
+.com-tab-btn.active{color:var(--gold);border-bottom-color:var(--gold)}
+.com-tab-panel{display:none}.com-tab-panel.active{display:block}
+
+  /* Chat */
+.chat-container{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);display:flex;flex-direction:column;height:60vh;min-height:400px}
+.chat-messages{flex:1;overflow-y:auto;padding:1.2rem 1.5rem;display:flex;flex-direction:column;gap:.8rem}
+.chat-empty{text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem;margin:auto}
+.chat-date-sep{display:flex;align-items:center;gap:1rem;margin:.5rem 0;font-family:var(--font-mono);font-size:.58rem;color:var(--text3);letter-spacing:.12em}
+.chat-date-sep::before,.chat-date-sep::after{content:'';flex:1;height:1px;background:var(--border)}
+.chat-row{display:flex;align-items:flex-end;gap:.7rem}
+.chat-row-own{flex-direction:row-reverse}
+.chat-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--surface2),var(--surface3));border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:.7rem;color:var(--gold);flex-shrink:0}
+.chat-bubble-wrap{display:flex;flex-direction:column;max-width:70%}
+.chat-row-own .chat-bubble-wrap{align-items:flex-end}
+.chat-meta{font-family:var(--font-mono);font-size:.6rem;color:var(--text3);margin-bottom:.2rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.chat-bubble{padding:.65rem 1rem;border-radius:var(--radius2);font-family:var(--font-body);font-size:.98rem;line-height:1.55;position:relative;white-space:pre-wrap;word-break:break-word;display:flex;align-items:flex-start;gap:.5rem}
+.chat-bubble-other{background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:4px;color:var(--text)}
+.chat-bubble-own{background:var(--gold-dim);border:1px solid var(--gold-dim);border-bottom-right-radius:4px;color:var(--text)}
+.chat-bubble span{flex:1}
+.chat-del-btn{opacity:0;background:none;border:none;color:var(--text3);cursor:pointer;font-size:.7rem;padding:.1rem .2rem;transition:all .15s;flex-shrink:0;margin-top:.1rem}
+.chat-bubble:hover .chat-del-btn{opacity:1}
+.chat-del-btn:hover{color:var(--red-light)}
+.chat-time{font-family:var(--font-mono);font-size:.56rem;color:var(--text3);margin-top:.2rem;padding:0 .2rem}
+.chat-input-area{border-top:1px solid var(--border);padding:1rem 1.2rem;display:flex;gap:.7rem;align-items:flex-end;background:var(--surface)}
+.chat-input-area textarea{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem .85rem;color:var(--text);font-family:var(--font-body);font-size:.95rem;outline:none;resize:none;min-height:42px;max-height:120px;transition:border-color .2s;line-height:1.5}
+.chat-input-area textarea:focus{border-color:var(--gold-dim)}
+.chat-locked-msg{border-top:1px solid var(--border);padding:1rem 1.5rem;display:flex;align-items:center;gap:.6rem;background:var(--surface);font-family:var(--font-mono);font-size:.68rem;color:var(--text3)}
+ 
+/* Comunicati ufficiali */
+.com-post-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:.9rem;overflow:hidden;transition:border-color .2s}
+.com-post-card:hover{border-color:var(--border2)}
+.com-post-header{padding:1rem 1.2rem;background:var(--surface2);display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.com-post-title{font-family:var(--font-display);font-size:1rem;color:var(--gold);letter-spacing:.07em;margin-bottom:.3rem}
+.com-post-meta{font-family:var(--font-mono);font-size:.62rem;color:var(--text3);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.com-post-content{padding:1rem 1.2rem;font-family:var(--font-body);font-size:.98rem;color:var(--text2);line-height:1.7;white-space:pre-wrap}
+.com-post-file{padding:.7rem 1.2rem;border-top:1px solid var(--border);display:flex;align-items:center;gap:.8rem;font-family:var(--font-mono);font-size:.7rem;color:var(--text2);background:var(--surface)}
+  
 
 /* FINANZE */
 .fin-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
@@ -237,6 +300,8 @@ canvas{max-height:220px}
 .perm-toggle{display:inline-flex;align-items:center;gap:.3rem;cursor:pointer;font-family:var(--font-mono);font-size:.65rem;padding:.2rem .5rem;border-radius:4px;border:1px solid;transition:all .2s;user-select:none}
 .perm-on{background:var(--green-dim);border-color:var(--green);color:var(--green-light)}
 .perm-off{background:var(--surface2);border-color:var(--border);color:var(--text3)}
+.role-select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:.25rem .5rem;font-family:var(--font-mono);font-size:.65rem;cursor:pointer;outline:none;transition:border-color .2s}
+.role-select:focus{border-color:var(--gold-dim)}
 
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px)}
@@ -350,21 +415,25 @@ canvas{max-height:220px}
   </div>
 </div>
 
-<!-- APP -->
+<!-- ─── APP ──────────────────────────────────────────────────────── -->
 <div id="app" class="hidden">
   <aside>
     <div class="sb-header">
       <div class="sb-emblem">⚔</div>
       <div><div class="sb-title">Portale AU</div><div class="sb-sub">Allievi Ufficiali</div></div>
     </div>
-    <div class="sb-user">
+    <!-- Clic sul profilo porta alla pagina profilo -->
+    <div class="sb-user" onclick="showPage('profilo', document.querySelector('[data-page=profilo]'))">
       <div class="sb-user-name" id="sbUserName">—</div>
       <div class="sb-user-rank" id="sbUserRank">Allievo Ufficiale</div>
+      <div class="sb-user-role" id="sbUserRole"></div>
+      <div style="font-family:var(--font-mono);font-size:.55rem;color:var(--text3);margin-top:.35rem;letter-spacing:.1em">→ Clicca per il profilo</div>
     </div>
     <div class="sb-nav">
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link active" onclick="showPage('bacheca',this)"><span class="sb-icon">📢</span>Bacheca Annunci</a>
+        <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni</a>
         <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
       </nav>
       <div class="sb-section">Personale</div>
@@ -378,11 +447,73 @@ canvas{max-height:220px}
       </nav>
     </div>
     <div class="sb-footer">
+      <button class="btn btn-sm w-full" style="justify-content:center;margin-bottom:.4rem" onclick="showPage('profilo',null)">👤 Il mio Profilo</button>
       <button class="btn btn-sm btn-red w-full" style="justify-content:center" onclick="doLogout()">⏻ Esci</button>
     </div>
   </aside>
-
+ 
   <main>
+
+        <!-- ── PROFILO ─────────────────────────────────────────────── -->
+    <div class="page" id="page-profilo">
+      <div class="page-title">Il Mio Profilo</div>
+      <div class="page-desc">Dati personali · Permessi · Ruolo militare</div>
+ 
+      <!-- Hero card -->
+      <div class="profile-hero">
+        <div class="profile-avatar" id="prof-avatar">AU</div>
+        <div style="flex:1">
+          <div class="profile-info-name" id="prof-display-name">—</div>
+          <div class="profile-info-meta" id="prof-username">@—</div>
+          <div class="profile-info-meta" id="prof-email" style="color:var(--text3)">—</div>
+          <div style="margin-top:.5rem" id="prof-role-badge"></div>
+        </div>
+      </div>
+ 
+      <!-- Permessi -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Permessi Attivi</div></div>
+        <div class="perm-grid">
+          <div class="perm-box">
+            <div class="perm-box-label">💰 Finanze</div>
+            <div class="perm-indicator" id="prof-perm-finance">—</div>
+          </div>
+          <div class="perm-box">
+            <div class="perm-box-label">🎓 Registro Voti</div>
+            <div class="perm-indicator" id="prof-perm-grades">—</div>
+          </div>
+          <div class="perm-box">
+            <div class="perm-box-label">💬 Comunicazioni (scrittura)</div>
+            <div class="perm-indicator" id="prof-perm-com">—</div>
+          </div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.8rem">
+          I permessi vengono assegnati dall'amministratore. Contatta un admin per richiedere accesso.
+        </div>
+      </div>
+ 
+      <!-- Modifica dati -->
+      <div class="card">
+        <div class="card-header"><div class="card-title">Modifica Dati Personali</div></div>
+        <div class="grid-2">
+          <div class="form-group"><label>Nome e Cognome Completo</label><input type="text" id="prof-name" placeholder="Ten. Mario Rossi"></div>
+          <div class="form-group"><label>Grado Militare</label><input type="text" id="prof-rank" placeholder="es. Aspirante, Sottotenente…"></div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group"><label>Reparto / Plotone</label><input type="text" id="prof-platoon" placeholder="es. 3° Plotone Alpha"></div>
+          <div class="form-group"><label>Anno di Corso</label>
+            <select id="prof-year">
+              <option>1° Anno</option><option>2° Anno</option><option>3° Anno</option>
+              <option>4° Anno</option><option>5° Anno</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:.5rem">
+          <button class="btn btn-gold" onclick="saveProfile()">💾 Salva Modifiche</button>
+        </div>
+      </div>
+    </div>
+    
     <!-- BACHECA -->
     <div class="page active" id="page-bacheca">
       <div class="page-title">Bacheca Annunci</div>
@@ -394,6 +525,49 @@ canvas{max-height:220px}
       <div class="feed" id="feedList"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Caricamento…</div></div>
     </div>
 
+     <!-- ── COMUNICAZIONI ───────────────────────────────────────── -->
+    <div class="page" id="page-comunicazioni">
+      <div class="page-title">Comunicazioni</div>
+      <div class="page-desc">Chat ufficiale · Comunicati · Documenti</div>
+ 
+      <div class="alert alert-info" style="margin-bottom:1.2rem">
+        ℹ La chat è <strong>leggibile da tutti</strong>. Possono scrivere solo: Allievo di Servizio, Capo Compagnia, Vice Capo Compagnia, Tenente e Amministratori.
+      </div>
+ 
+      <div class="com-tabs">
+        <button class="com-tab-btn active" onclick="switchComTab('chat',this)">💬 Chat</button>
+        <button class="com-tab-btn" onclick="switchComTab('ufficiali',this)">📋 Comunicati Ufficiali</button>
+      </div>
+ 
+      <!-- Tab Chat -->
+      <div class="com-tab-panel active" id="com-chat">
+        <div class="chat-container">
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-empty">Caricamento…</div>
+          </div>
+          <!-- Input (visibile solo se ha permesso di scrittura) -->
+          <div class="chat-input-area" id="chatInputArea">
+            <textarea id="chatInput" placeholder="Scrivi un messaggio ufficiale…" rows="1"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendComMsg()}"
+              oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+            <button class="btn btn-gold" onclick="sendComMsg()" style="align-self:flex-end">➤ Invia</button>
+          </div>
+          <div class="chat-locked-msg hidden" id="chatLockedMsg">
+            🔒 Solo i ruoli autorizzati possono scrivere in questa sezione.
+          </div>
+        </div>
+      </div>
+ 
+      <!-- Tab Comunicati Ufficiali -->
+      <div class="com-tab-panel" id="com-ufficiali">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3)">Comunicati, ordini del giorno e documenti ufficiali</div>
+          <button class="btn btn-gold hidden" id="btnNewComPost" onclick="openComPostModal()">➕ Nuovo Comunicato</button>
+        </div>
+        <div id="comPostsList"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Caricamento…</div></div>
+      </div>
+    </div>
+    
     <!-- LISTE -->
     <div class="page" id="page-liste">
       <div class="page-title">Liste</div>
@@ -589,20 +763,36 @@ canvas{max-height:220px}
       </div>
     </div>
 
-    <!-- ADMIN -->
+ <!-- ── ADMIN ───────────────────────────────────────────────── -->
     <div class="page" id="page-admin">
       <div class="page-title">Gestione Utenti</div>
-      <div class="page-desc">Assegna permessi · Visualizza registrati · Rimuovi account</div>
+      <div class="page-desc">Ruoli · Permessi · Account registrati</div>
+ 
+      <!-- Legenda ruoli -->
+      <div class="card" style="margin-bottom:1.2rem">
+        <div class="card-header"><div class="card-title">Ruoli e Permessi Comunicazioni</div></div>
+        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.8rem">
+          <span class="role-badge role-tenente">🎖 Tenente</span>
+          <span class="role-badge role-capo">⚔ Capo Compagnia</span>
+          <span class="role-badge role-vice">🛡 Vice Capo Compagnia</span>
+          <span class="role-badge role-servizio">🎯 Allievo di Servizio</span>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3)">
+          I ruoli evidenziati possono <strong style="color:var(--gold)">scrivere in Comunicazioni</strong> (chat + comunicati ufficiali). Gli altri utenti possono solo leggere.
+        </div>
+      </div>
+ 
       <div class="card">
         <div class="card-header"><div class="card-title">Utenti Registrati</div><button class="btn btn-gold" onclick="loadAdminUsers()">↻ Aggiorna</button></div>
         <div style="overflow-x:auto">
           <table class="data-table">
-            <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Registrato</th><th>Finanze</th><th>Voti</th><th>Admin</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Ruolo Militare</th><th>Registrato</th><th>Finanze</th><th>Voti</th><th>Admin</th><th></th></tr></thead>
             <tbody id="adminUserBody"></tbody>
           </table>
         </div>
       </div>
     </div>
+ 
   </main>
 </div>
 
@@ -732,6 +922,24 @@ canvas{max-height:220px}
   </div>
 </div>
 
+  <!-- Nuovo Comunicato Ufficiale -->
+<div class="modal-overlay" id="comPostModal">
+  <div class="modal">
+    <div class="modal-title">📋 Nuovo Comunicato Ufficiale</div>
+    <div class="form-group" style="margin-bottom:.7rem"><label>Titolo</label><input type="text" id="comPostTitle" placeholder="es. Ordine del Giorno — 04 Maggio"></div>
+    <div class="form-group" style="margin-bottom:.7rem"><label>Contenuto</label><textarea id="comPostContent" placeholder="Testo del comunicato…" rows="5"></textarea></div>
+    <div style="margin-bottom:.7rem">
+      <div class="perm-box-label" style="font-family:var(--font-mono);font-size:.58rem;color:var(--text2);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.4rem">Allegato (max 5MB)</div>
+      <label class="file-upload-label" for="comPostFile">
+        <span>📎</span><span>Clicca per allegare un file</span>
+      </label>
+      <input type="file" id="comPostFile" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg">
+      <div class="file-info" id="comFileInfo"></div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('comPostModal')">Annulla</button><button class="btn btn-gold" onclick="saveComPost()">📤 Pubblica</button></div>
+  </div>
+</div>
+  
 <div id="toast"></div>
 <script src="/app.js"></script>
 </body>
