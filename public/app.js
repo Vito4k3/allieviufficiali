@@ -13,15 +13,9 @@ let vdb = {
   schedule: {}, notes: [],
   settings: { weight_uni:50, weight_acad:50, weight_gym:50, weight_mil:50, pen_consegna_rate:0.5 }
 };
-let allLists = [], currentListTab = 'liberi_sab_pom';
-let openListId = null;
+let allLists = [], currentListTab = 'liberi_sab_pom', openListId = null;
 let bachecaInterval = null;
-let comChatInterval = null;
-let currentComTab = 'chat';
-let comChatMessages = [], comPosts = [];
-let pendingComFile = null;
 
-// ── COSTANTI ───────────────────────────────────────────────────────
 const LIST_LABELS = {
   liberi_sab_pom:  'Liberi Uscenti Sabato Pomeriggio',
   liberi_sab_sera: 'Liberi Uscenti Sabato Sera',
@@ -29,24 +23,6 @@ const LIST_LABELS = {
   messa:           'Lista Messa',
   parlatorio:      'Lista Parlatorio'
 };
-
-const ROLE_LABELS = {
-  'none':               'Allievo',
-  'allievo_servizio':   'Allievo di Servizio',
-  'capo_compagnia':     'Capo Compagnia',
-  'vice_capo_compagnia':'Vice Capo Compagnia',
-  'tenente':            'Tenente'
-};
-
-const ROLE_CLASSES = {
-  'none':               'role-none',
-  'allievo_servizio':   'role-servizio',
-  'capo_compagnia':     'role-capo',
-  'vice_capo_compagnia':'role-vice',
-  'tenente':            'role-tenente'
-};
-
-const ROLES_WITH_WRITE = ['allievo_servizio','capo_compagnia','vice_capo_compagnia','tenente'];
 
 // ── UTILS ──────────────────────────────────────────────────────────
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
@@ -58,38 +34,8 @@ function fmtDate(d){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '—';
   return new Date(s+'T12:00:00').toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});
 }
-function fmtTime(d){
-  if(!d) return '';
-  const dt = new Date(d);
-  return dt.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-}
-function fmtDateTime(d){
-  if(!d) return '—';
-  const dt = new Date(d);
-  return dt.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+fmtTime(d);
-}
 function today(){ return new Date().toISOString().slice(0,10) }
 function escHtml(s){ const d=document.createElement('div');d.textContent=s;return d.innerHTML }
-
-function roleBadge(role, isAdmin) {
-  if (isAdmin) return '<span class="role-badge role-admin">⭐ Amministratore</span>';
-  const r = role || 'none';
-  const label = ROLE_LABELS[r] || r;
-  const cls = ROLE_CLASSES[r] || 'role-none';
-  if (r === 'none') return '';
-  const icons = { allievo_servizio:'🎯', capo_compagnia:'⚔', vice_capo_compagnia:'🛡', tenente:'🎖' };
-  return `<span class="role-badge ${cls}">${icons[r]||''} ${label}</span>`;
-}
-
-function canWriteCom() {
-  if (!currentUser) return false;
-  return currentUser.is_admin || ROLES_WITH_WRITE.includes(currentUser.role);
-}
-
-function getInitials(name) {
-  if (!name) return '?';
-  return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-}
 
 function toast(msg,type='ok'){
   const t=document.getElementById('toast');
@@ -117,12 +63,7 @@ async function api(method, path, body){
 // ── NAVIGATION ─────────────────────────────────────────────────────
 function showLanding(){ _s('landing');_h('auth');_h('app') }
 function showAuth(tab='login'){ _h('landing');_s('auth');_h('app'); switchAuthTab(tab) }
-function showApp(){
-  _h('landing');_h('auth');_s('app');
-  applyPermissions();
-  loadBacheca();
-  startBachecaPolling();
-}
+function showApp(){ _h('landing');_h('auth');_s('app'); applyPermissions(); loadBacheca(); startBachecaPolling() }
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
 
@@ -131,15 +72,15 @@ async function showPage(id, link){
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(link) link.classList.add('active');
+  // Aggiorna sempre permessi dal server prima di caricare sezione
   await refreshCurrentUser();
-  if(id==='finanze')        loadFinanze();
-  if(id==='voti')           loadVoti();
-  if(id==='liste')          loadListe();
-  if(id==='admin')          loadAdminUsers();
-  if(id==='comunicazioni')  loadComunicazioni();
-  if(id==='profilo')        loadProfile();
+  if(id==='finanze') loadFinanze();
+  if(id==='voti')    loadVoti();
+  if(id==='liste')   loadListe();
+  if(id==='admin')   loadAdminUsers();
 }
 
+// Ricarica currentUser dal server (permessi sempre freschi, nessun re-login)
 async function refreshCurrentUser(){
   try {
     const data = await api('GET','/api/auth/me');
@@ -158,9 +99,6 @@ function applyPermissions(){
   if(btnNew) btnNew.classList.toggle('hidden', !isAdmin);
   document.getElementById('sbUserName').textContent = currentUser.full_name||currentUser.username;
   document.getElementById('sbUserRank').textContent = currentUser.military_rank||'Allievo Ufficiale';
-  // Mostra badge ruolo nella sidebar
-  const rbEl = document.getElementById('sbUserRole');
-  if(rbEl) rbEl.innerHTML = roleBadge(currentUser.role, isAdmin);
 }
 
 // ── AUTH ───────────────────────────────────────────────────────────
@@ -199,10 +137,7 @@ async function doRegister(){
   } catch(e){ showAuthError(e.message) }
 }
 function showAuthError(msg){ const el=document.getElementById('authError');el.textContent='⚠ '+msg;el.style.display='block' }
-async function doLogout(){
-  token=''; localStorage.removeItem('jwt'); currentUser=null;
-  stopBachecaPolling(); stopComPolling(); showLanding();
-}
+async function doLogout(){ token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();showLanding() }
 async function tryAutoLogin(){
   if(!token) return;
   try {
@@ -213,45 +148,7 @@ async function tryAutoLogin(){
   } catch { token='';localStorage.removeItem('jwt');showLanding() }
 }
 
-// ── PROFILO ────────────────────────────────────────────────────────
-async function loadProfile(){
-  if(!currentUser) return;
-  document.getElementById('prof-avatar').textContent = getInitials(currentUser.full_name||currentUser.username);
-  document.getElementById('prof-username').textContent = '@'+currentUser.username;
-  document.getElementById('prof-email').textContent = currentUser.email||'—';
-  document.getElementById('prof-role-badge').innerHTML = roleBadge(currentUser.role, currentUser.is_admin) ||
-    '<span class="role-badge role-none">Allievo</span>';
-
-  // Form fields
-  document.getElementById('prof-name').value     = currentUser.full_name||'';
-  document.getElementById('prof-rank').value     = currentUser.military_rank||'';
-  document.getElementById('prof-platoon').value  = currentUser.platoon||'';
-  document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
-
-  // Permessi
-  document.getElementById('prof-perm-finance').textContent = currentUser.can_access_finance ? '✓ Abilitato' : '✗ Non abilitato';
-  document.getElementById('prof-perm-finance').className   = 'perm-indicator '+(currentUser.can_access_finance?'perm-ok':'perm-no');
-  document.getElementById('prof-perm-grades').textContent  = currentUser.can_access_grades ? '✓ Abilitato' : '✗ Non abilitato';
-  document.getElementById('prof-perm-grades').className    = 'perm-indicator '+(currentUser.can_access_grades?'perm-ok':'perm-no');
-  document.getElementById('prof-perm-com').textContent     = canWriteCom() ? '✓ Abilitato' : '✗ Solo lettura';
-  document.getElementById('prof-perm-com').className       = 'perm-indicator '+(canWriteCom()?'perm-ok':'perm-no');
-}
-
-async function saveProfile(){
-  const full_name     = document.getElementById('prof-name').value.trim();
-  const military_rank = document.getElementById('prof-rank').value.trim();
-  const platoon       = document.getElementById('prof-platoon').value.trim();
-  const academic_year = document.getElementById('prof-year').value;
-  try {
-    await api('PUT','/api/profile',{full_name,military_rank,platoon,academic_year});
-    // Aggiorna currentUser localmente
-    Object.assign(currentUser, {full_name,military_rank,platoon,academic_year});
-    applyPermissions();
-    toast('Profilo aggiornato');
-  } catch(e){ toast(e.message,'err') }
-}
-
-// ── BACHECA ────────────────────────────────────────────────────────
+// ── BACHECA + POLLING ──────────────────────────────────────────────
 function startBachecaPolling(){
   stopBachecaPolling();
   bachecaInterval=setInterval(async()=>{
@@ -271,10 +168,8 @@ function renderFeed(posts){
   feed.innerHTML=posts.map(p=>`
     <div class="post-card">
       <div class="post-author">
-        <span>⚔</span>
-        <span>${p.military_rank?p.military_rank+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
-        ${roleBadge(p.role, p.is_admin)}
-        <span class="post-rank">@${escHtml(p.username)}</span>
+        <span>⚔</span><span>${p.military_rank?p.military_rank+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
+        <span class="post-rank">@${p.username}</span>
         <span class="post-time">${fmtDate(p.created_at?.slice(0,10))}</span>
       </div>
       <div class="post-content">${escHtml(p.content)}</div>
@@ -286,237 +181,16 @@ function renderFeed(posts){
 async function postAnnouncement(){
   const content=document.getElementById('postContent').value.trim();
   if(!content){ toast('Scrivi un messaggio','err'); return }
-  try {
-    await api('POST','/api/announcements',{content});
-    document.getElementById('postContent').value='';
-    toast('Annuncio pubblicato');
-    loadBacheca();
-  } catch(e){ toast(e.message,'err') }
+  try { await api('POST','/api/announcements',{content}); document.getElementById('postContent').value=''; toast('Annuncio pubblicato'); loadBacheca() }
+  catch(e){ toast(e.message,'err') }
 }
 async function deletePost(id){
   if(!confirm('Eliminare questo annuncio?')) return;
-  try { await api('DELETE','/api/announcements/'+id); loadBacheca(); toast('Eliminato') }
-  catch(e){ toast(e.message,'err') }
-}
-
-// ── COMUNICAZIONI ──────────────────────────────────────────────────
-function startComPolling(){
-  stopComPolling();
-  comChatInterval = setInterval(async()=>{
-    if(document.getElementById('page-comunicazioni').classList.contains('active') && currentComTab==='chat'){
-      try {
-        const msgs = await api('GET','/api/comunicazioni/chat');
-        const prevCount = comChatMessages.length;
-        comChatMessages = msgs;
-        renderComChat(msgs, prevCount < msgs.length);
-      } catch {}
-    }
-  }, 15000);
-}
-function stopComPolling(){ if(comChatInterval){ clearInterval(comChatInterval); comChatInterval=null } }
-
-async function loadComunicazioni(){
-  startComPolling();
-  switchComTab(currentComTab);
-}
-
-function switchComTab(tab, btn){
-  currentComTab = tab;
-  document.querySelectorAll('.com-tab-panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.com-tab-btn').forEach(b=>b.classList.remove('active'));
-  const panel = document.getElementById('com-'+tab);
-  if(panel) panel.classList.add('active');
-  if(btn) btn.classList.add('active');
-  if(tab==='chat')     loadComChat();
-  if(tab==='ufficiali') loadComPosts();
-}
-
-async function loadComChat(){
-  try {
-    const msgs = await api('GET','/api/comunicazioni/chat');
-    comChatMessages = msgs;
-    renderComChat(msgs, true);
-  } catch(e){ toast(e.message,'err') }
-}
-
-function renderComChat(msgs, scrollToBottom=false){
-  const container = document.getElementById('chatMessages');
-  if(!container) return;
-
-  if(!msgs.length){
-    container.innerHTML='<div class="chat-empty">Nessun messaggio. '+(canWriteCom()?'Scrivi il primo!':'Solo i ruoli autorizzati possono scrivere.')+'</div>';
-    return;
-  }
-
-  let lastDate = null;
-  container.innerHTML = msgs.map(m=>{
-    const isOwn = currentUser && m.author_id === currentUser.id;
-    const msgDate = m.created_at ? new Date(m.created_at).toLocaleDateString('it-IT') : '';
-    let dateSep = '';
-    if(msgDate !== lastDate){
-      lastDate = msgDate;
-      dateSep = `<div class="chat-date-sep"><span>${msgDate}</span></div>`;
-    }
-    const initials = getInitials(m.full_name||m.username);
-    const canDel = currentUser && (m.author_id===currentUser.id || currentUser.is_admin);
-    return `${dateSep}
-    <div class="chat-row ${isOwn?'chat-row-own':''}">
-      ${!isOwn?`<div class="chat-avatar">${escHtml(initials)}</div>`:''}
-      <div class="chat-bubble-wrap">
-        ${!isOwn?`<div class="chat-meta">${m.military_rank?escHtml(m.military_rank)+' ':''}<strong>${escHtml(m.full_name||m.username)}</strong> ${roleBadge(m.role,m.is_admin)}</div>`:''}
-        <div class="chat-bubble ${isOwn?'chat-bubble-own':'chat-bubble-other'}">
-          <span>${escHtml(m.content)}</span>
-          ${canDel?`<button class="chat-del-btn" onclick="deleteComMsg('${m.id}')" title="Elimina">✕</button>`:''}
-        </div>
-        <div class="chat-time">${fmtTime(m.created_at)}</div>
-      </div>
-    </div>`;
-  }).join('');
-
-  if(scrollToBottom){
-    container.scrollTop = container.scrollHeight;
-  }
-
-  // Mostra/nascondi input
-  const inputArea = document.getElementById('chatInputArea');
-  const lockedMsg = document.getElementById('chatLockedMsg');
-  if(inputArea) inputArea.classList.toggle('hidden', !canWriteCom());
-  if(lockedMsg) lockedMsg.classList.toggle('hidden', canWriteCom());
-}
-
-async function sendComMsg(){
-  const input = document.getElementById('chatInput');
-  const content = input.value.trim();
-  if(!content) return;
-  try {
-    await api('POST','/api/comunicazioni/chat',{id:uid(),content});
-    input.value = '';
-    await loadComChat();
-  } catch(e){ toast(e.message,'err') }
-}
-
-async function deleteComMsg(id){
-  if(!confirm('Eliminare questo messaggio?')) return;
-  try {
-    await api('DELETE','/api/comunicazioni/chat/'+id);
-    await loadComChat();
-    toast('Messaggio eliminato');
-  } catch(e){ toast(e.message,'err') }
-}
-
-async function loadComPosts(){
-  try {
-    const posts = await api('GET','/api/comunicazioni/posts');
-    comPosts = posts;
-    renderComPosts(posts);
-  } catch(e){ toast(e.message,'err') }
-}
-
-function renderComPosts(posts){
-  const el = document.getElementById('comPostsList');
-  if(!el) return;
-
-  // Mostra/nascondi pulsante nuovo comunicato
-  const btnNew = document.getElementById('btnNewComPost');
-  if(btnNew) btnNew.classList.toggle('hidden', !canWriteCom());
-
-  if(!posts.length){
-    el.innerHTML='<div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Nessun comunicato ufficiale.</div>';
-    return;
-  }
-
-  el.innerHTML = posts.map(p=>`
-    <div class="com-post-card">
-      <div class="com-post-header">
-        <div>
-          <div class="com-post-title">${escHtml(p.title||'Senza titolo')}</div>
-          <div class="com-post-meta">
-            <span>📅 ${fmtDateTime(p.created_at)}</span>
-            <span>·</span>
-            <span>${p.military_rank?escHtml(p.military_rank)+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
-            ${roleBadge(p.role,p.is_admin)}
-          </div>
-        </div>
-        ${(currentUser&&(p.author_id===currentUser.id||currentUser.is_admin))?
-          `<button class="btn btn-sm btn-red" onclick="deleteComPost('${p.id}')">🗑</button>`:''}
-      </div>
-      ${p.content?`<div class="com-post-content">${escHtml(p.content)}</div>`:''}
-      ${p.file_name?`
-        <div class="com-post-file">
-          <span>📎 ${escHtml(p.file_name)}</span>
-          <button class="btn btn-sm btn-gold" onclick="downloadComFile('${p.id}','${escHtml(p.file_name)}')">⬇ Scarica</button>
-        </div>`:''
-      }
-    </div>`).join('');
-}
-
-function openComPostModal(){
-  document.getElementById('comPostTitle').value='';
-  document.getElementById('comPostContent').value='';
-  document.getElementById('comPostFile').value='';
-  document.getElementById('comFileInfo').textContent='';
-  pendingComFile = null;
-  openModal('comPostModal');
-}
-
-document.addEventListener('DOMContentLoaded', ()=>{
-  const fileInput = document.getElementById('comPostFile');
-  if(fileInput){
-    fileInput.addEventListener('change', async (e)=>{
-      const file = e.target.files[0];
-      if(!file){ pendingComFile=null; document.getElementById('comFileInfo').textContent=''; return; }
-      if(file.size > 5*1024*1024){ toast('File troppo grande (max 5MB)','err'); fileInput.value=''; return; }
-      document.getElementById('comFileInfo').textContent='⏳ '+file.name;
-      const reader = new FileReader();
-      reader.onload = ev => {
-        pendingComFile = {
-          file_data: ev.target.result.split(',')[1],
-          file_name: file.name,
-          file_type: file.type
-        };
-        document.getElementById('comFileInfo').textContent='📎 '+file.name;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-});
-
-async function saveComPost(){
-  const title   = document.getElementById('comPostTitle').value.trim();
-  const content = document.getElementById('comPostContent').value.trim();
-  if(!title && !content){ toast('Inserisci titolo o contenuto','err'); return; }
-  try {
-    const body = { id:uid(), title, content };
-    if(pendingComFile) Object.assign(body, pendingComFile);
-    await api('POST','/api/comunicazioni/posts', body);
-    closeModal('comPostModal');
-    toast('Comunicato pubblicato');
-    await loadComPosts();
-  } catch(e){ toast(e.message,'err') }
-}
-
-async function deleteComPost(id){
-  if(!confirm('Eliminare questo comunicato?')) return;
-  try {
-    await api('DELETE','/api/comunicazioni/posts/'+id);
-    toast('Comunicato eliminato');
-    await loadComPosts();
-  } catch(e){ toast(e.message,'err') }
-}
-
-async function downloadComFile(postId, fileName){
-  try {
-    const data = await api('GET','/api/comunicazioni/posts/'+postId+'/file');
-    const link = document.createElement('a');
-    link.href = 'data:'+data.file_type+';base64,'+data.file_data;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } catch(e){ toast(e.message,'err') }
+  try { await api('DELETE','/api/announcements/'+id); loadBacheca(); toast('Eliminato') } catch(e){ toast(e.message,'err') }
 }
 
 // ── LISTE ──────────────────────────────────────────────────────────
+
 async function loadListe(){
   try {
     allLists = await api('GET','/api/lists');
@@ -945,7 +619,7 @@ function renderFinTx(){
       <td><span class="tx-type-badge type-${t.type}">${{guadagno:'💵 Guadagno',spesa:'🛒 Spesa',investimento:'📈 Investimento',ricavo:'💸 Ricavo'}[t.type]}</span></td>
       <td style="color:var(--text3)">${t.cat||'—'}</td>
       <td style="color:var(--text3);max-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.note||'—'}</td>
-      <td><span class="${{guadagno:'amount-pos',spesa:'amount-neg',investimento:'amount-blue',ricavo:'amount-amber'}[t.type]}">${{guadagno:'+',ricavo:'+',spesa:'−',investimento:''}[t.type]}${fmtEur(t.amount)}</span></td>
+      <td><span class="${{guadagno:'amount-pos',spesa:'amount-neg',investimento:'amount-blue',ricavo:'amount-amber'}[t.type]}" style="font-family:var(--font-mono)">${{guadagno:'+',ricavo:'+',spesa:'−',investimento:''}[t.type]}${fmtEur(t.amount)}</span></td>
       <td><button class="btn btn-sm del-btn" onclick="editTx('${t.id}')">✏</button><button class="btn btn-sm btn-red del-btn" onclick="deleteTx('${t.id}')">🗑</button></td>
     </tr>`).join('');
 }
@@ -1008,12 +682,19 @@ async function loadVoti(){
     vdb.schedule  = data.schedule  || {};
     vdb.notes     = data.notes     || [];
     vdb.settings  = data.settings  || vdb.settings;
+    if(data.cadet){
+      document.getElementById('s-name').value    = data.cadet.name||'';
+      document.getElementById('s-rank').value    = data.cadet.rank||'';
+      document.getElementById('s-year').value    = data.cadet.year||'1° Anno';
+      document.getElementById('s-platoon').value = data.cadet.platoon||'';
+    }
     loadVotiSettings();
     refreshVoti();
   } catch(e){ toast(e.message,'err') }
 }
 function refreshVoti(){ renderSubjectAreaUni(); renderSubjectAreaGym(); renderSubjectAreaMil(); renderPunizioni(); renderSchedule(); renderNotes(); renderGraduatoria(); renderSubjectMgmt() }
 
+// CALCOLI
 function wAvg(grades){ if(!grades||!grades.length) return null; const t=grades.reduce((a,g)=>a+g.value*g.weight,0),w=grades.reduce((a,g)=>a+g.weight,0); return w>0?t/w:null }
 function arAvg(grades){ if(!grades||!grades.length) return null; return grades.reduce((a,g)=>a+g.value,0)/grades.length }
 function subjAvg(s){ return wAvg(s.grades) }
@@ -1044,6 +725,7 @@ function calcPenalties(){
 }
 function badgeGradeClass(v){ if(v>=27)return'badge-green'; if(v>=24)return'badge-gold'; if(v>=18)return'badge-amber'; return'badge-red' }
 
+// GRADUATORIA
 function renderGraduatoria(){
   const avgUni=areaExamAvg(vdb.subjects.university);
   const avgAccUni=areaAccertAvgUni(vdb.subjects.university);
@@ -1100,6 +782,7 @@ function renderGraduatoria(){
   </tbody></table>`:'<div style="color:var(--text3);padding:1rem;font-family:var(--font-mono);font-size:.72rem;text-align:center">Nessun voto</div>';
 }
 
+// RENDER TABLE VOTI
 function buildGradeTable(grades,type){
   if(!grades.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.7rem;padding:.4rem 0">Nessun voto inserito</div>';
   return `<table class="data-table"><thead><tr><th>Data</th><th>Voto</th><th>Peso</th><th>Descrizione</th><th></th></tr></thead><tbody>
@@ -1111,6 +794,7 @@ function buildGradeTable(grades,type){
   </div>`;
 }
 
+// UNIVERSITÀ — esami + accertamenti separati per materia
 function renderSubjectAreaUni(){
   const subjects=vdb.subjects.university;
   const examG=subjects.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='exam')}));
@@ -1147,6 +831,7 @@ function buildUniCard(s){
   </div>`;
 }
 
+// GINNASTICA — solo esami ginnici
 function renderSubjectAreaGym(){
   const subjects=vdb.subjects.gym;
   document.getElementById('gym-weighted').textContent  = areaWAvg(subjects)!=null?fmt(areaWAvg(subjects)):'—';
@@ -1165,6 +850,7 @@ function renderSubjectAreaGym(){
     </div>`).join(''):'<div style="color:var(--text3);font-family:var(--font-mono);font-size:.75rem;padding:1rem">Nessuna disciplina ginnica aggiunta.</div>';
 }
 
+// MILITARE — solo accertamenti
 function renderSubjectAreaMil(){
   const subjects=vdb.subjects.military;
   document.getElementById('mil-weighted').textContent  = areaWAvg(subjects)!=null?fmt(areaWAvg(subjects)):'—';
@@ -1185,6 +871,7 @@ function renderSubjectAreaMil(){
 
 function toggleSubject(id){ const el=document.getElementById('sbody-'+id); if(el) el.classList.toggle('open') }
 
+// MODALS VOTI
 function openAddGradeModal(type,subjectId,gradeType){
   const s=vdb.subjects[type].find(x=>x.id===subjectId);
   document.getElementById('agType').value=type;
@@ -1252,6 +939,7 @@ async function deleteSubject(id,type){
   } catch(e){ toast(e.message,'err') }
 }
 
+// PUNIZIONI
 function renderPunizioni(){
   const pen=calcPenalties();
   document.getElementById('p-consegna').textContent=fmt(pen.consegnaPts);
@@ -1313,11 +1001,13 @@ async function deletePenalty(id,type){
   } catch(e){ toast(e.message,'err') }
 }
 
+// ORARIO
 const DAYS=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
 const HOURS=['07:30','08:30','09:30','10:30','11:30','12:30','13:30','14:30','15:30','16:30','17:30','18:30'];
 function renderSchedule(){
   const grid=document.getElementById('scheduleGrid');
   grid.style.gridTemplateColumns='70px repeat(6,1fr)';
+  grid.style.gridTemplateRows=`auto repeat(${HOURS.length},50px)`;
   grid.innerHTML='';
   const mkC=(cls,txt)=>{ const c=document.createElement('div');c.className=cls;c.textContent=txt;return c };
   grid.appendChild(mkC('sched-cell hdr',''));
@@ -1353,6 +1043,7 @@ async function clearSchedule(){
   try { await api('POST','/api/grades/schedule/clear'); vdb.schedule={};renderSchedule();toast('Orario svuotato') } catch(e){toast(e.message,'err')}
 }
 
+// NOTE
 function renderNotes(){
   const sorted=[...vdb.notes].sort((a,b)=>{if(a.pinned&&!b.pinned)return -1;if(!a.pinned&&b.pinned)return 1;return b.created_at>a.created_at?1:-1});
   document.getElementById('notesList').innerHTML=sorted.length?sorted.map(n=>`
@@ -1389,6 +1080,7 @@ async function deleteNote(id){
   try { await api('DELETE','/api/grades/notes/'+id); vdb.notes=vdb.notes.filter(n=>n.id!==id);renderNotes();toast('Nota eliminata') } catch(e){toast(e.message,'err')}
 }
 
+// IMPOSTAZIONI VOTI
 function loadVotiSettings(){
   const s=vdb.settings;
   document.getElementById('s-wuni').value  = s.weight_uni  || 50;
@@ -1403,8 +1095,12 @@ async function saveVotiSettings(){
   const weight_gym=parseFloat(document.getElementById('s-wgym').value)||50;
   const weight_mil=parseFloat(document.getElementById('s-wmil').value)||50;
   const pen_consegna_rate=parseFloat(document.getElementById('s-pen').value)||0.5;
+  const full_name=document.getElementById('s-name').value.trim();
+  const military_rank=document.getElementById('s-rank').value.trim();
+  const academic_year=document.getElementById('s-year').value;
+  const platoon=document.getElementById('s-platoon').value.trim();
   try {
-    await api('PUT','/api/grades/settings',{weight_uni,weight_acad,weight_gym,weight_mil,pen_consegna_rate});
+    await api('PUT','/api/grades/settings',{weight_uni,weight_acad,weight_gym,weight_mil,pen_consegna_rate,full_name,military_rank,academic_year,platoon});
     Object.assign(vdb.settings,{weight_uni,weight_acad,weight_gym,weight_mil,pen_consegna_rate});
     renderGraduatoria();renderPunizioni();toast('Impostazioni salvate');
   } catch(e){toast(e.message,'err')}
@@ -1440,11 +1136,6 @@ async function loadAdminUsers(){
         <td style="color:var(--text3)">${u.id}</td>
         <td>${escHtml(u.username)}</td>
         <td style="color:var(--text2)">${escHtml(u.full_name||'—')}</td>
-        <td>
-          <select class="role-select" onchange="setUserRole(${u.id},this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:.2rem .4rem;font-family:var(--font-mono);font-size:.65rem">
-            ${Object.entries(ROLE_LABELS).map(([val,lbl])=>`<option value="${val}" ${u.role===val?'selected':''}>${lbl}</option>`).join('')}
-          </select>
-        </td>
         <td style="color:var(--text3);font-size:.65rem">${fmtDate(u.created_at?.slice(0,10))}</td>
         <td><span class="perm-toggle ${u.can_access_finance?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'finance',${!u.can_access_finance})">${u.can_access_finance?'✓ Sì':'✗ No'}</span></td>
         <td><span class="perm-toggle ${u.can_access_grades?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'grades',${!u.can_access_grades})">${u.can_access_grades?'✓ Sì':'✗ No'}</span></td>
@@ -1453,22 +1144,6 @@ async function loadAdminUsers(){
       </tr>`).join('');
   } catch(e){toast(e.message,'err')}
 }
-
-async function setUserRole(id, role){
-  try {
-    const users = await api('GET','/api/admin/users');
-    const u = users.find(x=>x.id===id);
-    if(!u) return;
-    await api('PUT','/api/admin/users/'+id,{
-      can_access_finance: u.can_access_finance,
-      can_access_grades:  u.can_access_grades,
-      is_admin:           u.is_admin,
-      role
-    });
-    toast('Ruolo aggiornato');
-  } catch(e){ toast(e.message,'err'); loadAdminUsers(); }
-}
-
 async function togglePerm(id,field,val){
   try {
     const users=await api('GET','/api/admin/users');
@@ -1476,11 +1151,10 @@ async function togglePerm(id,field,val){
     const upd={
       can_access_finance: field==='finance'?val:u.can_access_finance,
       can_access_grades:  field==='grades' ?val:u.can_access_grades,
-      is_admin:           field==='admin'  ?val:u.is_admin,
-      role: u.role
+      is_admin:           field==='admin'  ?val:u.is_admin
     };
     await api('PUT','/api/admin/users/'+id,upd);
-    loadAdminUsers();toast('Permessi aggiornati');
+    loadAdminUsers();toast('Permessi aggiornati — effettivi immediatamente per l\'utente','ok');
   } catch(e){toast(e.message,'err')}
 }
 async function deleteUser(id,username){
