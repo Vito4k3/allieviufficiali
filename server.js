@@ -87,7 +87,7 @@ app.post('/api/setup', async (req, res) => {
     if (!username || !email || !password) return res.status(400).json({ error: 'Campi obbligatori mancanti' });
     const hash = await bcrypt.hash(password, 12);
     await c.execute(
-      'INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_grades, role) VALUES (?,?,?,?,1,1,1, 'none')',
+      'INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_grades, role) VALUES (?,?,?,?,1,1,1, \'none\')',
       [username, email, hash, full_name || username]
     );
     res.json({ ok: true, message: 'Amministratore creato con successo' });
@@ -107,7 +107,7 @@ app.post('/api/auth/register', async (req, res) => {
     const c    = await db();
     const hash = await bcrypt.hash(password, 12);
     const [result] = await c.execute(
-      'INSERT INTO users (username,email,password_hash,full_name, role) VALUES (?,?,?,?, 'none')',
+      'INSERT INTO users (username,email,password_hash,full_name, role) VALUES (?,?,?,?, \'none\')',
       [username.trim(), email.trim().toLowerCase(), hash, full_name?.trim() || '']
     );
     res.json({ ok: true, id: result.insertId });
