@@ -517,158 +517,368 @@ async function downloadComFile(postId, fileName){
 
 // ── LISTE ──────────────────────────────────────────────────────────
 async function loadListe(){
-  try { allLists=await api('GET','/api/lists'); renderListContent() }
-  catch(e){ toast(e.message,'err') }
+  try {
+    allLists = await api('GET','/api/lists');
+    renderListContent();
+  } catch(e){ toast(e.message,'err') }
 }
+
 function switchListTab(type, btn){
-  currentListTab=type;
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  currentListTab = type;
+  openListId = null;
+  document.querySelectorAll('#page-liste .tab-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   renderListContent();
 }
+
 function toggleAdminListPanel(){
-  const p=document.getElementById('list-admin-panel');
+  const p = document.getElementById('list-admin-panel');
   p.classList.toggle('hidden');
   if(!p.classList.contains('hidden')){
-    document.getElementById('newListType').value=currentListTab;
-    document.getElementById('newListDate').value=today();
+    document.getElementById('newListType').value = currentListTab;
+    document.getElementById('newListDate').value = today();
+    updateNewListTypeUI();
   }
 }
+
+function updateNewListTypeUI(){
+  const t = document.getElementById('newListType').value;
+  const customSection = document.getElementById('newListCustomSection');
+  if(customSection) customSection.classList.toggle('hidden', t !== 'custom');
+}
+
 async function createList(){
-  const list_type=document.getElementById('newListType').value;
-  const list_date=document.getElementById('newListDate').value;
-  const notes=document.getElementById('newListNotes').value.trim();
+  const list_type          = document.getElementById('newListType').value;
+  const list_date          = document.getElementById('newListDate').value;
+  const notes              = document.getElementById('newListNotes').value.trim();
+  const custom_name        = document.getElementById('newListCustomName')?.value.trim()  || '';
+  const custom_field_label = document.getElementById('newListCustomLabel')?.value.trim() || '';
   if(!list_date){ toast('Seleziona una data','err'); return }
+  if(list_type==='custom' && !custom_name){ toast('Inserisci il nome della lista','err'); return }
   try {
-    await api('POST','/api/lists',{id:uid(),list_type,list_date,notes});
+    await api('POST','/api/lists',{id:uid(),list_type,list_date,notes,custom_name,custom_field_label});
     document.getElementById('list-admin-panel').classList.add('hidden');
-    document.getElementById('newListNotes').value='';
+    document.getElementById('newListNotes').value = '';
+    if(document.getElementById('newListCustomName')) document.getElementById('newListCustomName').value = '';
+    if(document.getElementById('newListCustomLabel')) document.getElementById('newListCustomLabel').value = '';
     toast('Lista creata');
     await loadListe();
   } catch(e){ toast(e.message,'err') }
 }
+
 async function deleteList(id){
   if(!confirm('Eliminare questa lista e tutte le iscrizioni?')) return;
-  try { await api('DELETE','/api/lists/'+id); toast('Lista eliminata'); await loadListe() }
-  catch(e){ toast(e.message,'err') }
+  try {
+    await api('DELETE','/api/lists/'+id);
+    if(openListId===id) openListId=null;
+    toast('Lista eliminata');
+    await loadListe();
+  } catch(e){ toast(e.message,'err') }
 }
+
+// ── render principale ──
 function renderListContent(){
-  const el=document.getElementById('list-content');
-  const filtered=allLists.filter(l=>l.list_type===currentListTab);
-  const isAdmin=currentUser?.is_admin;
-  if(!filtered.length){
-    el.innerHTML=`<div class="card" style="text-align:center;padding:3rem">
-      <div style="font-size:2rem;margin-bottom:.8rem">📋</div>
-      <div style="font-family:var(--font-display);font-size:1rem;color:var(--text2)">${LIST_LABELS[currentListTab]}</div>
-      <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--text3);margin-top:.3rem">Nessuna lista creata${isAdmin?' — usa "Nuova Lista" per crearne una':'.'}</div>
-    </div>`; return;
+  const el = document.getElementById('list-content');
+  const isAdmin = !!currentUser?.is_admin;
+
+  let filtered;
+  if(currentListTab === 'custom'){
+    filtered = allLists.filter(l => l.list_type === 'custom');
+  } else {
+    filtered = allLists.filter(l => l.list_type === currentListTab);
   }
-  el.innerHTML=filtered.map(l=>{
-    const mySignup=l.signups?.find(s=>s.user_id===currentUser?.id);
-    const isSignedUp=!!mySignup;
-    const isParlatorio=l.list_type==='parlatorio';
-    return `<div class="list-card">
-      <div class="list-card-header" onclick="toggleListCard('lbody-${l.id}')">
-        <div>
-          <div style="font-family:var(--font-display);font-size:.95rem;color:var(--text);letter-spacing:.06em">${LIST_LABELS[l.list_type]}</div>
-          <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.15rem">📅 ${fmtDate(l.list_date)}${l.notes?' · '+escHtml(l.notes):''}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:.8rem">
-          <span class="badge badge-gold">${l.signup_count} iscritti</span>
-          ${isAdmin?`<button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteList('${l.id}')">🗑</button>`:''}
-          <span style="color:var(--text3);font-size:.8rem">▾</span>
+
+  if(!filtered.length){
+    const hint = isAdmin ? ' — usa "Nuova Lista" per crearne una' : '.';
+    el.innerHTML = `<div class="card" style="text-align:center;padding:3rem">
+      <div style="font-size:2rem;margin-bottom:.8rem">📋</div>
+      <div style="font-family:var(--font-display);font-size:1rem;color:var(--text2);margin-bottom:.4rem">${getListLabel(currentListTab)}</div>
+      <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--text3)">Nessuna lista creata per questa categoria${hint}</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = filtered.map(l => renderListCard(l, isAdmin)).join('');
+  _applyOpenList();
+}
+
+function getListLabel(type, customName){
+  if(type === 'custom') return customName || 'Lista Personalizzata';
+  return LIST_LABELS[type] || type;
+}
+
+function renderListCard(l, isAdmin){
+  const isParlatorio = l.list_type === 'parlatorio';
+  const isMessa      = l.list_type === 'messa';
+  const isCustom     = l.list_type === 'custom';
+  const title        = isCustom ? (l.custom_name || 'Lista Personalizzata') : LIST_LABELS[l.list_type];
+  const signups      = l.signups || [];
+  const mySignup     = signups.find(s => s.user_id === currentUser?.id);
+  const isSignedUp   = !!mySignup;
+
+  return `<div class="list-card">
+    <div class="list-card-header" onclick="toggleListCard('lbody-${l.id}')">
+      <div>
+        <div style="font-family:var(--font-display);font-size:.95rem;color:var(--text);letter-spacing:.06em">${escHtml(title)}</div>
+        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.15rem">
+          📅 ${fmtDate(l.list_date)}${l.notes?' · '+escHtml(l.notes):''}
+          ${isCustom&&l.custom_field_label?' · Campo: '+escHtml(l.custom_field_label):''}
         </div>
       </div>
-      <div class="list-card-body" id="lbody-${l.id}">
-        <div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap">
-          ${!isSignedUp
-            ? isParlatorio
-              ? `<button class="btn btn-gold" onclick="openParlatorioModal('${l.id}')">✋ Iscriviti (Parlatorio)</button>`
-              : `<button class="btn btn-gold" onclick="signupList('${l.id}')">✋ Iscriviti</button>`
-            : `<button class="btn btn-red" onclick="unsignupList('${l.id}')">✗ Rimuovi iscrizione</button>`
-          }
-        </div>
-        <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.5rem">Iscritti (${l.signup_count||0})</div>
-        ${renderSignupList(l,isAdmin,isParlatorio)}
+      <div style="display:flex;align-items:center;gap:.8rem">
+        <span class="badge badge-gold">${l.signup_count} iscritti</span>
+        ${isAdmin?`<button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteList('${l.id}')">🗑</button>`:''}
+        <span style="color:var(--text3);font-family:var(--font-mono)">▾</span>
       </div>
+    </div>
+    <div class="list-card-body" id="lbody-${l.id}">
+      <div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap">
+        ${renderSignupButton(l, isSignedUp, mySignup, isAdmin)}
+      </div>
+      ${isCustom&&l.custom_field_label?`<div class="alert alert-info" style="margin-bottom:.8rem">✏ Ogni allievo inserisce: <strong>${escHtml(l.custom_field_label)}</strong></div>`:''}
+      <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.5rem">Iscritti (${l.signup_count})</div>
+      ${renderSignupRows(l, isAdmin)}
+    </div>
+  </div>`;
+}
+
+function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
+  const isParlatorio = l.list_type === 'parlatorio';
+  const isMessa      = l.list_type === 'messa';
+  const isCustom     = l.list_type === 'custom';
+
+  if(!isSignedUp){
+    if(isParlatorio)
+      return `<button class="btn btn-gold" onclick="openParlatorioModal('${l.id}')">✋ Iscriviti (Parlatorio)</button>`;
+    if(isMessa)
+      return `<button class="btn btn-gold" onclick="openMessaModal('${l.id}')">✋ Iscriviti alla Messa</button>`;
+    if(isCustom)
+      return `<button class="btn btn-gold" onclick="openCustomSignupModal('${l.id}')">✋ Iscriviti</button>`;
+    return `<button class="btn btn-gold" onclick="signupList('${l.id}')">✋ Iscriviti</button>`;
+  }
+
+  let extra = '';
+  if(isParlatorio)
+    extra = `<button class="btn btn-blue" onclick="openParlatorioModal('${l.id}',true)">👥 Gestisci parenti</button>`;
+
+  return extra + `<button class="btn btn-red" onclick="unsignupList('${l.id}')">✗ Rimuovi iscrizione</button>`;
+}
+
+function renderSignupRows(l, isAdmin){
+  const signups = l.signups || [];
+  if(!signups.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:.5rem">Nessuno iscritto ancora.</div>';
+  const isParlatorio = l.list_type === 'parlatorio';
+  const isMessa      = l.list_type === 'messa';
+  const isCustom     = l.list_type === 'custom';
+
+  return signups.map((s,i) => {
+    let detail = '';
+    if(isCustom && s.note)
+      detail = `<span style="color:var(--gold)">→ ${escHtml(s.note)}</span>`;
+    if(isMessa && s.relative_name)
+      detail = `<span style="color:var(--text2)">👥 ${escHtml(s.relative_name)}${s.relative_relation?' ('+escHtml(s.relative_relation)+')':''}</span>`;
+    if(isParlatorio){
+      const rels = s.relatives || [];
+      if(rels.length){
+        detail = rels.map(r =>
+          `<div style="margin-left:1.5rem;color:var(--text2);font-size:.68rem">↳ ${escHtml(r.relative_name)} (${escHtml(r.relative_relation||'—')})${r.relative_id_card?' · CI: '+escHtml(r.relative_id_card):''}</div>`
+        ).join('');
+      }
+    }
+
+    return `<div class="signup-row" style="flex-wrap:wrap">
+      <span style="color:var(--text3);width:22px">${i+1}.</span>
+      <span style="color:var(--gold)">${s.military_rank?escHtml(s.military_rank)+' ':''}<strong>${escHtml(s.full_name||s.username)}</strong></span>
+      ${detail}
+      ${isAdmin?`<button class="btn btn-sm btn-red del-btn" onclick="removeSignup('${l.id}',${s.user_id})" style="margin-left:auto">✕</button>`:''}
     </div>`;
   }).join('');
 }
-function renderSignupList(l,isAdmin,isParlatorio){
-  const signups=l.signups||[];
-  if(!signups.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:.5rem">Nessuno iscritto ancora.</div>';
-  return signups.map((s,i)=>`
-    <div class="signup-row">
-      <span style="color:var(--text3);width:22px">${i+1}.</span>
-      <span style="color:var(--gold)">${escHtml(s.military_rank?s.military_rank+' ':'')}<strong>${escHtml(s.full_name||s.username)}</strong></span>
-      ${isParlatorio&&s.relative_name?`<span style="color:var(--text2)">→ ${escHtml(s.relative_name)} (${escHtml(s.relative_relation||'—')})${s.relative_id_card?' · CI: '+escHtml(s.relative_id_card):''}</span>`:''}
-      ${isAdmin?`<button class="btn btn-sm btn-red del-btn" onclick="removeSignup('${l.id}',${s.user_id})" style="margin-left:auto">✕</button>`:''}
-    </div>`).join('');
+
+// ── OPEN / CLOSE con stato ──
+function _applyOpenList(){
+  if(!openListId) return;
+  const el = document.getElementById('lbody-'+openListId);
+  if(el) el.classList.add('open');
 }
+
 async function loadListDetail(listId){
   try {
-    const detail=await api('GET','/api/lists/'+listId);
-    const idx=allLists.findIndex(l=>l.id===listId);
-    if(idx>=0) allLists[idx]={...allLists[idx],...detail,signup_count:detail.signups.length};
+    const detail = await api('GET','/api/lists/'+listId);
+    const idx = allLists.findIndex(l => l.id === listId);
+    if(idx >= 0) allLists[idx] = {...allLists[idx], ...detail, signup_count: detail.signups.length};
     renderListContent();
+    _applyOpenList();
   } catch(e){ toast(e.message,'err') }
 }
+
 function toggleListCard(id){
-  const el=document.getElementById(id);
-  if(!el) return;
-  const isOpen=el.classList.contains('open');
-  if(!isOpen){
-    const listId=id.replace('lbody-','');
-    const list=allLists.find(l=>l.id===listId);
-    if(list&&!list.signups) loadListDetail(listId);
-    else renderListContent();
+  const listId = id.replace('lbody-','');
+  if(openListId === listId){
+    openListId = null;
+    const el = document.getElementById(id);
+    if(el) el.classList.remove('open');
+    return;
   }
-  el.classList.toggle('open',!isOpen);
+  openListId = listId;
+  const list = allLists.find(l => l.id === listId);
+  if(list && !list.signups){
+    loadListDetail(listId);
+  } else {
+    renderListContent();
+    _applyOpenList();
+  }
 }
+
+// ── ISCRIVITI ──
 async function signupList(listId){
   try {
     await api('POST','/api/lists/'+listId+'/signup',{signup_id:uid()});
     toast('Iscritto!');
+    openListId = listId;
     await loadListDetail(listId);
-    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
+
 async function unsignupList(listId){
   if(!confirm('Rimuovere la tua iscrizione?')) return;
   try {
     await api('DELETE','/api/lists/'+listId+'/signup');
     toast('Iscrizione rimossa');
+    openListId = listId;
     await loadListDetail(listId);
-    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
-async function removeSignup(listId,userId){
+
+async function removeSignup(listId, userId){
   if(!confirm('Rimuovere questo iscritto?')) return;
   try {
     await api('DELETE','/api/lists/'+listId+'/signup/'+userId);
     toast('Iscritto rimosso');
+    openListId = listId;
     await loadListDetail(listId);
-    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
-function openParlatorioModal(listId){
-  document.getElementById('parlListId').value=listId;
-  document.getElementById('parlName').value='';
-  document.getElementById('parlRelation').value='';
-  document.getElementById('parlIdCard').value='';
+
+// ── MESSA (iscrizione con parente opzionale) ──
+function openMessaModal(listId){
+  document.getElementById('messaListId').value = listId;
+  document.getElementById('messaHasRelative').value = 'no';
+  document.getElementById('messaRelativeFields').classList.add('hidden');
+  document.getElementById('messaRelName').value    = '';
+  document.getElementById('messaRelRelation').value= '';
+  openModal('messaModal');
+}
+async function confirmMessaSignup(){
+  const listId     = document.getElementById('messaListId').value;
+  const hasRel     = document.getElementById('messaHasRelative').value === 'si';
+  const rel_name   = document.getElementById('messaRelName').value.trim();
+  const rel_rel    = document.getElementById('messaRelRelation').value.trim();
+  if(hasRel && !rel_name){ toast('Inserisci il nome del parente','err'); return }
+  try {
+    await api('POST','/api/lists/'+listId+'/signup',{
+      signup_id: uid(),
+      relative_name:     hasRel ? rel_name : '',
+      relative_relation: hasRel ? rel_rel  : ''
+    });
+    closeModal('messaModal');
+    toast('Iscritto alla Messa!');
+    openListId = listId;
+    await loadListDetail(listId);
+  } catch(e){ toast(e.message,'err') }
+}
+
+// ── LISTA PERSONALIZZATA (iscrizione con campo custom) ──
+let _customSignupListId = '', _customSignupLabel = '';
+function openCustomSignupModal(listId){
+  _customSignupListId = listId;
+  const list = allLists.find(l => l.id === listId);
+  _customSignupLabel  = list?.custom_field_label || '';
+  document.getElementById('customSignupLabel').textContent = _customSignupLabel || 'Nota / Info';
+  document.getElementById('customSignupValue').value = '';
+  openModal('customSignupModal');
+}
+async function confirmCustomSignup(){
+  const note = document.getElementById('customSignupValue').value.trim();
+  try {
+    await api('POST','/api/lists/'+_customSignupListId+'/signup',{signup_id:uid(), note});
+    closeModal('customSignupModal');
+    toast('Iscritto!');
+    openListId = _customSignupListId;
+    await loadListDetail(_customSignupListId);
+  } catch(e){ toast(e.message,'err') }
+}
+
+// ── PARLATORIO (multi-parente) ──
+let _parlListId = '', _parlManage = false;
+// Lista temporanea dei nuovi parenti da aggiungere
+let _parlNewRelatives = [];
+
+function openParlatorioModal(listId, manage=false){
+  _parlListId     = listId;
+  _parlManage     = manage;
+  _parlNewRelatives = [];
+  document.getElementById('parlatorioListId').value = listId;
+  // Titolo
+  document.getElementById('parlatorioModalTitle').textContent = manage ? '👥 Gestisci Parenti Parlatorio' : '👥 Iscrizione Parlatorio';
+  // Sezione iscrizione (mostra solo se non già iscritto)
+  const signupSection = document.getElementById('parlSignupSection');
+  if(signupSection) signupSection.classList.toggle('hidden', manage);
+  // Reset parenti
+  renderParlNewRelatives();
   openModal('parlatorioModal');
 }
+
+function renderParlNewRelatives(){
+  const el = document.getElementById('parlNewRelativesList');
+  if(!el) return;
+  if(!_parlNewRelatives.length){
+    el.innerHTML = '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.7rem;margin-bottom:.5rem">Nessun parente aggiunto. Premi + per aggiungere.</div>';
+    return;
+  }
+  el.innerHTML = _parlNewRelatives.map((r,i)=>`
+    <div style="display:flex;gap:.5rem;align-items:center;padding:.4rem 0;border-bottom:1px solid rgba(42,58,74,.4)">
+      <span style="font-family:var(--font-mono);font-size:.72rem;color:var(--text)">${escHtml(r.name)} <span style="color:var(--text3)">(${escHtml(r.relation||'—')})</span>${r.id_card?'<span style="color:var(--text3)"> · CI: '+escHtml(r.id_card)+'</span>':''}</span>
+      <button class="btn btn-sm btn-red" style="margin-left:auto" onclick="removeParlNewRelative(${i})">✕</button>
+    </div>`).join('');
+}
+
+function addParlNewRelative(){
+  const name    = document.getElementById('parlRelName').value.trim();
+  const relation= document.getElementById('parlRelRelation').value.trim();
+  const id_card = document.getElementById('parlRelIdCard').value.trim();
+  if(!name){ toast('Inserisci il nome del parente','err'); return }
+  _parlNewRelatives.push({name, relation, id_card});
+  document.getElementById('parlRelName').value     = '';
+  document.getElementById('parlRelRelation').value = '';
+  document.getElementById('parlRelIdCard').value   = '';
+  renderParlNewRelatives();
+}
+
+function removeParlNewRelative(i){
+  _parlNewRelatives.splice(i,1);
+  renderParlNewRelatives();
+}
+
 async function confirmParlatorioSignup(){
-  const listId=document.getElementById('parlListId').value;
-  const relative_name=document.getElementById('parlName').value.trim();
-  const relative_relation=document.getElementById('parlRelation').value.trim();
-  const relative_id_card=document.getElementById('parlIdCard').value.trim();
-  if(!relative_name||!relative_relation){ toast('Inserisci nome e parentela del parente','err'); return }
   try {
-    await api('POST','/api/lists/'+listId+'/signup',{signup_id:uid(),relative_name,relative_relation,relative_id_card});
-    closeModal('parlatorioModal'); toast('Iscritto al parlatorio!');
-    await loadListDetail(listId);
-    document.getElementById('lbody-'+listId)?.classList.add('open');
+    // Step 1: Iscrivi (se non già iscritto)
+    if(!_parlManage){
+      await api('POST','/api/lists/'+_parlListId+'/signup',{signup_id:uid()});
+    }
+    // Step 2: Aggiungi tutti i parenti
+    for(const r of _parlNewRelatives){
+      await api('POST','/api/lists/'+_parlListId+'/relatives',{
+        id: uid(),
+        relative_name:     r.name,
+        relative_relation: r.relation,
+        relative_id_card:  r.id_card
+      });
+    }
+    closeModal('parlatorioModal');
+    toast(_parlManage ? 'Parenti aggiornati!' : 'Iscritto al parlatorio!');
+    openListId = _parlListId;
+    await loadListDetail(_parlListId);
   } catch(e){ toast(e.message,'err') }
 }
 
