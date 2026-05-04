@@ -1,13 +1,18 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Portale Allievi Ufficiali</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
+/* ═══════════════════════════════════════════════════════════
+   DESIGN SYSTEM — PORTALE ALLIEVI UFFICIALI
+   Aesthetic: Institutional Luxury · Military Precision
+   ═══════════════════════════════════════════════════════════ */
+
 /* ─── DARK THEME (default) ─── */
 :root, [data-theme="dark"] {
   --bg:       #080b11;
@@ -16,18 +21,18 @@
   --surface2: #141d2c;
   --surface3: #1a2538;
   --surface4: #202e44;
- 
+
   --border:   rgba(255,255,255,0.07);
   --border2:  rgba(255,255,255,0.13);
   --border3:  rgba(201,168,76,0.25);
- 
+
   --gold:        #c9a84c;
   --gold2:       #e8c97a;
   --gold3:       #8a6e2e;
   --gold-dim:    rgba(201,168,76,0.1);
   --gold-glow:   rgba(201,168,76,0.22);
   --gold-bright: rgba(201,168,76,0.4);
- 
+
   --green:       #1d6640;
   --green-light: #3cb371;
   --green-dim:   rgba(60,179,113,0.12);
@@ -40,22 +45,22 @@
   --amber:       #a06428;
   --amber-light: #e8a050;
   --amber-dim:   rgba(232,160,80,0.12);
- 
+
   --text:    #dce4f0;
   --text2:   #8899b4;
   --text3:   #485a72;
   --text4:   #2e3e54;
- 
+
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
   --shadow-md: 0 4px 20px rgba(0,0,0,0.5);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.6);
   --shadow-gold: 0 0 30px rgba(201,168,76,0.08);
- 
+
   --radius:   8px;
   --radius2:  14px;
   --radius3:  20px;
 }
- 
+
 /* ─── LIGHT THEME ─── */
 [data-theme="light"] {
   --bg:       #f2ede4;
@@ -64,18 +69,18 @@
   --surface2: #f7f3ee;
   --surface3: #ede8df;
   --surface4: #e4ddd2;
- 
+
   --border:   rgba(0,0,0,0.08);
   --border2:  rgba(0,0,0,0.14);
   --border3:  rgba(155,119,40,0.3);
- 
+
   --gold:        #9b7828;
   --gold2:       #7a5e1a;
   --gold3:       #c9a84c;
   --gold-dim:    rgba(155,120,40,0.1);
   --gold-glow:   rgba(155,120,40,0.2);
   --gold-bright: rgba(155,120,40,0.35);
- 
+
   --green:       #1a5e38;
   --green-light: #1f7a48;
   --green-dim:   rgba(31,122,72,0.1);
@@ -88,18 +93,18 @@
   --amber:       #8a5220;
   --amber-light: #b06820;
   --amber-dim:   rgba(176,104,32,0.1);
- 
+
   --text:    #1a2035;
   --text2:   #445070;
   --text3:   #7a8aaa;
   --text4:   #aab0c4;
- 
+
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
   --shadow-md: 0 4px 20px rgba(0,0,0,0.1);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
   --shadow-gold: 0 0 30px rgba(155,120,40,0.08);
 }
- 
+
 /* ─── FONTS ─── */
 :root {
   --font-display: 'Cinzel', serif;
@@ -107,7 +112,7 @@
   --font-mono:    'JetBrains Mono', monospace;
   --font-ui:      'Outfit', sans-serif;
 }
- 
+
 /* ─── RESET ─── */
 *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
 html { font-size:15px; scroll-behavior:smooth; }
@@ -120,14 +125,14 @@ body {
   line-height: 1.65;
   transition: background 0.35s ease, color 0.35s ease;
 }
- 
+
 /* Theme transition */
 *, *::before, *::after {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 /* Exclude transitions that interfere */
 button, a, input, select, textarea, .btn { transition: all 0.2s ease; }
- 
+
 /* ─── UTILITIES ─── */
 .hidden { display:none!important; }
 .flex { display:flex; } .flex-col { flex-direction:column; } .items-center { align-items:center; }
@@ -135,13 +140,13 @@ button, a, input, select, textarea, .btn { transition: all 0.2s ease; }
 .text-gold { color:var(--gold); } .text-dim { color:var(--text2); } .text-muted { color:var(--text3); }
 .text-red { color:var(--red-light); } .text-green { color:var(--green-light); } .text-blue { color:var(--blue-light); }
 .mono { font-family:var(--font-mono); } .display { font-family:var(--font-display); } .w-full { width:100%; }
- 
+
 /* ─── SCROLLBAR ─── */
 ::-webkit-scrollbar { width:4px; height:4px; }
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
 ::-webkit-scrollbar-thumb:hover { background:var(--gold3); }
- 
+
 /* ─── THEME TOGGLE BUTTON ─── */
 .theme-toggle {
   width: 38px; height: 38px;
@@ -160,300 +165,746 @@ button, a, input, select, textarea, .btn { transition: all 0.2s ease; }
 [data-theme="light"] .icon-sun { display:none; }
 [data-theme="light"] .icon-moon { display:inline; }
 
-  /* ── ROLE BADGES ─────────────────────────────────────────── */
-.role-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.12rem .55rem;border-radius:20px;font-family:var(--font-mono);font-size:.6rem;font-weight:500;letter-spacing:.05em;white-space:nowrap;vertical-align:middle}
-.role-admin{background:rgba(200,168,75,.2);color:var(--gold);border:1px solid rgba(200,168,75,.4)}
-.role-tenente{background:rgba(232,160,80,.18);color:var(--amber-light);border:1px solid rgba(232,160,80,.4)}
-.role-capo{background:rgba(90,158,245,.18);color:var(--blue-light);border:1px solid rgba(90,158,245,.4)}
-.role-vice{background:rgba(74,171,114,.18);color:var(--green-light);border:1px solid rgba(74,171,114,.4)}
-.role-servizio{background:rgba(167,139,250,.18);color:var(--purple-light);border:1px solid rgba(167,139,250,.4)}
-.role-none{background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
-  
-/* LANDING */
-#landing{position:relative;min-height:100vh;overflow:hidden}
-.land-bg{position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(200,168,75,0.06) 0%,transparent 70%),radial-gradient(ellipse 50% 80% at 80% 50%,rgba(42,95,168,0.04) 0%,transparent 60%),var(--bg);z-index:-1}
-.land-grid{position:fixed;inset:0;z-index:-1;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:60px 60px;opacity:0.25}
-.land-nav{display:flex;align-items:center;justify-content:space-between;padding:1.5rem 4rem;border-bottom:1px solid rgba(200,168,75,0.1);position:sticky;top:0;z-index:50;background:rgba(9,13,20,0.85);backdrop-filter:blur(10px)}
-.land-logo{display:flex;align-items:center;gap:.8rem}
-.land-emblem{width:44px;height:44px;border:2px solid var(--gold-dim);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;background:radial-gradient(circle,var(--surface2) 60%,var(--bg) 100%)}
-.land-logo-text{font-family:var(--font-display);font-size:.9rem;color:var(--gold);letter-spacing:.15em;line-height:1.2}
-.land-logo-sub{font-family:var(--font-mono);font-size:.55rem;color:var(--text3);letter-spacing:.25em;text-transform:uppercase}
-.land-nav-btns{display:flex;gap:.6rem}
-.land-hero{max-width:900px;margin:0 auto;padding:8rem 2rem 5rem;text-align:center}
-.hero-badge{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--gold-dim);background:var(--gold-dim);border-radius:20px;padding:.3rem 1rem;font-family:var(--font-mono);font-size:.62rem;color:var(--gold);letter-spacing:.15em;text-transform:uppercase;margin-bottom:2rem}
-.hero-title{font-family:var(--font-display);font-size:clamp(2.5rem,6vw,4.5rem);color:var(--text);line-height:1.05;letter-spacing:.05em;margin-bottom:1rem}
-.hero-title span{color:var(--gold)}
-.hero-sub{font-family:var(--font-body);font-size:1.2rem;color:var(--text2);max-width:600px;margin:0 auto 3rem;line-height:1.8}
-.hero-cta{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.land-features{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;max-width:1100px;margin:5rem auto;padding:0 2rem}
-.feat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:2rem;transition:border-color .25s,transform .25s}
-.feat-card:hover{border-color:var(--gold-dim);transform:translateY(-3px)}
-.feat-icon{font-size:2rem;margin-bottom:1rem}
-.feat-title{font-family:var(--font-display);font-size:.95rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.6rem}
-.feat-desc{font-family:var(--font-ui);font-size:.85rem;color:var(--text2);line-height:1.7}
-.land-stats{display:flex;justify-content:center;gap:5rem;padding:4rem 2rem;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-.stat-item{text-align:center}
-.stat-num{font-family:var(--font-display);font-size:2.8rem;color:var(--gold);line-height:1}
-.stat-lbl{font-family:var(--font-mono);font-size:.62rem;color:var(--text3);letter-spacing:.2em;text-transform:uppercase;margin-top:.3rem}
-.land-steps{max-width:700px;margin:5rem auto;padding:0 2rem}
-.land-steps h2{font-family:var(--font-display);font-size:1.8rem;color:var(--gold);text-align:center;letter-spacing:.1em;margin-bottom:3rem}
-.step{display:flex;gap:1.5rem;margin-bottom:2rem;align-items:flex-start}
-.step-num{width:40px;height:40px;border:1px solid var(--gold-dim);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1rem;color:var(--gold);flex-shrink:0}
-.step-body h3{font-family:var(--font-display);font-size:.9rem;color:var(--text);letter-spacing:.08em;margin-bottom:.3rem}
-.step-body p{font-family:var(--font-ui);font-size:.85rem;color:var(--text2);line-height:1.7}
-.land-footer{text-align:center;padding:3rem 2rem;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.15em}
+/* ═══════════════════════════════════════════════════════════
+   LANDING PAGE
+   ═══════════════════════════════════════════════════════════ */
+#landing { position:relative; min-height:100vh; overflow:hidden; }
 
-/* BUTTONS */
-.btn{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.08em;padding:.5rem 1.2rem;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;background:var(--surface2);color:var(--text2);transition:all .2s;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
-.btn:hover{border-color:var(--border2);color:var(--text)}
-.btn-gold{border-color:var(--gold-dim);color:var(--gold);background:var(--gold-dim)}.btn-gold:hover{background:var(--gold-glow)}
-.btn-green{border-color:var(--green);color:var(--green-light);background:var(--green-dim)}.btn-green:hover{background:rgba(45,122,79,.3)}
-.btn-red{border-color:var(--red);color:var(--red-light);background:var(--red-dim)}.btn-red:hover{background:rgba(139,46,46,.3)}
-.btn-blue{border-color:var(--blue);color:var(--blue-light);background:var(--blue-dim)}.btn-blue:hover{background:rgba(42,95,168,.3)}
-.btn-lg{font-size:.8rem;padding:.75rem 2rem}.btn-sm{font-size:.6rem;padding:.25rem .6rem}
+/* Atmospheric background */
+.land-bg {
+  position: fixed; inset:0; z-index:-2;
+  background: var(--bg);
+}
+.land-bg::before {
+  content:'';
+  position: absolute; inset:0;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(201,168,76,0.09) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 60% at 90% 60%, rgba(91,156,245,0.04) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 10% 80%, rgba(60,179,113,0.03) 0%, transparent 55%);
+}
 
-/* AUTH */
-#auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:radial-gradient(ellipse 70% 60% at 50% 0%,rgba(200,168,75,0.07) 0%,transparent 70%),var(--bg)}
-.auth-box{background:var(--surface);border:1px solid var(--gold-dim);border-radius:var(--radius2);padding:2.5rem;width:100%;max-width:490px;animation:fadeUp .35s ease}
-@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-.auth-emblem{text-align:center;margin-bottom:1.5rem}
-.auth-emblem-icon{width:64px;height:64px;border:2px solid var(--gold-dim);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:2rem;background:radial-gradient(circle,var(--surface2) 60%,var(--bg))}
-.auth-title{font-family:var(--font-display);font-size:1.2rem;color:var(--gold);letter-spacing:.15em;margin-top:.8rem}
-.auth-subtitle{font-family:var(--font-mono);font-size:.6rem;color:var(--text3);letter-spacing:.2em;text-transform:uppercase}
-.auth-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.5rem}
-.auth-tab{flex:1;font-family:var(--font-mono);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;padding:.7rem;border:none;background:none;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
-.auth-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
-.form-group{display:flex;flex-direction:column;gap:.3rem;margin-bottom:.8rem}
-.form-group label{font-family:var(--font-mono);font-size:.58rem;letter-spacing:.18em;color:var(--text2);text-transform:uppercase}
-.form-group input,.form-group select,.form-group textarea{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem .85rem;color:var(--text);font-family:var(--font-mono);font-size:.82rem;outline:none;transition:border-color .2s}
-.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--gold-dim)}
-.form-group select option{background:var(--surface2)}
-.form-group textarea{resize:vertical;min-height:80px;font-family:var(--font-body);font-size:.95rem}
-.auth-back{font-family:var(--font-mono);font-size:.62rem;color:var(--text3);text-align:center;margin-top:1rem;cursor:pointer;letter-spacing:.1em}
-.auth-back:hover{color:var(--gold)}
-.auth-error{background:var(--red-dim);border:1px solid var(--red);border-radius:var(--radius);padding:.6rem .9rem;font-family:var(--font-mono);font-size:.72rem;color:var(--red-light);margin-bottom:1rem;display:none}
-.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
-.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem}
+/* Fine grid texture */
+.land-grid {
+  position: fixed; inset:0; z-index:-1;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 40%, black 30%, transparent 80%);
+}
 
-/* APP SHELL */
-#app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-aside{background:var(--surface);border-right:1px solid var(--border);padding:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
-.sb-header{padding:1.5rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.7rem}
-.sb-emblem{width:38px;height:38px;border:1px solid var(--gold-dim);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
-.sb-title{font-family:var(--font-display);font-size:.75rem;color:var(--gold);letter-spacing:.15em;line-height:1.3}
-.sb-sub{font-family:var(--font-mono);font-size:.52rem;color:var(--text3);letter-spacing:.2em;text-transform:uppercase}
-.sb-user{padding:1rem 1.25rem;border-bottom:1px solid var(--border);font-family:var(--font-mono)}
-.sb-user-name{font-size:.78rem;color:var(--text);font-weight:500}
-.sb-user-rank{font-size:.6rem;color:var(--text3);letter-spacing:.1em;margin-top:.15rem}
-.sb-nav{flex:1;padding:.75rem 0}
-.sb-section{font-family:var(--font-mono);font-size:.52rem;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);padding:.6rem 1.25rem .3rem}
-nav a.sb-link{display:flex;align-items:center;gap:.6rem;padding:.6rem 1.25rem;color:var(--text2);text-decoration:none;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.05em;transition:all .2s;border-left:2px solid transparent;cursor:pointer}
-nav a.sb-link:hover{color:var(--text);background:rgba(255,255,255,.02)}
-nav a.sb-link.active{color:var(--gold);background:var(--gold-dim);border-left-color:var(--gold)}
-.sb-link .sb-icon{width:16px;text-align:center;font-size:.9rem}
-.sb-footer{padding:1rem 1.25rem;border-top:1px solid var(--border)}
-main{overflow-x:hidden}
-.page{display:none;padding:2rem}.page.active{display:block}
-.page-title{font-family:var(--font-display);font-size:1.5rem;color:var(--gold);letter-spacing:.1em;margin-bottom:.2rem}
-.page-desc{font-family:var(--font-mono);font-size:.62rem;color:var(--text3);letter-spacing:.15em;text-transform:uppercase;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--border)}
+/* Diagonal accent lines */
+.land-diagonals {
+  position: fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none;
+}
+.land-diagonals::before {
+  content:'';
+  position: absolute;
+  width: 2px; height: 400px;
+  background: linear-gradient(180deg, transparent, rgba(201,168,76,0.15), transparent);
+  top: -100px; left: 20%;
+  transform: rotate(25deg);
+  animation: diag-drift 8s ease-in-out infinite;
+}
+.land-diagonals::after {
+  content:'';
+  position: absolute;
+  width: 1px; height: 300px;
+  background: linear-gradient(180deg, transparent, rgba(91,156,245,0.1), transparent);
+  top: 20%; right: 25%;
+  transform: rotate(-15deg);
+  animation: diag-drift 11s ease-in-out infinite reverse;
+}
+@keyframes diag-drift {
+  0%,100% { opacity:0.4; transform: rotate(25deg) translateY(0); }
+  50% { opacity:1; transform: rotate(25deg) translateY(40px); }
+}
 
-/* CARDS */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:1.5rem;margin-bottom:1.2rem;transition:border-color .2s}
-.card:hover{border-color:var(--border2)}
-.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
-.card-title{font-family:var(--font-display);font-size:1rem;color:var(--text);letter-spacing:.08em}
-.card-meta{font-family:var(--font-mono);font-size:.6rem;color:var(--text3);letter-spacing:.1em}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
-.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
-.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
-.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;text-align:center}
-.stat-box.top-gold{border-top:2px solid var(--gold)}.stat-box.top-green{border-top:2px solid var(--green-light)}
-.stat-box.top-red{border-top:2px solid var(--red-light)}.stat-box.top-blue{border-top:2px solid var(--blue-light)}
-.stat-value{font-family:var(--font-display);font-size:2rem;color:var(--gold);line-height:1;margin-bottom:.2rem}
-.stat-value.danger{color:var(--red-light)}.stat-value.ok{color:var(--green-light)}.stat-value.blue{color:var(--blue-light)}
-.stat-label{font-family:var(--font-mono);font-size:.58rem;color:var(--text3);letter-spacing:.18em;text-transform:uppercase}
-.badge{display:inline-block;padding:.12rem .5rem;border-radius:4px;font-family:var(--font-mono);font-size:.68rem;font-weight:500}
-.badge-gold{background:rgba(200,168,75,.15);color:var(--gold);border:1px solid rgba(200,168,75,.3)}
-.badge-green{background:rgba(74,171,114,.15);color:var(--green-light);border:1px solid rgba(74,171,114,.3)}
-.badge-red{background:rgba(224,92,92,.15);color:var(--red-light);border:1px solid rgba(224,92,92,.3)}
-.badge-blue{background:rgba(90,158,245,.15);color:var(--blue-light);border:1px solid rgba(90,158,245,.3)}
-.badge-amber{background:rgba(232,160,80,.15);color:var(--amber-light);border:1px solid rgba(232,160,80,.3)}
-.badge-purple{background:rgba(170,100,220,.15);color:#c488ff;border:1px solid rgba(170,100,220,.3)}
-.data-table{width:100%;border-collapse:collapse;font-size:.85rem}
-.data-table th{font-family:var(--font-mono);font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--text3);padding:.6rem .8rem;text-align:left;border-bottom:1px solid var(--border)}
-.data-table td{padding:.55rem .8rem;border-bottom:1px solid rgba(42,58,74,.45);font-family:var(--font-mono);font-size:.75rem;vertical-align:middle}
-.data-table tr:hover td{background:rgba(200,168,75,.03)}
-.data-table .del-btn{opacity:0}.data-table tr:hover .del-btn{opacity:1}
-.alert{border-radius:var(--radius);padding:.6rem .9rem;font-family:var(--font-mono);font-size:.7rem;margin-bottom:.8rem}
-.alert-warn{background:var(--amber-dim);border:1px solid var(--amber);color:var(--amber-light)}
-.alert-info{background:var(--blue-dim);border:1px solid var(--blue);color:var(--blue-light)}
+/* Navigation */
+.land-nav {
+  display: flex; align-items:center; justify-content:space-between;
+  padding: 1.25rem 3.5rem;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top:0; z-index:50;
+  background: rgba(8,11,17,0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+[data-theme="light"] .land-nav {
+  background: rgba(242,237,228,0.85);
+}
 
-/* LOCKED */
-.locked-state{text-align:center;padding:4rem 2rem}
-.locked-icon{font-size:3rem;margin-bottom:1rem}
-.locked-title{font-family:var(--font-display);font-size:1.1rem;color:var(--text2);letter-spacing:.1em;margin-bottom:.5rem}
-.locked-desc{font-family:var(--font-mono);font-size:.72rem;color:var(--text3)}
+.land-logo { display:flex; align-items:center; gap:.85rem; }
 
-  /* ── PROFILO ─────────────────────────────────────────────── */
-.profile-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:2rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:2rem}
-.profile-avatar{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--gold-dim),var(--blue-dim));border:2px solid var(--gold-dim);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.8rem;color:var(--gold);flex-shrink:0}
-.profile-info-name{font-family:var(--font-display);font-size:1.3rem;color:var(--text);letter-spacing:.08em;margin-bottom:.2rem}
-.profile-info-meta{font-family:var(--font-mono);font-size:.68rem;color:var(--text3);letter-spacing:.1em;margin-bottom:.5rem}
-.perm-indicator{display:inline-flex;align-items:center;padding:.18rem .55rem;border-radius:4px;font-family:var(--font-mono);font-size:.65rem;font-weight:500}
-.perm-ok{background:var(--green-dim);color:var(--green-light);border:1px solid var(--green)}
-.perm-no{background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
-.perm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin-top:1rem}
-.perm-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.8rem 1rem}
-.perm-box-label{font-family:var(--font-mono);font-size:.58rem;color:var(--text3);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.4rem}
-  
-/* BACHECA */
-.post-form{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:1.25rem;margin-bottom:1.5rem}
-.feed{display:flex;flex-direction:column;gap:.8rem}
-.post-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.25rem;animation:fadeUp .2s ease}
-.post-card:hover{border-color:var(--border2)}
-.post-author{font-family:var(--font-mono);font-size:.68rem;color:var(--gold);letter-spacing:.08em;display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem}
-.post-rank{color:var(--text3);font-size:.6rem}
-.post-time{color:var(--text3);font-size:.6rem;margin-left:auto}
-.post-content{font-family:var(--font-body);font-size:1rem;color:var(--text);line-height:1.65;white-space:pre-wrap}
-.post-actions{margin-top:.6rem;opacity:0;transition:opacity .2s}
-.post-card:hover .post-actions{opacity:1}
-.poll-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green-light);animation:pulse 2s infinite;margin-right:.4rem;vertical-align:middle}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.land-emblem {
+  width: 42px; height: 42px;
+  border: 1px solid var(--border3);
+  border-radius: 50%;
+  display: flex; align-items:center; justify-content:center;
+  font-size: 1.2rem;
+  background: radial-gradient(circle, var(--surface3) 50%, var(--bg) 100%);
+  box-shadow: 0 0 20px var(--gold-dim), inset 0 1px 0 rgba(255,255,255,0.05);
+  position: relative;
+}
+.land-emblem::after {
+  content:'';
+  position: absolute; inset:-3px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-dim);
+}
 
-  /* ── COMUNICAZIONI ───────────────────────────────────────── */
-.com-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.5rem;gap:0}
-.com-tab-btn{font-family:var(--font-display);font-size:.72rem;letter-spacing:.12em;padding:.85rem 1.4rem;border:none;background:none;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;text-transform:uppercase}
-.com-tab-btn:hover{color:var(--text2)}
-.com-tab-btn.active{color:var(--gold);border-bottom-color:var(--gold)}
-.com-tab-panel{display:none}.com-tab-panel.active{display:block}
+.land-logo-text { font-family:var(--font-display); font-size:.88rem; color:var(--gold); letter-spacing:.18em; line-height:1.2; }
+.land-logo-sub { font-family:var(--font-mono); font-size:.52rem; color:var(--text3); letter-spacing:.28em; text-transform:uppercase; margin-top:.1rem; }
+.land-nav-btns { display:flex; gap:.6rem; align-items:center; }
 
-  /* Chat */
-.chat-container{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);display:flex;flex-direction:column;height:60vh;min-height:400px}
-.chat-messages{flex:1;overflow-y:auto;padding:1.2rem 1.5rem;display:flex;flex-direction:column;gap:.8rem}
-.chat-empty{text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem;margin:auto}
-.chat-date-sep{display:flex;align-items:center;gap:1rem;margin:.5rem 0;font-family:var(--font-mono);font-size:.58rem;color:var(--text3);letter-spacing:.12em}
-.chat-date-sep::before,.chat-date-sep::after{content:'';flex:1;height:1px;background:var(--border)}
-.chat-row{display:flex;align-items:flex-end;gap:.7rem}
-.chat-row-own{flex-direction:row-reverse}
-.chat-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--surface2),var(--surface3));border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:.7rem;color:var(--gold);flex-shrink:0}
-.chat-bubble-wrap{display:flex;flex-direction:column;max-width:70%}
-.chat-row-own .chat-bubble-wrap{align-items:flex-end}
-.chat-meta{font-family:var(--font-mono);font-size:.6rem;color:var(--text3);margin-bottom:.2rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
-.chat-bubble{padding:.65rem 1rem;border-radius:var(--radius2);font-family:var(--font-body);font-size:.98rem;line-height:1.55;position:relative;white-space:pre-wrap;word-break:break-word;display:flex;align-items:flex-start;gap:.5rem}
-.chat-bubble-other{background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:4px;color:var(--text)}
-.chat-bubble-own{background:var(--gold-dim);border:1px solid var(--gold-dim);border-bottom-right-radius:4px;color:var(--text)}
-.chat-bubble span{flex:1}
-.chat-del-btn{opacity:0;background:none;border:none;color:var(--text3);cursor:pointer;font-size:.7rem;padding:.1rem .2rem;transition:all .15s;flex-shrink:0;margin-top:.1rem}
-.chat-bubble:hover .chat-del-btn{opacity:1}
-.chat-del-btn:hover{color:var(--red-light)}
-.chat-time{font-family:var(--font-mono);font-size:.56rem;color:var(--text3);margin-top:.2rem;padding:0 .2rem}
-.chat-input-area{border-top:1px solid var(--border);padding:1rem 1.2rem;display:flex;gap:.7rem;align-items:flex-end;background:var(--surface)}
-.chat-input-area textarea{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:.6rem .85rem;color:var(--text);font-family:var(--font-body);font-size:.95rem;outline:none;resize:none;min-height:42px;max-height:120px;transition:border-color .2s;line-height:1.5}
-.chat-input-area textarea:focus{border-color:var(--gold-dim)}
-.chat-locked-msg{border-top:1px solid var(--border);padding:1rem 1.5rem;display:flex;align-items:center;gap:.6rem;background:var(--surface);font-family:var(--font-mono);font-size:.68rem;color:var(--text3)}
- 
-/* Comunicati ufficiali */
-.com-post-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:.9rem;overflow:hidden;transition:border-color .2s}
-.com-post-card:hover{border-color:var(--border2)}
-.com-post-header{padding:1rem 1.2rem;background:var(--surface2);display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
-.com-post-title{font-family:var(--font-display);font-size:1rem;color:var(--gold);letter-spacing:.07em;margin-bottom:.3rem}
-.com-post-meta{font-family:var(--font-mono);font-size:.62rem;color:var(--text3);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-.com-post-content{padding:1rem 1.2rem;font-family:var(--font-body);font-size:.98rem;color:var(--text2);line-height:1.7;white-space:pre-wrap}
-.com-post-file{padding:.7rem 1.2rem;border-top:1px solid var(--border);display:flex;align-items:center;gap:.8rem;font-family:var(--font-mono);font-size:.7rem;color:var(--text2);background:var(--surface)}
-  
+/* Hero */
+.land-hero { max-width:860px; margin:0 auto; padding:8rem 2rem 5rem; text-align:center; }
 
-/* FINANZE */
-.fin-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
-.fin-kpi .stat-box .stat-value{font-size:1.6rem}
-.tx-type-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.15rem .55rem;border-radius:20px;font-size:.68rem;font-weight:500;white-space:nowrap}
-.type-guadagno{background:var(--green-dim);color:var(--green-light)}
-.type-spesa{background:var(--red-dim);color:var(--red-light)}
-.type-investimento{background:var(--blue-dim);color:var(--blue-light)}
-.type-ricavo{background:var(--amber-dim);color:var(--amber-light)}
-.amount-pos{color:var(--green-light)}.amount-neg{color:var(--red-light)}.amount-blue{color:var(--blue-light)}.amount-amber{color:var(--amber-light)}
-canvas{max-height:220px}
-.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:1rem;margin-bottom:2rem}
-.fin-filter-row{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem}
-.filter-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:.35rem .85rem;border-radius:var(--radius);font-family:var(--font-mono);font-size:.68rem;cursor:pointer;transition:all .2s;letter-spacing:.05em}
-.filter-btn:hover,.filter-btn.active{border-color:var(--gold-dim);color:var(--gold);background:var(--gold-dim)}
-.search-wrap{position:relative;flex:1;max-width:220px}
-.search-wrap input{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:.45rem .75rem .45rem 2rem;border-radius:var(--radius);font-family:var(--font-mono);font-size:.75rem;outline:none;transition:border-color .2s}
-.search-wrap input:focus{border-color:var(--border2)}
-.search-icon{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);color:var(--text3);font-size:.85rem}
+.hero-badge {
+  display: inline-flex; align-items:center; gap:.5rem;
+  border: 1px solid var(--border3);
+  background: var(--gold-dim);
+  border-radius: var(--radius3);
+  padding: .3rem 1.1rem;
+  font-family: var(--font-mono); font-size:.6rem;
+  color: var(--gold); letter-spacing:.2em; text-transform:uppercase;
+  margin-bottom: 2rem;
+  box-shadow: 0 0 20px var(--gold-dim);
+}
 
-/* VOTI / TABS */
-.tabs{display:flex;overflow-x:auto;gap:0;border-bottom:1px solid var(--border);margin-bottom:1.5rem}
-.tab-btn{font-family:var(--font-display);font-size:.68rem;letter-spacing:.12em;padding:.8rem 1.1rem;border:none;background:none;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;text-transform:uppercase}
-.tab-btn:hover{color:var(--text2);border-bottom-color:var(--border)}
-.tab-btn.active{color:var(--gold);border-bottom-color:var(--gold)}
-.tab-panel{display:none}.tab-panel.active{display:block}
-.subject-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:.6rem;overflow:hidden}
-.subject-toggle{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem;cursor:pointer;transition:background .15s}
-.subject-toggle:hover{background:rgba(255,255,255,.02)}
-.subject-toggle-name{font-family:var(--font-display);font-size:.88rem;color:var(--text);letter-spacing:.06em}
-.subject-toggle-stats{display:flex;align-items:center;gap:1rem;font-family:var(--font-mono);font-size:.65rem;color:var(--text3)}
-.subject-body{padding:1rem 1.1rem;border-top:1px solid var(--border);display:none}
-.subject-body.open{display:block}
-.uni-subject-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:.8rem;overflow:hidden}
-.uni-subject-header{padding:.9rem 1.1rem;background:var(--surface2);display:flex;align-items:center;justify-content:space-between}
-.uni-subject-section{padding:.8rem 1.1rem;border-top:1px solid var(--border)}
-.rank-row{display:flex;align-items:center;gap:1rem;padding:.8rem 1rem;border-bottom:1px solid rgba(42,58,74,.5)}
-.rank-row:hover{background:rgba(200,168,75,.03)}
-.rank-bar-bg{flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
-.rank-bar-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--gold));transition:width .5s ease;border-radius:3px}
-.schedule-grid{display:grid;grid-template-columns:70px repeat(6,1fr);gap:2px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;min-width:600px}
-.sched-cell{background:var(--surface);padding:.45rem .35rem;min-height:42px;cursor:pointer;transition:background .15s}
-.sched-cell:hover{background:var(--surface2)}
-.sched-cell.hdr{font-family:var(--font-display);font-size:.6rem;letter-spacing:.1em;color:var(--gold);text-align:center;background:var(--surface2);cursor:default;padding:.55rem .3rem}
-.sched-cell.tme{font-family:var(--font-mono);font-size:.58rem;color:var(--text3);text-align:right;padding-right:.55rem;display:flex;align-items:center;justify-content:flex-end;cursor:default}
-.sched-entry{background:var(--gold-dim);border-left:3px solid var(--gold);border-radius:2px;padding:.2rem .4rem;font-size:.65rem;font-family:var(--font-mono);color:var(--text);line-height:1.3}
-.sched-entry.military{border-color:var(--green-light);background:var(--green-dim)}
-.sched-entry.gym{border-color:var(--blue-light);background:var(--blue-dim)}
-.note-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.3rem;margin-bottom:.7rem;transition:border-color .2s}
-.note-card.pinned{border-color:var(--gold-dim)}
-.note-title{font-family:var(--font-display);font-size:.9rem;color:var(--text);margin-bottom:.4rem;letter-spacing:.05em}
-.note-body{font-family:var(--font-body);font-size:.95rem;color:var(--text2);line-height:1.6;white-space:pre-wrap}
-.note-date{font-family:var(--font-mono);font-size:.58rem;color:var(--text3);margin-top:.5rem}
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem,6vw,4.6rem);
+  color: var(--text);
+  line-height: 1.07;
+  letter-spacing: .04em;
+  margin-bottom: 1.2rem;
+}
+.hero-title span { color: var(--gold); }
+.hero-title .hero-line-2 {
+  display: block;
+  background: linear-gradient(135deg, var(--gold2), var(--gold), var(--gold2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 
-/* LISTE */
-.list-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:.8rem;overflow:hidden}
-.list-card-header{padding:.9rem 1.2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:background .15s}
-.list-card-header:hover{background:rgba(255,255,255,.02)}
-.list-card-body{padding:1rem 1.2rem;border-top:1px solid var(--border);display:none}
-.list-card-body.open{display:block}
-.signup-row{display:flex;align-items:center;gap:.8rem;padding:.5rem .6rem;border-bottom:1px solid rgba(42,58,74,.35);font-family:var(--font-mono);font-size:.72rem}
-.signup-row:last-child{border-bottom:none}
+.hero-sub {
+  font-family: var(--font-body);
+  font-size: 1.2rem;
+  color: var(--text2);
+  max-width: 560px; margin: 0 auto 3rem;
+  line-height: 1.85;
+  font-style: italic;
+}
 
-/* ADMIN */
-.perm-toggle{display:inline-flex;align-items:center;gap:.3rem;cursor:pointer;font-family:var(--font-mono);font-size:.65rem;padding:.2rem .5rem;border-radius:4px;border:1px solid;transition:all .2s;user-select:none}
-.perm-on{background:var(--green-dim);border-color:var(--green);color:var(--green-light)}
-.perm-off{background:var(--surface2);border-color:var(--border);color:var(--text3)}
-.role-select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:.25rem .5rem;font-family:var(--font-mono);font-size:.65rem;cursor:pointer;outline:none;transition:border-color .2s}
-.role-select:focus{border-color:var(--gold-dim)}
+.hero-cta { display:flex; gap:.9rem; justify-content:center; flex-wrap:wrap; }
 
-/* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px)}
-.modal-overlay.open{display:flex}
-.modal{background:var(--surface);border:1px solid var(--gold-dim);border-radius:var(--radius2);padding:2rem;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;animation:fadeUp .2s ease}
-.modal-title{font-family:var(--font-display);font-size:1.1rem;color:var(--gold);letter-spacing:.1em;margin-bottom:1.5rem}
-.modal-footer{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.2rem}
-.type-selector{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:.8rem}
-.type-opt{border:1px solid var(--border);border-radius:var(--radius);padding:.55rem .3rem;text-align:center;cursor:pointer;transition:all .2s;font-family:var(--font-mono);font-size:.65rem;color:var(--text3)}
-.type-opt:hover{border-color:var(--border2)}
-.type-opt.sel-g{border-color:var(--green);background:var(--green-dim);color:var(--green-light)}
-.type-opt.sel-s{border-color:var(--red);background:var(--red-dim);color:var(--red-light)}
-.type-opt.sel-i{border-color:var(--blue);background:var(--blue-dim);color:var(--blue-light)}
-.type-opt.sel-r{border-color:var(--amber);background:var(--amber-dim);color:var(--amber-light)}
-.type-opt .opt-icon{font-size:1.1rem;display:block;margin-bottom:.15rem}
+/* Ornamental divider */
+.hero-divider {
+  display: flex; align-items:center; gap:1rem;
+  max-width:400px; margin: 3rem auto 0;
+}
+.hero-divider-line { flex:1; height:1px; background:linear-gradient(90deg, transparent, var(--border2), transparent); }
+.hero-divider-icon { color:var(--gold); opacity:.4; font-size:.9rem; }
 
-/* TOAST */
-#toast{position:fixed;bottom:2rem;right:2rem;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);padding:.8rem 1.2rem;font-family:var(--font-mono);font-size:.78rem;z-index:500;transform:translateY(120%);opacity:0;transition:all .3s;max-width:320px}
-#toast.show{transform:translateY(0);opacity:1}
-#toast.ok{border-left:3px solid var(--green-light)}
-#toast.err{border-left:3px solid var(--red-light)}
-#toast.info{border-left:3px solid var(--blue-light)}
+/* Stats bar */
+.land-stats {
+  display: flex; justify-content:center; gap:0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.stat-item {
+  text-align:center; padding: 2.5rem 4rem;
+  border-right: 1px solid var(--border);
+  flex:1; max-width:220px;
+  position: relative;
+}
+.stat-item::before {
+  content:''; position:absolute; top:0; left:50%; transform:translateX(-50%);
+  width:2px; height:3px; background:var(--gold); opacity:.5;
+}
+.stat-item:last-child { border-right:none; }
+.stat-num { font-family:var(--font-display); font-size:2.4rem; color:var(--gold); line-height:1; letter-spacing:.02em; }
+.stat-lbl { font-family:var(--font-mono); font-size:.58rem; color:var(--text3); letter-spacing:.22em; text-transform:uppercase; margin-top:.4rem; }
 
-  /* ═══════════════════════════════════════════════════════════
+/* Features */
+.land-features {
+  display: grid; grid-template-columns:repeat(3,1fr);
+  gap:1px; max-width:1100px; margin:0 auto;
+  padding:0; background:var(--border);
+  border:1px solid var(--border);
+}
+.feat-card {
+  background: var(--surface);
+  padding: 2.2rem 2rem;
+  transition: background 0.2s;
+  position: relative; overflow:hidden;
+}
+.feat-card::after {
+  content:''; position:absolute; inset:0;
+  background: radial-gradient(ellipse 80% 60% at 50% 120%, var(--gold-dim) 0%, transparent 70%);
+  opacity:0; transition: opacity .3s;
+}
+.feat-card:hover { background: var(--surface2); }
+.feat-card:hover::after { opacity:1; }
+.feat-icon { font-size:1.7rem; margin-bottom:1rem; display:block; }
+.feat-title { font-family:var(--font-display); font-size:.88rem; color:var(--gold); letter-spacing:.1em; margin-bottom:.6rem; }
+.feat-desc { font-family:var(--font-ui); font-size:.84rem; color:var(--text2); line-height:1.75; }
+
+/* Steps */
+.land-steps { max-width:680px; margin:5rem auto; padding:0 2rem; }
+.land-steps h2 {
+  font-family:var(--font-display); font-size:1.6rem; color:var(--gold);
+  text-align:center; letter-spacing:.12em; margin-bottom:3rem;
+  position:relative;
+}
+.land-steps h2::after {
+  content:''; display:block; width:60px; height:1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  margin:1rem auto 0;
+}
+.step { display:flex; gap:1.5rem; margin-bottom:1.8rem; align-items:flex-start; }
+.step-num {
+  width: 36px; height: 36px; flex-shrink:0;
+  border: 1px solid var(--border3); border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-size:.88rem; color:var(--gold);
+  background: var(--gold-dim);
+}
+.step-body h3 { font-family:var(--font-display); font-size:.85rem; color:var(--text); letter-spacing:.08em; margin-bottom:.25rem; }
+.step-body p { font-family:var(--font-ui); font-size:.84rem; color:var(--text2); line-height:1.75; }
+
+.land-footer {
+  text-align:center; padding:2.5rem 2rem;
+  border-top:1px solid var(--border);
+  font-family:var(--font-mono); font-size:.6rem; color:var(--text4); letter-spacing:.22em;
+  background: var(--surface);
+}
+.land-footer span { color:var(--gold); opacity:.4; }
+
+/* ═══════════════════════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════════════════════ */
+.btn {
+  font-family: var(--font-mono); font-size:.66rem; letter-spacing:.1em;
+  padding: .5rem 1.3rem;
+  border: 1px solid var(--border2); border-radius: var(--radius);
+  cursor: pointer;
+  background: var(--surface2); color: var(--text2);
+  text-transform: uppercase; text-decoration: none;
+  display: inline-flex; align-items:center; gap:.4rem; white-space:nowrap;
+  box-shadow: var(--shadow-sm);
+  position: relative; overflow:hidden;
+}
+.btn::before {
+  content:''; position:absolute; inset:0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 60%);
+  pointer-events:none;
+}
+.btn:hover { border-color:var(--border2); color:var(--text); background:var(--surface3); }
+.btn-gold {
+  border-color: var(--border3); color:var(--gold); background:var(--gold-dim);
+  box-shadow: 0 0 0 0 var(--gold-dim);
+}
+.btn-gold:hover {
+  background: var(--gold-glow); border-color: var(--gold3);
+  box-shadow: 0 0 20px var(--gold-dim), var(--shadow-sm);
+  color: var(--gold2);
+}
+.btn-green { border-color:var(--green); color:var(--green-light); background:var(--green-dim); }
+.btn-green:hover { background:rgba(60,179,113,.2); }
+.btn-red { border-color:var(--red); color:var(--red-light); background:var(--red-dim); }
+.btn-red:hover { background:rgba(224,96,96,.2); }
+.btn-blue { border-color:var(--blue); color:var(--blue-light); background:var(--blue-dim); }
+.btn-blue:hover { background:rgba(91,156,245,.2); }
+.btn-lg { font-size:.78rem; padding:.8rem 2.2rem; border-radius:var(--radius2); }
+.btn-sm { font-size:.58rem; padding:.22rem .55rem; }
+
+/* ═══════════════════════════════════════════════════════════
+   AUTH PAGE
+   ═══════════════════════════════════════════════════════════ */
+#auth {
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  padding:2rem;
+  background: var(--bg);
+  position:relative; overflow:hidden;
+}
+#auth::before {
+  content:'';
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% -5%, rgba(201,168,76,0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 40% at 80% 80%, rgba(91,156,245,0.04) 0%, transparent 55%);
+  pointer-events:none;
+}
+
+.auth-box {
+  background: var(--surface);
+  border: 1px solid var(--border3);
+  border-radius: var(--radius2);
+  padding: 2.8rem;
+  width: 100%; max-width: 500px;
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(201,168,76,0.05);
+  animation: fadeUp .4s cubic-bezier(0.22,0.61,0.36,1);
+  position: relative; overflow:hidden;
+}
+.auth-box::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background: linear-gradient(90deg, transparent 10%, var(--gold3) 35%, var(--gold) 50%, var(--gold3) 65%, transparent 90%);
+}
+/* Decorative corner ornaments */
+.auth-box::after {
+  content:''; position:absolute; top:12px; right:12px;
+  width:20px; height:20px;
+  border-top: 1px solid var(--border3); border-right: 1px solid var(--border3);
+  pointer-events:none;
+}
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+
+.auth-emblem { text-align:center; margin-bottom:1.8rem; }
+.auth-emblem-icon {
+  width: 70px; height: 70px;
+  border: 1px solid var(--border3);
+  border-radius: 50%;
+  display: inline-flex; align-items:center; justify-content:center;
+  font-size: 2.2rem;
+  background: radial-gradient(circle, var(--surface3) 50%, var(--bg) 100%);
+  box-shadow: 0 0 40px rgba(201,168,76,0.1), var(--shadow-md);
+  position: relative;
+}
+.auth-emblem-icon::after {
+  content:''; position:absolute; inset:-5px;
+  border-radius:50%; border:1px solid var(--gold-dim);
+}
+.auth-title { font-family:var(--font-display); font-size:1.1rem; color:var(--gold); letter-spacing:.2em; margin-top:.9rem; }
+.auth-subtitle { font-family:var(--font-mono); font-size:.56rem; color:var(--text3); letter-spacing:.25em; text-transform:uppercase; margin-top:.3rem; }
+
+.auth-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:1.8rem; }
+.auth-tab {
+  flex:1; font-family:var(--font-mono); font-size:.62rem; letter-spacing:.12em; text-transform:uppercase;
+  padding:.75rem; border:none; background:none; color:var(--text3); cursor:pointer;
+  border-bottom:2px solid transparent; transition:all .2s;
+}
+.auth-tab.active { color:var(--gold); border-bottom-color:var(--gold); }
+.auth-tab:hover:not(.active) { color:var(--text2); }
+
+.form-group { display:flex; flex-direction:column; gap:.3rem; margin-bottom:.85rem; }
+.form-group label {
+  font-family:var(--font-mono); font-size:.56rem; letter-spacing:.2em;
+  color:var(--text3); text-transform:uppercase;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .6rem .9rem;
+  color: var(--text);
+  font-family: var(--font-mono); font-size:.8rem;
+  outline:none;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: var(--border3);
+  background: var(--surface3);
+  box-shadow: 0 0 0 3px var(--gold-dim);
+}
+.form-group select option { background:var(--surface2); color:var(--text); }
+.form-group textarea { resize:vertical; min-height:80px; font-family:var(--font-body); font-size:.95rem; }
+.form-group input::placeholder,
+.form-group textarea::placeholder { color:var(--text4); }
+
+.auth-back { font-family:var(--font-mono); font-size:.6rem; color:var(--text3); text-align:center; margin-top:1.2rem; cursor:pointer; letter-spacing:.1em; }
+.auth-back:hover { color:var(--gold); }
+.auth-error {
+  background:var(--red-dim); border:1px solid var(--red); border-radius:var(--radius);
+  padding:.6rem .9rem; font-family:var(--font-mono); font-size:.7rem; color:var(--red-light);
+  margin-bottom:1rem; display:none;
+  border-left:3px solid var(--red-light);
+}
+.form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; }
+.form-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.7rem; }
+
+/* ═══════════════════════════════════════════════════════════
+   APP SHELL
+   ═══════════════════════════════════════════════════════════ */
+#app { display:grid; grid-template-columns:250px 1fr; min-height:100vh; }
+
+/* ─── SIDEBAR ─── */
+aside {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding:0; display:flex; flex-direction:column;
+  position:sticky; top:0; height:100vh; overflow-y:auto;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.2);
+}
+.sb-header {
+  padding: 1.4rem 1.3rem;
+  border-bottom: 1px solid var(--border);
+  display:flex; align-items:center; gap:.75rem;
+  background: var(--surface2);
+}
+.sb-emblem {
+  width:36px; height:36px;
+  border:1px solid var(--border3); border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1rem; flex-shrink:0;
+  background: radial-gradient(circle, var(--surface3) 50%, var(--bg) 100%);
+  box-shadow: 0 0 15px var(--gold-dim);
+}
+.sb-title { font-family:var(--font-display); font-size:.72rem; color:var(--gold); letter-spacing:.18em; line-height:1.25; }
+.sb-sub { font-family:var(--font-mono); font-size:.5rem; color:var(--text3); letter-spacing:.24em; text-transform:uppercase; margin-top:.1rem; }
+
+.sb-user {
+  padding: 1.1rem 1.3rem;
+  border-bottom: 1px solid var(--border);
+  font-family:var(--font-mono);
+  display:flex; align-items:center; gap:.7rem;
+}
+.sb-user-avatar {
+  width:34px; height:34px; border-radius:50%;
+  background: linear-gradient(135deg, var(--gold-dim), var(--surface3));
+  border: 1px solid var(--border3);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-size:.75rem; color:var(--gold);
+  flex-shrink:0;
+}
+.sb-user-info { flex:1; min-width:0; }
+.sb-user-name { font-size:.76rem; color:var(--text); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sb-user-rank { font-size:.57rem; color:var(--text3); letter-spacing:.1em; margin-top:.1rem; }
+
+.sb-nav { flex:1; padding:.6rem 0; }
+.sb-section {
+  font-family:var(--font-mono); font-size:.5rem; letter-spacing:.26em; text-transform:uppercase;
+  color:var(--text4); padding:.7rem 1.3rem .3rem;
+  display:flex; align-items:center; gap:.5rem;
+}
+.sb-section::after { content:''; flex:1; height:1px; background:var(--border); }
+
+nav a.sb-link {
+  display:flex; align-items:center; gap:.65rem;
+  padding:.58rem 1.3rem;
+  color:var(--text3); text-decoration:none;
+  font-family:var(--font-mono); font-size:.66rem; letter-spacing:.04em;
+  border-left:2px solid transparent; cursor:pointer;
+  position:relative;
+}
+nav a.sb-link:hover { color:var(--text2); background:rgba(255,255,255,0.02); border-left-color:var(--border2); }
+nav a.sb-link.active {
+  color:var(--gold); background:var(--gold-dim);
+  border-left-color:var(--gold);
+}
+nav a.sb-link.active::after {
+  content:''; position:absolute; right:0; top:50%; transform:translateY(-50%);
+  width:3px; height:60%; border-radius:2px 0 0 2px; background:var(--gold); opacity:.3;
+}
+.sb-link .sb-icon { width:16px; text-align:center; font-size:.88rem; }
+
+.sb-footer { padding:.9rem 1.1rem; border-top:1px solid var(--border); display:flex; align-items:center; gap:.5rem; }
+.sb-footer .theme-toggle { width:32px; height:32px; font-size:.85rem; margin-left:auto; }
+
+/* ─── MAIN CONTENT ─── */
+main { overflow-x:hidden; background:var(--bg); }
+.page { display:none; padding:2.2rem; animation:fadeIn .25s ease; }
+.page.active { display:block; }
+
+.page-header { margin-bottom:2rem; padding-bottom:1.2rem; border-bottom:1px solid var(--border); }
+.page-title { font-family:var(--font-display); font-size:1.4rem; color:var(--text); letter-spacing:.08em; margin-bottom:.25rem; }
+.page-title span { color:var(--gold); }
+.page-desc { font-family:var(--font-mono); font-size:.59rem; color:var(--text3); letter-spacing:.18em; text-transform:uppercase; }
+
+/* ═══════════════════════════════════════════════════════════
+   CARDS
+   ═══════════════════════════════════════════════════════════ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 1.5rem;
+  margin-bottom: 1.2rem;
+  box-shadow: var(--shadow-sm);
+  position:relative; overflow:hidden;
+}
+.card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background: linear-gradient(90deg, transparent, var(--border2), transparent);
+}
+.card:hover { border-color:var(--border2); box-shadow:var(--shadow-md); }
+
+.card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.2rem; }
+.card-title { font-family:var(--font-display); font-size:.95rem; color:var(--text); letter-spacing:.07em; }
+.card-meta { font-family:var(--font-mono); font-size:.58rem; color:var(--text3); letter-spacing:.12em; }
+
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; }
+.grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:1.2rem; }
+.grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; }
+
+/* ─── STAT BOXES ─── */
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius2);
+  padding: 1.3rem 1.2rem;
+  text-align:center;
+  box-shadow: var(--shadow-sm);
+  position:relative; overflow:hidden;
+}
+.stat-box::after {
+  content:''; position:absolute; inset:0;
+  background: radial-gradient(ellipse 60% 40% at 50% 110%, rgba(255,255,255,0.02) 0%, transparent 70%);
+  pointer-events:none;
+}
+.stat-box.top-gold { border-top:2px solid var(--gold); box-shadow:var(--shadow-sm), 0 -2px 0 0 var(--gold); }
+.stat-box.top-green { border-top:2px solid var(--green-light); }
+.stat-box.top-red { border-top:2px solid var(--red-light); }
+.stat-box.top-blue { border-top:2px solid var(--blue-light); }
+
+.stat-value { font-family:var(--font-display); font-size:1.9rem; color:var(--gold); line-height:1; margin-bottom:.25rem; letter-spacing:.02em; }
+.stat-value.danger { color:var(--red-light); }
+.stat-value.ok { color:var(--green-light); }
+.stat-value.blue { color:var(--blue-light); }
+.stat-label { font-family:var(--font-mono); font-size:.54rem; color:var(--text3); letter-spacing:.2em; text-transform:uppercase; }
+
+/* ─── BADGES ─── */
+.badge { display:inline-block; padding:.1rem .5rem; border-radius:4px; font-family:var(--font-mono); font-size:.66rem; font-weight:500; }
+.badge-gold { background:rgba(201,168,76,.12); color:var(--gold); border:1px solid rgba(201,168,76,.28); }
+.badge-green { background:rgba(60,179,113,.12); color:var(--green-light); border:1px solid rgba(60,179,113,.28); }
+.badge-red { background:rgba(224,96,96,.12); color:var(--red-light); border:1px solid rgba(224,96,96,.28); }
+.badge-blue { background:rgba(91,156,245,.12); color:var(--blue-light); border:1px solid rgba(91,156,245,.28); }
+.badge-amber { background:rgba(232,160,80,.12); color:var(--amber-light); border:1px solid rgba(232,160,80,.28); }
+.badge-purple { background:rgba(170,100,220,.12); color:#c488ff; border:1px solid rgba(170,100,220,.28); }
+
+/* ─── DATA TABLE ─── */
+.data-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+.data-table th {
+  font-family:var(--font-mono); font-size:.55rem; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--text3); padding:.65rem .9rem; text-align:left;
+  border-bottom:1px solid var(--border);
+  background: var(--surface2);
+}
+.data-table td {
+  padding:.58rem .9rem; border-bottom:1px solid var(--border);
+  font-family:var(--font-mono); font-size:.73rem; vertical-align:middle; color:var(--text2);
+}
+.data-table tr:last-child td { border-bottom:none; }
+.data-table tr:hover td { background:rgba(201,168,76,.03); color:var(--text); }
+.data-table .del-btn { opacity:0; }
+.data-table tr:hover .del-btn { opacity:1; }
+
+/* ─── ALERTS ─── */
+.alert {
+  border-radius:var(--radius); padding:.65rem 1rem;
+  font-family:var(--font-mono); font-size:.68rem;
+  margin-bottom:.8rem; border-left:3px solid;
+}
+.alert-warn { background:var(--amber-dim); border-color:var(--amber-light); color:var(--amber-light); }
+.alert-info { background:var(--blue-dim); border-color:var(--blue-light); color:var(--blue-light); }
+
+/* ═══════════════════════════════════════════════════════════
+   LOCKED STATE
+   ═══════════════════════════════════════════════════════════ */
+.locked-state { text-align:center; padding:5rem 2rem; }
+.locked-icon { font-size:3rem; margin-bottom:1.2rem; opacity:.5; }
+.locked-title { font-family:var(--font-display); font-size:1.1rem; color:var(--text2); letter-spacing:.1em; margin-bottom:.5rem; }
+.locked-desc { font-family:var(--font-mono); font-size:.7rem; color:var(--text3); line-height:1.8; }
+
+/* ═══════════════════════════════════════════════════════════
+   BACHECA
+   ═══════════════════════════════════════════════════════════ */
+.post-form { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius2); padding:1.3rem; margin-bottom:1.5rem; }
+.feed { display:flex; flex-direction:column; gap:.75rem; }
+.post-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:1.1rem 1.3rem;
+  animation:fadeUp .2s ease;
+  position:relative; overflow:hidden;
+}
+.post-card::before {
+  content:''; position:absolute; left:0; top:0; bottom:0;
+  width:2px; background:linear-gradient(180deg, transparent, var(--border3), transparent);
+  opacity:0; transition:opacity .2s;
+}
+.post-card:hover { border-color:var(--border2); }
+.post-card:hover::before { opacity:1; }
+.post-author { font-family:var(--font-mono); font-size:.66rem; color:var(--gold); letter-spacing:.08em; display:flex; align-items:center; gap:.5rem; margin-bottom:.45rem; }
+.post-rank { color:var(--text3); font-size:.58rem; }
+.post-time { color:var(--text3); font-size:.58rem; margin-left:auto; }
+.post-content { font-family:var(--font-body); font-size:1rem; color:var(--text); line-height:1.7; white-space:pre-wrap; }
+.post-actions { margin-top:.6rem; opacity:0; transition:opacity .2s; }
+.post-card:hover .post-actions { opacity:1; }
+.poll-dot {
+  display:inline-block; width:6px; height:6px; border-radius:50%;
+  background:var(--green-light); animation:pulse 2s infinite; margin-right:.4rem; vertical-align:middle;
+}
+@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(60,179,113,0.4)} 50%{opacity:.5;box-shadow:0 0 0 4px rgba(60,179,113,0)} }
+
+/* ═══════════════════════════════════════════════════════════
+   FINANZE
+   ═══════════════════════════════════════════════════════════ */
+.fin-kpi { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:2rem; }
+.fin-kpi .stat-box .stat-value { font-size:1.6rem; }
+.tx-type-badge { display:inline-flex; align-items:center; gap:.3rem; padding:.12rem .55rem; border-radius:20px; font-size:.66rem; font-weight:500; white-space:nowrap; }
+.type-guadagno { background:var(--green-dim); color:var(--green-light); }
+.type-spesa { background:var(--red-dim); color:var(--red-light); }
+.type-investimento { background:var(--blue-dim); color:var(--blue-light); }
+.type-ricavo { background:var(--amber-dim); color:var(--amber-light); }
+.amount-pos { color:var(--green-light); } .amount-neg { color:var(--red-light); } .amount-blue { color:var(--blue-light); } .amount-amber { color:var(--amber-light); }
+canvas { max-height:220px; }
+.charts-row { display:grid; grid-template-columns:2fr 1fr; gap:1rem; margin-bottom:2rem; }
+.fin-filter-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:1rem; }
+.filter-btn {
+  background:var(--surface2); border:1px solid var(--border); color:var(--text3);
+  padding:.32rem .8rem; border-radius:var(--radius);
+  font-family:var(--font-mono); font-size:.64rem; cursor:pointer; letter-spacing:.05em;
+}
+.filter-btn:hover, .filter-btn.active { border-color:var(--border3); color:var(--gold); background:var(--gold-dim); }
+.search-wrap { position:relative; flex:1; max-width:220px; }
+.search-wrap input {
+  width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+  padding:.42rem .75rem .42rem 2rem; border-radius:var(--radius);
+  font-family:var(--font-mono); font-size:.73rem; outline:none;
+}
+.search-wrap input:focus { border-color:var(--border3); }
+.search-icon { position:absolute; left:.6rem; top:50%; transform:translateY(-50%); color:var(--text3); font-size:.85rem; }
+
+/* ═══════════════════════════════════════════════════════════
+   VOTI / TABS
+   ═══════════════════════════════════════════════════════════ */
+.tabs { display:flex; overflow-x:auto; gap:0; border-bottom:1px solid var(--border); margin-bottom:1.5rem; }
+.tab-btn {
+  font-family:var(--font-display); font-size:.64rem; letter-spacing:.12em;
+  padding:.75rem 1.1rem; border:none; background:none; color:var(--text3); cursor:pointer;
+  border-bottom:2px solid transparent; white-space:nowrap; text-transform:uppercase;
+}
+.tab-btn:hover { color:var(--text2); border-bottom-color:var(--border2); }
+.tab-btn.active { color:var(--gold); border-bottom-color:var(--gold); }
+.tab-panel { display:none; } .tab-panel.active { display:block; animation:fadeIn .2s ease; }
+
+.subject-section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:.6rem; overflow:hidden; }
+.subject-toggle { display:flex; align-items:center; justify-content:space-between; padding:.9rem 1.1rem; cursor:pointer; }
+.subject-toggle:hover { background:rgba(255,255,255,.02); }
+.subject-toggle-name { font-family:var(--font-display); font-size:.86rem; color:var(--text); letter-spacing:.06em; }
+.subject-toggle-stats { display:flex; align-items:center; gap:1rem; font-family:var(--font-mono); font-size:.63rem; color:var(--text3); }
+.subject-body { padding:1rem 1.1rem; border-top:1px solid var(--border); display:none; }
+.subject-body.open { display:block; animation:fadeIn .2s ease; }
+
+.uni-subject-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:.8rem; overflow:hidden; }
+.uni-subject-header { padding:.85rem 1.1rem; background:var(--surface2); display:flex; align-items:center; justify-content:space-between; }
+.uni-subject-section { padding:.8rem 1.1rem; border-top:1px solid var(--border); }
+
+.rank-row { display:flex; align-items:center; gap:1rem; padding:.8rem 1rem; border-bottom:1px solid rgba(42,58,74,.3); }
+.rank-row:hover { background:rgba(201,168,76,.02); }
+.rank-bar-bg { flex:1; height:4px; background:var(--surface2); border-radius:3px; overflow:hidden; }
+.rank-bar-fill { height:100%; background:linear-gradient(90deg, var(--green-light), var(--gold)); border-radius:3px; }
+
+/* ─── SCHEDULE GRID ─── */
+.schedule-grid {
+  display:grid; grid-template-columns:70px repeat(6,1fr); gap:1px;
+  background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; min-width:600px;
+}
+.sched-cell { background:var(--surface); padding:.45rem .35rem; min-height:42px; cursor:pointer; }
+.sched-cell:hover { background:var(--surface2); }
+.sched-cell.hdr { font-family:var(--font-display); font-size:.58rem; letter-spacing:.1em; color:var(--gold); text-align:center; background:var(--surface2); cursor:default; padding:.5rem .3rem; }
+.sched-cell.tme { font-family:var(--font-mono); font-size:.55rem; color:var(--text3); text-align:right; padding-right:.55rem; display:flex; align-items:center; justify-content:flex-end; cursor:default; }
+.sched-entry { background:var(--gold-dim); border-left:3px solid var(--gold); border-radius:2px; padding:.2rem .4rem; font-size:.62rem; font-family:var(--font-mono); color:var(--text); line-height:1.3; }
+.sched-entry.military { border-color:var(--green-light); background:var(--green-dim); }
+.sched-entry.gym { border-color:var(--blue-light); background:var(--blue-dim); }
+
+/* ─── NOTES ─── */
+.note-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.1rem 1.3rem; margin-bottom:.7rem; }
+.note-card.pinned { border-color:var(--border3); border-left:3px solid var(--gold); }
+.note-title { font-family:var(--font-display); font-size:.88rem; color:var(--text); margin-bottom:.4rem; letter-spacing:.05em; }
+.note-body { font-family:var(--font-body); font-size:.95rem; color:var(--text2); line-height:1.65; white-space:pre-wrap; }
+.note-date { font-family:var(--font-mono); font-size:.56rem; color:var(--text3); margin-top:.5rem; }
+
+/* ═══════════════════════════════════════════════════════════
+   LISTE
+   ═══════════════════════════════════════════════════════════ */
+.list-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:.8rem; overflow:hidden; }
+.list-card-header { padding:.9rem 1.2rem; display:flex; align-items:center; justify-content:space-between; cursor:pointer; }
+.list-card-header:hover { background:rgba(255,255,255,.02); }
+.list-card-body { padding:1rem 1.2rem; border-top:1px solid var(--border); display:none; }
+.list-card-body.open { display:block; }
+.signup-row { display:flex; align-items:center; gap:.8rem; padding:.5rem .6rem; border-bottom:1px solid var(--border); font-family:var(--font-mono); font-size:.7rem; }
+.signup-row:last-child { border-bottom:none; }
+
+/* ═══════════════════════════════════════════════════════════
+   ADMIN
+   ═══════════════════════════════════════════════════════════ */
+.perm-toggle {
+  display:inline-flex; align-items:center; gap:.3rem; cursor:pointer;
+  font-family:var(--font-mono); font-size:.63rem;
+  padding:.18rem .5rem; border-radius:4px; border:1px solid; user-select:none;
+}
+.perm-on { background:var(--green-dim); border-color:var(--green); color:var(--green-light); }
+.perm-off { background:var(--surface2); border-color:var(--border); color:var(--text3); }
+
+/* ═══════════════════════════════════════════════════════════
+   MODALS
+   ═══════════════════════════════════════════════════════════ */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:200;
+  display:none; align-items:center; justify-content:center; padding:1rem;
+  backdrop-filter:blur(6px);
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border3);
+  border-radius: var(--radius2);
+  padding: 2rem; width:100%; max-width:490px;
+  max-height:88vh; overflow-y:auto;
+  animation:fadeUp .25s cubic-bezier(0.22,0.61,0.36,1);
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(0,0,0,0.4);
+  position:relative;
+}
+.modal::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg, transparent 15%, var(--gold3) 40%, var(--gold) 50%, var(--gold3) 60%, transparent 85%);
+}
+.modal-title { font-family:var(--font-display); font-size:1rem; color:var(--gold); letter-spacing:.12em; margin-bottom:1.5rem; }
+.modal-footer { display:flex; gap:.6rem; justify-content:flex-end; margin-top:1.5rem; border-top:1px solid var(--border); padding-top:1.2rem; }
+
+.type-selector { display:grid; grid-template-columns:repeat(4,1fr); gap:.5rem; margin-bottom:.9rem; }
+.type-opt {
+  border:1px solid var(--border); border-radius:var(--radius);
+  padding:.6rem .3rem; text-align:center; cursor:pointer;
+  font-family:var(--font-mono); font-size:.62rem; color:var(--text3);
+  background:var(--surface2);
+}
+.type-opt:hover { border-color:var(--border2); color:var(--text2); }
+.type-opt .opt-icon { font-size:1.1rem; display:block; margin-bottom:.15rem; }
+.type-opt.sel-g { border-color:var(--green); background:var(--green-dim); color:var(--green-light); }
+.type-opt.sel-s { border-color:var(--red); background:var(--red-dim); color:var(--red-light); }
+.type-opt.sel-i { border-color:var(--blue); background:var(--blue-dim); color:var(--blue-light); }
+.type-opt.sel-r { border-color:var(--amber); background:var(--amber-dim); color:var(--amber-light); }
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST
+   ═══════════════════════════════════════════════════════════ */
+#toast {
+  position:fixed; bottom:2rem; right:2rem;
+  background:var(--surface);
+  border:1px solid var(--border2); border-radius:var(--radius);
+  padding:.85rem 1.3rem; font-family:var(--font-mono); font-size:.76rem;
+  z-index:500; transform:translateY(120%); opacity:0; transition:all .35s cubic-bezier(0.22,0.61,0.36,1);
+  max-width:320px; box-shadow:var(--shadow-lg); color:var(--text);
+}
+#toast.show { transform:translateY(0); opacity:1; }
+#toast.ok { border-left:3px solid var(--green-light); }
+#toast.err { border-left:3px solid var(--red-light); }
+#toast.info { border-left:3px solid var(--blue-light); }
+
+/* ═══════════════════════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════════════════════ */
 @media(max-width:900px){
@@ -473,7 +924,7 @@ canvas{max-height:220px}
   .land-hero { padding:5rem 1.5rem 3rem; }
   .form-row-2,.form-row-3 { grid-template-columns:1fr; }
 }
- 
+
 /* ═══════════════════════════════════════════════════════════
    ORNAMENTAL DETAILS
    ═══════════════════════════════════════════════════════════ */
@@ -483,12 +934,12 @@ canvas{max-height:220px}
   background:linear-gradient(90deg, var(--gold), transparent);
   margin-top:.5rem;
 }
- 
+
 /* Subtle inner glow on stat boxes */
 .stat-box.top-gold::after {
   background: radial-gradient(ellipse 60% 40% at 50% 120%, rgba(201,168,76,0.06) 0%, transparent 70%);
 }
- 
+
 /* Auth corner decoration */
 .auth-box .corner-tl,
 .auth-box .corner-br {
@@ -500,52 +951,85 @@ canvas{max-height:220px}
 
 <!-- LANDING -->
 <div id="landing">
-  <div class="land-bg"></div><div class="land-grid"></div>
+  <div class="land-bg"></div>
+  <div class="land-grid"></div>
+  <div class="land-diagonals"></div>
+
   <nav class="land-nav">
     <div class="land-logo">
       <div class="land-emblem">⚔</div>
-      <div><div class="land-logo-text">Portale AU</div><div class="land-logo-sub">Allievi Ufficiali</div></div>
+      <div>
+        <div class="land-logo-text">Portale AU</div>
+        <div class="land-logo-sub">Allievi Ufficiali</div>
+      </div>
     </div>
     <div class="land-nav-btns">
-        <button class="theme-toggle" onclick="toggleTheme()" title="Cambia tema">
-          <span class="icon-sun">☀</span>
-          <span class="icon-moon">☾</span>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Cambia tema">
+        <span class="icon-sun">☀</span>
+        <span class="icon-moon">☾</span>
       </button>
       <button class="btn" onclick="showAuth('login')">Accedi</button>
       <button class="btn btn-gold" onclick="showAuth('register')">Registrati</button>
     </div>
   </nav>
+
   <div class="land-hero">
-    <div class="hero-badge">⚔ Portale Allievi Ufficiali</div>
-    <h1 class="hero-title">Gestione <span>Allievi Ufficiali</span></h1>
+    <div class="hero-badge">⚔ &nbsp;Portale Allievi Ufficiali</div>
+    <h1 class="hero-title">
+      Gestione
+      <span class="hero-line-2">Allievi Ufficiali</span>
+    </h1>
     <p class="hero-sub">Il sistema integrato per voti, finanze, liste e comunicazioni degli Allievi Ufficiali.</p>
     <div class="hero-cta">
-      <button class="btn btn-gold btn-lg" onclick="showAuth('register')">✦ Inizia Ora</button>
-      <button class="btn btn-lg" onclick="showAuth('login')">→ Accedi al Portale</button>
+      <button class="btn btn-gold btn-lg" onclick="showAuth('register')">✦ &nbsp;Inizia Ora</button>
+      <button class="btn btn-lg" onclick="showAuth('login')">→ &nbsp;Accedi al Portale</button>
+    </div>
+    <div class="hero-divider">
+      <div class="hero-divider-line"></div>
+      <span class="hero-divider-icon">✦</span>
+      <div class="hero-divider-line"></div>
     </div>
   </div>
+
   <div class="land-stats">
     <div class="stat-item"><div class="stat-num">2</div><div class="stat-lbl">Medie Separate</div></div>
     <div class="stat-item"><div class="stat-num">∞</div><div class="stat-lbl">Transazioni</div></div>
     <div class="stat-item"><div class="stat-num">5</div><div class="stat-lbl">Tipi di Liste</div></div>
     <div class="stat-item"><div class="stat-num">DB</div><div class="stat-lbl">Dati su Server</div></div>
   </div>
+
   <div class="land-features">
-    <div class="feat-card"><div class="feat-icon">📢</div><div class="feat-title">Bacheca Annunci</div><div class="feat-desc">Messaggi in tempo reale per tutti gli allievi registrati, con aggiornamento automatico.</div></div>
-    <div class="feat-card"><div class="feat-icon">🎓</div><div class="feat-title">Registro Voti</div><div class="feat-desc">Esami universitari, accertamenti militari, esami ginnici. Due medie separate.</div></div>
-    <div class="feat-card"><div class="feat-icon">📋</div><div class="feat-title">Liste</div><div class="feat-desc">Liberi uscenti sabato/domenica, lista messa e parlatorio. Iscrizione semplice e immediata.</div></div>
-    <div class="feat-card"><div class="feat-icon">💰</div><div class="feat-title">Finanze</div><div class="feat-desc">Entrate, uscite, investimenti e ricavi con grafici mensili. Tutto su database.</div></div>
-    <div class="feat-card"><div class="feat-icon">⚠</div><div class="feat-title">Punizioni</div><div class="feat-desc">Consegna e Rigore calcolati automaticamente sul punteggio graduatoria.</div></div>
-    <div class="feat-card"><div class="feat-icon">🔐</div><div class="feat-title">Permessi</div><div class="feat-desc">L'admin assegna i permessi e si attivano immediatamente, senza ri-login.</div></div>
+    <div class="feat-card"><div class="feat-icon">📢</div><div class="feat-title">Bacheca Annunci</div><div class="feat-desc">Messaggi in tempo reale per tutti gli allievi registrati, con aggiornamento automatico ogni 15 secondi.</div></div>
+    <div class="feat-card"><div class="feat-icon">🎓</div><div class="feat-title">Registro Voti</div><div class="feat-desc">Esami universitari, accertamenti militari, esami ginnici. Due medie distinte e graduate.</div></div>
+    <div class="feat-card"><div class="feat-icon">📋</div><div class="feat-title">Liste</div><div class="feat-desc">Liberi uscenti sabato/domenica, lista messa e parlatorio. Iscrizione immediata e semplice.</div></div>
+    <div class="feat-card"><div class="feat-icon">💰</div><div class="feat-title">Finanze</div><div class="feat-desc">Entrate, uscite, investimenti e ricavi con grafici mensili. Tutto su database sicuro.</div></div>
+    <div class="feat-card"><div class="feat-icon">⚠</div><div class="feat-title">Punizioni</div><div class="feat-desc">Consegna e Rigore calcolati automaticamente sul punteggio graduatoria con detrazioni precise.</div></div>
+    <div class="feat-card"><div class="feat-icon">🔐</div><div class="feat-title">Permessi</div><div class="feat-desc">L'admin assegna i permessi e si attivano immediatamente, senza necessità di ri-login.</div></div>
   </div>
+
   <div class="land-steps">
     <h2>Come Funziona</h2>
-    <div class="step"><div class="step-num">1</div><div class="step-body"><h3>Registrati</h3><p>Crea il tuo account. Un amministratore abiliterà le sezioni riservate.</p></div></div>
-    <div class="step"><div class="step-num">2</div><div class="step-body"><h3>Accedi</h3><p>Login con username ed email. Trovi bacheca e liste subito, voti e finanze se abilitato.</p></div></div>
-    <div class="step"><div class="step-num">3</div><div class="step-body"><h3>Usa il portale</h3><p>Inserisci voti, transazioni, iscriviti alle liste, pubblica annunci.</p></div></div>
-    <div class="step"><div class="step-num">4</div><div class="step-body"><h3>Analizza</h3><p>Visualizza graduatoria, medie separate, grafici finanziari e penalità.</p></div></div>
+    <div class="step">
+      <div class="step-num">I</div>
+      <div class="step-body"><h3>Registrati</h3><p>Crea il tuo account con username ed email. Un amministratore abiliterà le sezioni riservate.</p></div>
+    </div>
+    <div class="step">
+      <div class="step-num">II</div>
+      <div class="step-body"><h3>Accedi</h3><p>Login con username ed email. Trovi bacheca e liste subito disponibili, voti e finanze se abilitato.</p></div>
+    </div>
+    <div class="step">
+      <div class="step-num">III</div>
+      <div class="step-body"><h3>Usa il portale</h3><p>Inserisci voti, transazioni, iscriviti alle liste, pubblica annunci per i commilitoni.</p></div>
+    </div>
+    <div class="step">
+      <div class="step-num">IV</div>
+      <div class="step-body"><h3>Analizza</h3><p>Visualizza graduatoria, medie separate, grafici finanziari e penalità calcolate automaticamente.</p></div>
+    </div>
   </div>
-  <footer class="land-footer">PORTALE ALLIEVI UFFICIALI &nbsp;·&nbsp; TUTTI I DIRITTI RISERVATI</footer>
+
+  <footer class="land-footer">
+    PORTALE ALLIEVI UFFICIALI <span>✦</span> TUTTI I DIRITTI RISERVATI <span>✦</span> RISERVATEZZA GARANTITA
+  </footer>
 </div>
 
 <!-- AUTH -->
@@ -554,7 +1038,7 @@ canvas{max-height:220px}
     <div class="auth-emblem">
       <div class="auth-emblem-icon">⚔</div>
       <div class="auth-title">Portale AU</div>
-      <div class="auth-subtitle">Allievi Ufficiali</div>
+      <div class="auth-subtitle">Accesso Riservato</div>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Accedi</button>
@@ -564,7 +1048,7 @@ canvas{max-height:220px}
     <div id="formLogin">
       <div class="form-group"><label>Username o Email</label><input type="text" id="loginUser" placeholder="nome.cognome" autocomplete="username"></div>
       <div class="form-group"><label>Password</label><input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <button class="btn btn-gold w-full" style="margin-top:.5rem;justify-content:center" onclick="doLogin()">→ Entra nel Portale</button>
+      <button class="btn btn-gold w-full" style="margin-top:.6rem;justify-content:center;letter-spacing:.12em" onclick="doLogin()">→ &nbsp;Entra nel Portale</button>
     </div>
     <div id="formRegister" class="hidden">
       <div class="form-row-2">
@@ -576,31 +1060,33 @@ canvas{max-height:220px}
         <div class="form-group"><label>Password *</label><input type="password" id="regPass" placeholder="min 6 caratteri"></div>
         <div class="form-group"><label>Conferma *</label><input type="password" id="regPass2" placeholder="••••••••"></div>
       </div>
-      <button class="btn btn-gold w-full" style="margin-top:.5rem;justify-content:center" onclick="doRegister()">✦ Crea Account</button>
+      <button class="btn btn-gold w-full" style="margin-top:.6rem;justify-content:center;letter-spacing:.12em" onclick="doRegister()">✦ &nbsp;Crea Account</button>
     </div>
     <div class="auth-back" onclick="showLanding()">← Torna alla Home</div>
   </div>
 </div>
 
-<!-- ─── APP ──────────────────────────────────────────────────────── -->
+<!-- APP -->
 <div id="app" class="hidden">
   <aside>
     <div class="sb-header">
       <div class="sb-emblem">⚔</div>
-      <div><div class="sb-title">Portale AU</div><div class="sb-sub">Allievi Ufficiali</div></div>
+      <div>
+        <div class="sb-title">Portale AU</div>
+        <div class="sb-sub">Allievi Ufficiali</div>
+      </div>
     </div>
-    <!-- Clic sul profilo porta alla pagina profilo -->
-    <div class="sb-user" onclick="showPage('profilo', document.querySelector('[data-page=profilo]'))">
-      <div class="sb-user-name" id="sbUserName">—</div>
-      <div class="sb-user-rank" id="sbUserRank">Allievo Ufficiale</div>
-      <div class="sb-user-role" id="sbUserRole"></div>
-      <div style="font-family:var(--font-mono);font-size:.55rem;color:var(--text3);margin-top:.35rem;letter-spacing:.1em">→ Clicca per il profilo</div>
+    <div class="sb-user">
+      <div class="sb-user-avatar" id="sbUserAvatar">A</div>
+      <div class="sb-user-info">
+        <div class="sb-user-name" id="sbUserName">—</div>
+        <div class="sb-user-rank" id="sbUserRank">Allievo Ufficiale</div>
+      </div>
     </div>
     <div class="sb-nav">
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link active" onclick="showPage('bacheca',this)"><span class="sb-icon">📢</span>Bacheca Annunci</a>
-        <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni</a>
         <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
       </nav>
       <div class="sb-section">Personale</div>
@@ -614,135 +1100,34 @@ canvas{max-height:220px}
       </nav>
     </div>
     <div class="sb-footer">
-      <button class="btn btn-sm w-full" style="justify-content:center;margin-bottom:.4rem" onclick="showPage('profilo',null)">👤 Il mio Profilo</button>
-      <button class="btn btn-sm btn-red w-full" style="justify-content:center" onclick="doLogout()">⏻ Esci</button>
+      <button class="btn btn-sm btn-red" style="flex:1;justify-content:center" onclick="doLogout()">⏻ &nbsp;Esci</button>
       <button class="theme-toggle" onclick="toggleTheme()" title="Cambia tema">
         <span class="icon-sun">☀</span>
         <span class="icon-moon">☾</span>
       </button>
     </div>
   </aside>
- 
-  <main>
 
-        <!-- ── PROFILO ─────────────────────────────────────────────── -->
-    <div class="page" id="page-profilo">
-      <div class="page-title">Il Mio Profilo</div>
-      <div class="page-desc">Dati personali · Permessi · Ruolo militare</div>
- 
-      <!-- Hero card -->
-      <div class="profile-hero">
-        <div class="profile-avatar" id="prof-avatar">AU</div>
-        <div style="flex:1">
-          <div class="profile-info-name" id="prof-display-name">—</div>
-          <div class="profile-info-meta" id="prof-username">@—</div>
-          <div class="profile-info-meta" id="prof-email" style="color:var(--text3)">—</div>
-          <div style="margin-top:.5rem" id="prof-role-badge"></div>
-        </div>
-      </div>
- 
-      <!-- Permessi -->
-      <div class="card">
-        <div class="card-header"><div class="card-title">Permessi Attivi</div></div>
-        <div class="perm-grid">
-          <div class="perm-box">
-            <div class="perm-box-label">💰 Finanze</div>
-            <div class="perm-indicator" id="prof-perm-finance">—</div>
-          </div>
-          <div class="perm-box">
-            <div class="perm-box-label">🎓 Registro Voti</div>
-            <div class="perm-indicator" id="prof-perm-grades">—</div>
-          </div>
-          <div class="perm-box">
-            <div class="perm-box-label">💬 Comunicazioni (scrittura)</div>
-            <div class="perm-indicator" id="prof-perm-com">—</div>
-          </div>
-        </div>
-        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.8rem">
-          I permessi vengono assegnati dall'amministratore. Contatta un admin per richiedere accesso.
-        </div>
-      </div>
- 
-      <!-- Modifica dati -->
-      <div class="card">
-        <div class="card-header"><div class="card-title">Modifica Dati Personali</div></div>
-        <div class="grid-2">
-          <div class="form-group"><label>Nome e Cognome Completo</label><input type="text" id="prof-name" placeholder="Ten. Mario Rossi"></div>
-          <div class="form-group"><label>Grado Militare</label><input type="text" id="prof-rank" placeholder="es. Aspirante, Sottotenente…"></div>
-        </div>
-        <div class="grid-2">
-          <div class="form-group"><label>Reparto / Plotone</label><input type="text" id="prof-platoon" placeholder="es. 3° Plotone Alpha"></div>
-          <div class="form-group"><label>Anno di Corso</label>
-            <select id="prof-year">
-              <option>1° Anno</option><option>2° Anno</option><option>3° Anno</option>
-              <option>4° Anno</option><option>5° Anno</option>
-            </select>
-          </div>
-        </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:.5rem">
-          <button class="btn btn-gold" onclick="saveProfile()">💾 Salva Modifiche</button>
-        </div>
-      </div>
-    </div>
-    
+  <main>
     <!-- BACHECA -->
     <div class="page active" id="page-bacheca">
-      <div class="page-title">Bacheca Annunci</div>
-      <div class="page-desc"><span class="poll-dot"></span>Aggiornamento automatico ogni 15 secondi</div>
-      <div class="post-form card">
-        <div class="form-group" style="margin-bottom:.8rem"><label>Nuovo Annuncio</label><textarea id="postContent" placeholder="Scrivi qui il tuo annuncio..." rows="3"></textarea></div>
-        <div style="display:flex;justify-content:flex-end"><button class="btn btn-gold" onclick="postAnnouncement()">📢 Pubblica</button></div>
+      <div class="page-header">
+        <div class="page-title">Bacheca <span>Annunci</span></div>
+        <div class="page-desc"><span class="poll-dot"></span>Aggiornamento automatico ogni 15 secondi</div>
       </div>
-      <div class="feed" id="feedList"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Caricamento…</div></div>
+      <div class="post-form card">
+        <div class="form-group" style="margin-bottom:.8rem"><label>Nuovo Annuncio</label><textarea id="postContent" placeholder="Scrivi qui il tuo annuncio per i commilitoni..." rows="3"></textarea></div>
+        <div style="display:flex;justify-content:flex-end"><button class="btn btn-gold" onclick="postAnnouncement()">📢 &nbsp;Pubblica</button></div>
+      </div>
+      <div class="feed" id="feedList"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.7rem;letter-spacing:.1em">Caricamento…</div></div>
     </div>
 
-     <!-- ── COMUNICAZIONI ───────────────────────────────────────── -->
-    <div class="page" id="page-comunicazioni">
-      <div class="page-title">Comunicazioni</div>
-      <div class="page-desc">Chat ufficiale · Comunicati · Documenti</div>
- 
-      <div class="alert alert-info" style="margin-bottom:1.2rem">
-        ℹ La chat è <strong>leggibile da tutti</strong>. Possono scrivere solo: Allievo di Servizio, Capo Compagnia, Vice Capo Compagnia, Tenente e Amministratori.
-      </div>
- 
-      <div class="com-tabs">
-        <button class="com-tab-btn active" onclick="switchComTab('chat',this)">💬 Chat</button>
-        <button class="com-tab-btn" onclick="switchComTab('ufficiali',this)">📋 Comunicati Ufficiali</button>
-      </div>
- 
-      <!-- Tab Chat -->
-      <div class="com-tab-panel active" id="com-chat">
-        <div class="chat-container">
-          <div class="chat-messages" id="chatMessages">
-            <div class="chat-empty">Caricamento…</div>
-          </div>
-          <!-- Input (visibile solo se ha permesso di scrittura) -->
-          <div class="chat-input-area" id="chatInputArea">
-            <textarea id="chatInput" placeholder="Scrivi un messaggio ufficiale…" rows="1"
-              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendComMsg()}"
-              oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
-            <button class="btn btn-gold" onclick="sendComMsg()" style="align-self:flex-end">➤ Invia</button>
-          </div>
-          <div class="chat-locked-msg hidden" id="chatLockedMsg">
-            🔒 Solo i ruoli autorizzati possono scrivere in questa sezione.
-          </div>
-        </div>
-      </div>
- 
-      <!-- Tab Comunicati Ufficiali -->
-      <div class="com-tab-panel" id="com-ufficiali">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3)">Comunicati, ordini del giorno e documenti ufficiali</div>
-          <button class="btn btn-gold hidden" id="btnNewComPost" onclick="openComPostModal()">➕ Nuovo Comunicato</button>
-        </div>
-        <div id="comPostsList"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Caricamento…</div></div>
-      </div>
-    </div>
-    
     <!-- LISTE -->
     <div class="page" id="page-liste">
-      <div class="page-title">Liste</div>
-      <div class="page-desc">Liberi Uscenti · Messa · Parlatorio</div>
+      <div class="page-header">
+        <div class="page-title">Liste <span>Ufficiali</span></div>
+        <div class="page-desc">Liberi Uscenti · Messa · Parlatorio</div>
+      </div>
       <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap">
         <div class="tabs" style="flex:1;margin-bottom:0;border-bottom:none;min-width:0">
           <button class="tab-btn active" onclick="switchListTab('liberi_sab_pom',this)">🚶 Sab. Pom.</button>
@@ -750,9 +1135,8 @@ canvas{max-height:220px}
           <button class="tab-btn" onclick="switchListTab('liberi_dom_pom',this)">☀ Dom. Pom.</button>
           <button class="tab-btn" onclick="switchListTab('messa',this)">⛪ Messa</button>
           <button class="tab-btn" onclick="switchListTab('parlatorio',this)">👥 Parlatorio</button>
-          <button class="tab-btn" onclick="switchListTab('custom',this)">🎯 Personalizzata</button>
         </div>
-        <button id="btnNewList" class="btn btn-gold hidden" onclick="toggleAdminListPanel()">➕ Nuova Lista</button>
+        <button id="btnNewList" class="btn btn-gold hidden" onclick="toggleAdminListPanel()">➕ &nbsp;Nuova Lista</button>
       </div>
       <div style="border-bottom:1px solid var(--border);margin-bottom:1.5rem"></div>
       <div id="list-admin-panel" class="hidden card" style="margin-bottom:1rem">
@@ -762,32 +1146,28 @@ canvas{max-height:220px}
         </div>
         <div class="form-row-2" style="margin-bottom:.7rem">
           <div class="form-group"><label>Tipo</label>
-            <select id="newListType" onchange="updateNewListTypeUI()">
+            <select id="newListType">
               <option value="liberi_sab_pom">Liberi Uscenti Sabato Pomeriggio</option>
               <option value="liberi_sab_sera">Liberi Uscenti Sabato Sera</option>
               <option value="liberi_dom_pom">Liberi Uscenti Domenica Pomeriggio</option>
               <option value="messa">Lista Messa</option>
               <option value="parlatorio">Lista Parlatorio</option>
-              <option value="custom">🎯 Lista Personalizzata</option>
             </select>
           </div>
           <div class="form-group"><label>Data *</label><input type="date" id="newListDate"></div>
         </div>
-        <!-- Campi visibili solo per lista personalizzata -->
-        <div id="newListCustomSection" class="hidden" style="background:var(--surface2);border:1px solid var(--gold-dim);border-radius:var(--radius);padding:.8rem;margin-bottom:.7rem">
-          <div class="form-group" style="margin-bottom:.5rem"><label>Nome Lista *</label><input type="text" id="newListCustomName" placeholder="es. Lista Destinazioni Weekend"></div>
-          <div class="form-group"><label>Campo da compilare (opzionale)</label><input type="text" id="newListCustomLabel" placeholder="es. Città di destinazione, Mezzo di trasporto…"></div>
-        </div>
-        <div class="form-group" style="margin-bottom:.7rem"><label>Note aggiuntive</label><input type="text" id="newListNotes" placeholder="Opzionale…"></div>
-        <button class="btn btn-gold" onclick="createList()">✓ Crea Lista</button>
+        <div class="form-group" style="margin-bottom:.7rem"><label>Note</label><input type="text" id="newListNotes" placeholder="Opzionale…"></div>
+        <button class="btn btn-gold" onclick="createList()">✓ &nbsp;Crea Lista</button>
       </div>
-      <div id="list-content"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Caricamento…</div></div>
+      <div id="list-content"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.7rem">Caricamento…</div></div>
     </div>
 
     <!-- FINANZE -->
     <div class="page" id="page-finanze">
-      <div class="page-title">Gestione Finanze</div>
-      <div class="page-desc">Entrate · Uscite · Investimenti · Ricavi</div>
+      <div class="page-header">
+        <div class="page-title">Gestione <span>Finanze</span></div>
+        <div class="page-desc">Entrate · Uscite · Investimenti · Ricavi</div>
+      </div>
       <div id="fin-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Accesso Non Autorizzato</div><div class="locked-desc">Non hai i permessi per la sezione Finanze.<br>Contatta un amministratore per richiedere l'accesso.</div></div></div>
       <div id="fin-content">
         <div class="fin-kpi">
@@ -797,11 +1177,11 @@ canvas{max-height:220px}
           <div class="stat-box top-blue"><div class="stat-value blue" id="f-investimenti">€0</div><div class="stat-label">Investimenti</div></div>
         </div>
         <div class="charts-row">
-          <div class="card"><div class="card-title" style="font-size:.72rem;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem">Flussi Mensili (6 mesi)</div><canvas id="finBarChart"></canvas></div>
-          <div class="card"><div class="card-title" style="font-size:.72rem;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:1rem">Distribuzione</div><canvas id="finDonutChart"></canvas></div>
+          <div class="card"><div class="card-title" style="font-size:.66rem;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:1rem">Flussi Mensili (6 mesi)</div><canvas id="finBarChart"></canvas></div>
+          <div class="card"><div class="card-title" style="font-size:.66rem;color:var(--text3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:1rem">Distribuzione</div><canvas id="finDonutChart"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Transazioni</div><button class="btn btn-gold" onclick="openTxModal()">+ Aggiungi</button></div>
+          <div class="card-header"><div class="card-title">Transazioni</div><button class="btn btn-gold" onclick="openTxModal()">+ &nbsp;Aggiungi</button></div>
           <div class="fin-filter-row">
             <div class="search-wrap"><span class="search-icon">🔍</span><input type="text" id="finSearch" placeholder="Cerca..." onkeyup="renderFinTx()"></div>
             <button class="filter-btn active" onclick="setFinFilter('all',this)">Tutti</button>
@@ -814,15 +1194,17 @@ canvas{max-height:220px}
             <table class="data-table"><thead><tr><th>Data</th><th>Descrizione</th><th>Tipo</th><th>Categoria</th><th>Note</th><th>Importo</th><th></th></tr></thead>
             <tbody id="finTxBody"></tbody></table>
           </div>
-          <div id="finEmpty" class="hidden" style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Nessuna transazione.</div>
+          <div id="finEmpty" class="hidden" style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.7rem">Nessuna transazione.</div>
         </div>
       </div>
     </div>
 
     <!-- VOTI -->
     <div class="page" id="page-voti">
-      <div class="page-title">Registro Voti</div>
-      <div class="page-desc">Università · Ginnastica · Militare · Punizioni</div>
+      <div class="page-header">
+        <div class="page-title">Registro <span>Voti</span></div>
+        <div class="page-desc">Università · Ginnastica · Militare · Punizioni</div>
+      </div>
       <div id="voti-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Accesso Non Autorizzato</div><div class="locked-desc">Non hai i permessi per il Registro Voti.<br>Contatta un amministratore per richiedere l'accesso.</div></div></div>
       <div id="voti-content">
         <div class="tabs">
@@ -852,7 +1234,7 @@ canvas{max-height:220px}
             <div class="stat-box top-gold"><div class="stat-value" id="u-arithmetic">—</div><div class="stat-label">Media Esami (arit.)</div></div>
           </div>
           <div id="u-list"></div>
-          <button class="btn btn-gold" onclick="openAddSubjectModal('university')" style="margin-top:.5rem">+ Aggiungi Materia</button>
+          <button class="btn btn-gold" onclick="openAddSubjectModal('university')" style="margin-top:.5rem">+ &nbsp;Aggiungi Materia</button>
         </div>
         <div class="tab-panel" id="vtab-ginnastica">
           <div class="alert alert-info" style="margin-bottom:1rem">🏅 Le prove di ginnastica sono <strong>Esami Ginnici</strong>. Contribuiscono alla <strong>Media Ginnastica</strong>, parte della Media Militare Totale.</div>
@@ -861,7 +1243,7 @@ canvas{max-height:220px}
             <div class="stat-box top-green"><div class="stat-value ok" id="gym-arithmetic">—</div><div class="stat-label">Media Ginnastica (arit.)</div></div>
           </div>
           <div id="gym-list"></div>
-          <button class="btn btn-gold" onclick="openAddSubjectModal('gym')" style="margin-top:.5rem">+ Aggiungi Disciplina</button>
+          <button class="btn btn-gold" onclick="openAddSubjectModal('gym')" style="margin-top:.5rem">+ &nbsp;Aggiungi Disciplina</button>
         </div>
         <div class="tab-panel" id="vtab-militare">
           <div class="alert alert-info" style="margin-bottom:1rem">🎖 Le materie militari si valutano esclusivamente con <strong>Accertamenti</strong>. Contribuiscono alla <strong>Media Militare Totale</strong>.</div>
@@ -870,7 +1252,7 @@ canvas{max-height:220px}
             <div class="stat-box top-green"><div class="stat-value ok" id="mil-arithmetic">—</div><div class="stat-label">Media Militare (arit.)</div></div>
           </div>
           <div id="mil-list"></div>
-          <button class="btn btn-gold" onclick="openAddSubjectModal('military')" style="margin-top:.5rem">+ Aggiungi Materia</button>
+          <button class="btn btn-gold" onclick="openAddSubjectModal('military')" style="margin-top:.5rem">+ &nbsp;Aggiungi Materia</button>
         </div>
         <div class="tab-panel" id="vtab-punizioni">
           <div class="grid-3" style="margin-bottom:1.5rem">
@@ -888,7 +1270,7 @@ canvas{max-height:220px}
             <span class="badge badge-gold">■ Università</span>
             <span class="badge badge-green">■ Militare</span>
             <span class="badge badge-blue">■ Ginnastica</span>
-            <button class="btn btn-red btn-sm" onclick="clearSchedule()" style="margin-left:auto">🗑 Svuota</button>
+            <button class="btn btn-red btn-sm" onclick="clearSchedule()" style="margin-left:auto">🗑 &nbsp;Svuota</button>
           </div>
           <div style="overflow-x:auto"><div class="schedule-grid" id="scheduleGrid"></div></div>
         </div>
@@ -900,7 +1282,7 @@ canvas{max-height:220px}
               <div class="form-group"><label>📌 Fissa</label><select id="notePinInput"><option value="false">No</option><option value="true">Sì</option></select></div>
             </div>
             <div class="form-group"><label>Contenuto</label><textarea id="noteBodyInput" placeholder="Scrivi la nota..." rows="4"></textarea></div>
-            <div style="display:flex;justify-content:flex-end;margin-top:.6rem"><button class="btn btn-gold" onclick="saveNote()">💾 Salva Nota</button></div>
+            <div style="display:flex;justify-content:flex-end;margin-top:.6rem"><button class="btn btn-gold" onclick="saveNote()">💾 &nbsp;Salva Nota</button></div>
           </div>
           <div id="notesList"></div>
         </div>
@@ -912,7 +1294,7 @@ canvas{max-height:220px}
               <div class="form-group" style="margin-bottom:.7rem"><label>Grado Militare</label><input type="text" id="s-rank" placeholder="es. Ten."></div>
               <div class="form-group" style="margin-bottom:.7rem"><label>Anno di Corso</label><select id="s-year"><option>1° Anno</option><option>2° Anno</option><option>3° Anno</option><option>4° Anno</option><option>5° Anno</option></select></div>
               <div class="form-group" style="margin-bottom:.7rem"><label>Reparto / Plotone</label><input type="text" id="s-platoon" placeholder="es. 3° Plotone Alpha"></div>
-              <button class="btn btn-gold" onclick="saveVotiSettings()">💾 Salva</button>
+              <button class="btn btn-gold" onclick="saveVotiSettings()">💾 &nbsp;Salva</button>
             </div>
             <div class="card">
               <div class="card-header"><div class="card-title">Pesi Graduatoria (%)</div></div>
@@ -926,7 +1308,7 @@ canvas{max-height:220px}
                 <div class="form-group"><label>Sub-peso Militare (%)</label><input type="number" id="s-wmil" value="50" min="0" max="100"></div>
               </div>
               <div class="form-group" style="margin-bottom:.7rem"><label>Det. Consegna (pt/giorno)</label><input type="number" id="s-pen" value="0.5" step="0.1" min="0"></div>
-              <button class="btn btn-gold" onclick="saveVotiSettings()">💾 Salva Pesi</button>
+              <button class="btn btn-gold" onclick="saveVotiSettings()">💾 &nbsp;Salva Pesi</button>
             </div>
           </div>
           <div class="card" style="margin-top:1rem"><div class="card-header"><div class="card-title">Gestione Materie</div></div><div class="grid-3" id="subjectMgmt"></div></div>
@@ -934,36 +1316,22 @@ canvas{max-height:220px}
       </div>
     </div>
 
- <!-- ── ADMIN ───────────────────────────────────────────────── -->
+    <!-- ADMIN -->
     <div class="page" id="page-admin">
-      <div class="page-title">Gestione Utenti</div>
-      <div class="page-desc">Ruoli · Permessi · Account registrati</div>
- 
-      <!-- Legenda ruoli -->
-      <div class="card" style="margin-bottom:1.2rem">
-        <div class="card-header"><div class="card-title">Ruoli e Permessi Comunicazioni</div></div>
-        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.8rem">
-          <span class="role-badge role-tenente">🎖 Tenente</span>
-          <span class="role-badge role-capo">⚔ Capo Compagnia</span>
-          <span class="role-badge role-vice">🛡 Vice Capo Compagnia</span>
-          <span class="role-badge role-servizio">🎯 Allievo di Servizio</span>
-        </div>
-        <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3)">
-          I ruoli evidenziati possono <strong style="color:var(--gold)">scrivere in Comunicazioni</strong> (chat + comunicati ufficiali). Gli altri utenti possono solo leggere.
-        </div>
+      <div class="page-header">
+        <div class="page-title">Gestione <span>Utenti</span></div>
+        <div class="page-desc">Assegna permessi · Visualizza registrati · Rimuovi account</div>
       </div>
- 
       <div class="card">
-        <div class="card-header"><div class="card-title">Utenti Registrati</div><button class="btn btn-gold" onclick="loadAdminUsers()">↻ Aggiorna</button></div>
+        <div class="card-header"><div class="card-title">Utenti Registrati</div><button class="btn btn-gold" onclick="loadAdminUsers()">↻ &nbsp;Aggiorna</button></div>
         <div style="overflow-x:auto">
           <table class="data-table">
-            <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Ruolo Militare</th><th>Registrato</th><th>Finanze</th><th>Voti</th><th>Admin</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Registrato</th><th>Finanze</th><th>Voti</th><th>Admin</th><th></th></tr></thead>
             <tbody id="adminUserBody"></tbody>
           </table>
         </div>
       </div>
     </div>
- 
   </main>
 </div>
 
@@ -980,7 +1348,7 @@ canvas{max-height:220px}
     <div class="form-row-2"><div class="form-group"><label>Descrizione *</label><input type="text" id="tx-desc" placeholder="es. Stipendio"></div><div class="form-group"><label>Importo (€) *</label><input type="number" id="tx-amount" placeholder="0.00" step="0.01"></div></div>
     <div class="form-row-2"><div class="form-group"><label>Data *</label><input type="date" id="tx-date"></div><div class="form-group"><label>Categoria</label><select id="tx-cat"></select></div></div>
     <div class="form-group"><label>Note</label><input type="text" id="tx-note" placeholder="Opzionale..."></div>
-    <div class="modal-footer"><button class="btn" onclick="closeTxModal()">Annulla</button><button class="btn btn-gold" onclick="saveTx()">💾 Salva</button></div>
+    <div class="modal-footer"><button class="btn" onclick="closeTxModal()">Annulla</button><button class="btn btn-gold" onclick="saveTx()">💾 &nbsp;Salva</button></div>
   </div>
 </div>
 <div class="modal-overlay" id="addSubjModal">
@@ -989,7 +1357,7 @@ canvas{max-height:220px}
     <input type="hidden" id="addSubjType">
     <div class="form-group" style="margin-bottom:.8rem"><label>Nome *</label><input type="text" id="addSubjName" placeholder="es. Analisi Matematica"></div>
     <div class="form-group" style="margin-bottom:.8rem"><label id="addSubjCfuLabel">Crediti CFU</label><input type="number" id="addSubjCredits" value="6" min="0.5" step="0.5"></div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('addSubjModal')">Annulla</button><button class="btn btn-gold" onclick="addSubject()">✓ Aggiungi</button></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('addSubjModal')">Annulla</button><button class="btn btn-gold" onclick="addSubject()">✓ &nbsp;Aggiungi</button></div>
   </div>
 </div>
 <div class="modal-overlay" id="addGradeModal">
@@ -1002,7 +1370,7 @@ canvas{max-height:220px}
       <div class="form-group"><label>Data</label><input type="date" id="agDate"></div>
     </div>
     <div class="form-group"><label>Descrizione</label><input type="text" id="agDesc" placeholder="es. Esame finale..."></div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('addGradeModal')">Annulla</button><button class="btn btn-gold" onclick="saveGrade()">✓ Aggiungi</button></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('addGradeModal')">Annulla</button><button class="btn btn-gold" onclick="saveGrade()">✓ &nbsp;Aggiungi</button></div>
   </div>
 </div>
 <div class="modal-overlay" id="penModal">
@@ -1012,7 +1380,7 @@ canvas{max-height:220px}
     <div class="form-row-2"><div class="form-group"><label id="penDaysLabel">Giorni</label><input type="number" id="penDays" value="1" min="1" max="90" oninput="updatePenPreview()"></div><div class="form-group"><label>Data</label><input type="date" id="penDate"></div></div>
     <div class="form-group"><label>Motivazione</label><input type="text" id="penReason" placeholder="es. Assenza ingiustificata"></div>
     <div class="alert alert-warn" id="penPreview" style="margin-top:.5rem"></div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('penModal')">Annulla</button><button class="btn btn-red" onclick="savePenalty()">✓ Registra</button></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('penModal')">Annulla</button><button class="btn btn-red" onclick="savePenalty()">✓ &nbsp;Registra</button></div>
   </div>
 </div>
 <div class="modal-overlay" id="schedModal">
@@ -1022,98 +1390,26 @@ canvas{max-height:220px}
     <div class="form-group" style="margin-bottom:.7rem"><label>Materia / Attività</label><input type="text" id="sSubject" placeholder="es. Analisi Matematica"></div>
     <div class="form-group" style="margin-bottom:.7rem"><label>Aula / Luogo</label><input type="text" id="sRoom" placeholder="es. Aula 12"></div>
     <div class="form-group" style="margin-bottom:.7rem"><label>Tipo</label><select id="sType"><option value="university">Università</option><option value="military">Militare</option><option value="gym">Ginnastica</option></select></div>
-    <div class="modal-footer"><button class="btn btn-red" onclick="deleteScheduleCell()">🗑 Rimuovi</button><button class="btn" onclick="closeModal('schedModal')">Annulla</button><button class="btn btn-gold" onclick="saveScheduleCell()">✓ Salva</button></div>
+    <div class="modal-footer"><button class="btn btn-red" onclick="deleteScheduleCell()">🗑 &nbsp;Rimuovi</button><button class="btn" onclick="closeModal('schedModal')">Annulla</button><button class="btn btn-gold" onclick="saveScheduleCell()">✓ &nbsp;Salva</button></div>
   </div>
 </div>
-<!-- MESSA MODAL -->
-<div class="modal-overlay" id="messaModal">
-  <div class="modal">
-    <div class="modal-title">⛪ Iscrizione Messa</div>
-    <input type="hidden" id="messaListId">
-    <div class="form-group" style="margin-bottom:.8rem">
-      <label>Vuoi portare un parente?</label>
-      <select id="messaHasRelative" onchange="document.getElementById('messaRelativeFields').classList.toggle('hidden',this.value==='no')">
-        <option value="no">No, vengo da solo</option>
-        <option value="si">Sì, porto un parente</option>
-      </select>
-    </div>
-    <div id="messaRelativeFields" class="hidden">
-      <div class="form-row-2">
-        <div class="form-group" style="margin-bottom:.7rem"><label>Nome Parente *</label><input type="text" id="messaRelName" placeholder="es. Maria Rossi"></div>
-        <div class="form-group" style="margin-bottom:.7rem"><label>Parentela</label><input type="text" id="messaRelRelation" placeholder="es. Madre"></div>
-      </div>
-    </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('messaModal')">Annulla</button><button class="btn btn-gold" onclick="confirmMessaSignup()">✓ Iscriviti</button></div>
-  </div>
-</div>
-
-<!-- LISTA PERSONALIZZATA MODAL -->
-<div class="modal-overlay" id="customSignupModal">
-  <div class="modal">
-    <div class="modal-title">🎯 Iscrizione Lista</div>
-    <div class="alert alert-info" style="margin-bottom:.8rem">Compila il campo richiesto dall'organizzatore.</div>
-    <div class="form-group" style="margin-bottom:.8rem">
-      <label id="customSignupLabel">Campo</label>
-      <input type="text" id="customSignupValue" placeholder="Inserisci il valore…">
-    </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('customSignupModal')">Annulla</button><button class="btn btn-gold" onclick="confirmCustomSignup()">✓ Iscriviti</button></div>
-  </div>
-</div>
-
-<!-- PARLATORIO MODAL (multi-parente) -->
 <div class="modal-overlay" id="parlatorioModal">
-  <div class="modal" style="max-width:560px">
-    <div class="modal-title" id="parlatorioModalTitle">👥 Iscrizione Parlatorio</div>
-    <input type="hidden" id="parlatorioListId">
-
-    <!-- Sezione visibile solo se non già iscritto -->
-    <div id="parlSignupSection">
-      <div class="alert alert-info" style="margin-bottom:1rem">Iscriviti e aggiungi i parenti che verranno al parlatorio (anche uno alla volta dopo).</div>
-    </div>
-
-    <!-- Aggiungi parente -->
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:.8rem">
-      <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem">➕ Aggiungi parente</div>
-      <div class="form-row-3" style="margin-bottom:.5rem">
-        <div class="form-group"><label>Nome e Cognome *</label><input type="text" id="parlRelName" placeholder="es. Maria Rossi"></div>
-        <div class="form-group"><label>Parentela</label><input type="text" id="parlRelRelation" placeholder="es. Madre"></div>
-        <div class="form-group"><label>N° Carta d'Identità</label><input type="text" id="parlRelIdCard" placeholder="es. CA12345AB"></div>
-      </div>
-      <button class="btn btn-gold btn-sm" onclick="addParlNewRelative()">➕ Aggiungi a lista</button>
-    </div>
-
-    <!-- Lista parenti aggiunti -->
-    <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem">Parenti da aggiungere</div>
-    <div id="parlNewRelativesList" style="min-height:32px;margin-bottom:.5rem"></div>
-
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('parlatorioModal')">Annulla</button>
-      <button class="btn btn-gold" onclick="confirmParlatorioSignup()">✓ Conferma</button>
-    </div>
-  </div>
-</div>
-
-  <!-- Nuovo Comunicato Ufficiale -->
-<div class="modal-overlay" id="comPostModal">
   <div class="modal">
-    <div class="modal-title">📋 Nuovo Comunicato Ufficiale</div>
-    <div class="form-group" style="margin-bottom:.7rem"><label>Titolo</label><input type="text" id="comPostTitle" placeholder="es. Ordine del Giorno — 04 Maggio"></div>
-    <div class="form-group" style="margin-bottom:.7rem"><label>Contenuto</label><textarea id="comPostContent" placeholder="Testo del comunicato…" rows="5"></textarea></div>
-    <div style="margin-bottom:.7rem">
-      <div class="perm-box-label" style="font-family:var(--font-mono);font-size:.58rem;color:var(--text2);letter-spacing:.15em;text-transform:uppercase;margin-bottom:.4rem">Allegato (max 5MB)</div>
-      <label class="file-upload-label" for="comPostFile">
-        <span>📎</span><span>Clicca per allegare un file</span>
-      </label>
-      <input type="file" id="comPostFile" style="display:none" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg">
-      <div class="file-info" id="comFileInfo"></div>
+    <div class="modal-title">👥 Iscrizione Parlatorio</div>
+    <div class="alert alert-info" style="margin-bottom:1rem">Inserisci i dati del parente che verrà al parlatorio.</div>
+    <input type="hidden" id="parlListId">
+    <div class="form-group" style="margin-bottom:.7rem"><label>Nome e Cognome Parente *</label><input type="text" id="parlName" placeholder="es. Maria Rossi"></div>
+    <div class="form-row-2">
+      <div class="form-group" style="margin-bottom:.7rem"><label>Grado di Parentela *</label><input type="text" id="parlRelation" placeholder="es. Madre, Padre, Fratello..."></div>
+      <div class="form-group" style="margin-bottom:.7rem"><label>N° Carta d'Identità</label><input type="text" id="parlIdCard" placeholder="es. CA12345AB"></div>
     </div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('comPostModal')">Annulla</button><button class="btn btn-gold" onclick="saveComPost()">📤 Pubblica</button></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('parlatorioModal')">Annulla</button><button class="btn btn-gold" onclick="confirmParlatorioSignup()">✓ &nbsp;Iscriviti</button></div>
   </div>
 </div>
-  
+
 <div id="toast"></div>
 
-   <script>
+<script>
 /* ─── THEME TOGGLE ─── */
 function toggleTheme() {
   const html = document.documentElement;
@@ -1126,7 +1422,7 @@ function toggleTheme() {
   const saved = localStorage.getItem('au-theme');
   if (saved) document.documentElement.setAttribute('data-theme', saved);
 })();
- 
+
 /* ─── SIDEBAR AVATAR INITIAL ─── */
 const _origSbUserName = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'textContent');
 function updateSbAvatar() {
