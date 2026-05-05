@@ -16,7 +16,6 @@ let vdb = {
 let allLists = [], currentListTab = 'liberi_sab_pom', openListId = null;
 let bachecaInterval = null;
 let chatBadgeInterval = null;
-let lastSeenChatId = parseInt(localStorage.getItem('au-last-chat-id') || '0');
 let comChatInterval = null;
 let currentComTab = 'chat';
 let comChatMessages = [], comPosts = [];
@@ -118,7 +117,14 @@ function showApp(){ _h('landing');_h('auth');_s('app'); applyPermissions(); load
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
 
-// ── CHAT UNREAD BADGE ─────────────────────────────────────────────
+// ── CHAT UNREAD BADGE ────────────────────────────────────────────
+// Usa localStorage 'au-chat-last-ts': stringa ISO del created_at
+// dell'ultimo messaggio che l'utente ha "visto" aprendo Comunicazioni.
+// Ogni 12s il polling confronta i messaggi nuovi col timestamp salvato.
+
+function _chatLastTs(){ return localStorage.getItem('au-chat-last-ts') || '' }
+function _chatSaveTs(ts){ if(ts) localStorage.setItem('au-chat-last-ts', ts) }
+
 function setChatBadge(n){
   document.querySelectorAll('.chat-unread-badge').forEach(el => {
     if(n > 0){
@@ -129,54 +135,57 @@ function setChatBadge(n){
     }
   });
 }
-function markChatRead(){
-  if(lastSeenChatId > 0) localStorage.setItem('au-last-chat-id', String(lastSeenChatId));
-  setChatBadge(0);
-}
+
 async function checkChatUnread(){
-  // Non controllare se la pagina comunicazioni è già aperta
+  if(!token) return; // non loggato
+  // Non fare nulla se la pagina comunicazioni è già aperta
   const comPage = document.getElementById('page-comunicazioni');
-  if(comPage && comPage.classList.contains('active')) return;
+  if(comPage && comPage.classList.contains('active')){ setChatBadge(0); return; }
   try {
     const msgs = await api('GET', '/api/comunicazioni/chat');
     if(!msgs || !msgs.length){ setChatBadge(0); return; }
-    // Trova l'ID massimo (i messaggi hanno created_at, usiamo l'indice come proxy)
-    // Usiamo l'id stringa: convertiamo in timestamp confrontabile
-    const saved = localStorage.getItem('au-last-chat-id') || '0';
-    // Confronta per created_at stringa — ISO ordina correttamente
-    const savedTime = localStorage.getItem('au-last-chat-ts') || '';
-    const latestMsg = msgs[msgs.length - 1];
-    const latestTs = latestMsg.created_at || '';
-    lastSeenChatId = latestMsg.id || latestTs;
-    const unread = msgs.filter(m => (m.created_at || '') > savedTime).length;
+    const saved = _chatLastTs();
+    if(!saved){
+      // Prima volta assoluta: salva subito l'ultimo timestamp come visto,
+      // così non inondiamo di notifiche i messaggi storici già presenti.
+      _chatSaveTs(msgs[msgs.length - 1].created_at || '');
+      setChatBadge(0);
+      return;
+    }
+    const unread = msgs.filter(m => (m.created_at || '') > saved).length;
     setChatBadge(unread);
-  } catch(e){ /* silenzioso */ }
+  } catch(e){ /* silenzioso: badge rimane com'è */ }
 }
+
+function markChatRead(){
+  // Chiamata quando l'utente apre la pagina Comunicazioni
+  setChatBadge(0);
+}
+
 function startChatBadgePolling(){
   stopChatBadgePolling();
-  checkChatUnread();
+  checkChatUnread(); // controllo immediato al login
   chatBadgeInterval = setInterval(checkChatUnread, 12000);
 }
 function stopChatBadgePolling(){
   if(chatBadgeInterval){ clearInterval(chatBadgeInterval); chatBadgeInterval = null; }
 }
+// ─────────────────────────────────────────────────────────────────
 
 async function showPage(id, link){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(link) link.classList.add('active');
-  // Se l'utente apre comunicazioni, segna i messaggi come letti
+  // Quando l'utente apre comunicazioni: salva il ts dell'ultimo messaggio e azzera badge
   if(id === 'comunicazioni'){
-    // Salva il timestamp dell'ultimo messaggio visto
+    markChatRead();
     try {
       const msgs = await api('GET', '/api/comunicazioni/chat');
       if(msgs && msgs.length){
-        const lastTs = msgs[msgs.length-1].created_at || '';
-        localStorage.setItem('au-last-chat-ts', lastTs);
+        _chatSaveTs(msgs[msgs.length - 1].created_at || '');
       }
     } catch(e){}
-    markChatRead();
   }
   // Aggiorna sempre permessi dal server prima di caricare sezione
   await refreshCurrentUser();
@@ -716,8 +725,8 @@ function getLastName(s){
 }
 
 function renderSignupRows(l, isAdmin){
-  const signups = [...(l.signups || [])].sort((a,b) =>
-    getLastName(a).localeCompare(getLastName(b), 'it', {sensitivity:'base'})
+  const signups = [...(l.signups || [])].sort((a, b) =>
+    getLastName(a).localeCompare(getLastName(b), 'it', {sensitivity: 'base'})
   );
   if(!signups.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:.5rem">Nessuno iscritto ancora.</div>';
   const isParlatorio = l.list_type === 'parlatorio';
