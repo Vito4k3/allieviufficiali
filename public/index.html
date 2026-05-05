@@ -269,12 +269,18 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
 .hero-divider-sym{font-family:var(--font-d);font-size:.6rem;color:var(--gold);letter-spacing:.3em}
 
 /* ── STATS STRIP ── */
+.land-stats-wrap{
+  max-width:1120px;margin:0 auto;
+  padding:0 2rem;
+}
 .land-stats{
   display:grid;
   grid-template-columns:repeat(4,1fr);
-  border-top:1px solid var(--border);
-  border-bottom:1px solid var(--border);
+  border:1px solid var(--border);
+  border-radius:var(--r2);
   background:var(--surface);
+  overflow:hidden;
+  margin:3rem 0;
 }
 .stat-strip-item{
   text-align:center;
@@ -578,6 +584,25 @@ nav a.sb-link.active{
   color:var(--gold);background:var(--gold-a10);border-left-color:var(--gold);
 }
 .sb-icon{width:16px;text-align:center;font-size:.85rem;flex-shrink:0}
+
+/* ── UNREAD BADGE ── */
+.chat-unread-badge{
+  display:none;
+  min-width:18px;height:18px;
+  border-radius:9px;
+  background:var(--red-l);
+  color:#fff;
+  font-family:var(--font-m);
+  font-size:.55rem;
+  font-weight:600;
+  line-height:18px;
+  text-align:center;
+  padding:0 5px;
+  margin-left:auto;
+  box-shadow:0 0 8px rgba(224,88,88,.5);
+  animation:badgePop .3s cubic-bezier(.22,.61,.36,1.4);
+}
+@keyframes badgePop{from{transform:scale(0)}to{transform:scale(1)}}
 
 .sb-footer{
   padding:.85rem 1rem;
@@ -1078,11 +1103,13 @@ canvas{max-height:220px}
     </div>
   </div>
 
-  <div class="land-stats">
-    <div class="stat-strip-item"><div class="stat-num">2</div><div class="stat-lbl">Medie Separate</div></div>
-    <div class="stat-strip-item"><div class="stat-num">∞</div><div class="stat-lbl">Transazioni</div></div>
-    <div class="stat-strip-item"><div class="stat-num">6</div><div class="stat-lbl">Tipi di Liste</div></div>
-    <div class="stat-strip-item"><div class="stat-num">DB</div><div class="stat-lbl">Dati su Server</div></div>
+  <div class="land-stats-wrap">
+    <div class="land-stats">
+      <div class="stat-strip-item"><div class="stat-num">2</div><div class="stat-lbl">Medie Separate</div></div>
+      <div class="stat-strip-item"><div class="stat-num">∞</div><div class="stat-lbl">Transazioni</div></div>
+      <div class="stat-strip-item"><div class="stat-num">6</div><div class="stat-lbl">Tipi di Liste</div></div>
+      <div class="stat-strip-item"><div class="stat-num">DB</div><div class="stat-lbl">Dati su Server</div></div>
+    </div>
   </div>
 
   <div class="land-features-wrap">
@@ -1216,7 +1243,7 @@ canvas{max-height:220px}
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link" onclick="showPage('bacheca',this);closeDrawer()"><span class="sb-icon">📢</span>Bacheca Annunci</a>
-        <a class="sb-link" onclick="showPage('comunicazioni',this);closeDrawer()"><span class="sb-icon">💬</span>Comunicazioni</a>
+        <a class="sb-link" onclick="showPage('comunicazioni',this);closeDrawer()"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
         <a class="sb-link" onclick="showPage('liste',this);closeDrawer()"><span class="sb-icon">📋</span>Liste</a>
       </nav>
       <div class="sb-section">Personale</div>
@@ -1254,7 +1281,7 @@ canvas{max-height:220px}
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link active" onclick="showPage('bacheca',this)"><span class="sb-icon">📢</span>Bacheca Annunci</a>
-        <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni</a>
+        <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
         <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
       </nav>
       <div class="sb-section">Personale</div>
