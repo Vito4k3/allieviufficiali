@@ -15,8 +15,6 @@ let vdb = {
 };
 let allLists = [], currentListTab = 'liberi_sab_pom';
 let bachecaInterval = null;
-let chatPollInterval = null;
-let lastKnownChatMsgId = null; // ID of latest chat message seen by user
 
 const LIST_LABELS = {
   liberi_sab_pom:  'Liberi Uscenti Sabato Pomeriggio',
@@ -65,7 +63,7 @@ async function api(method, path, body){
 // ── NAVIGATION ─────────────────────────────────────────────────────
 function showLanding(){ _s('landing');_h('auth');_h('app') }
 function showAuth(tab='login'){ _h('landing');_s('auth');_h('app'); switchAuthTab(tab) }
-function showApp(){ _h('landing');_h('auth');_s('app'); applyPermissions(); loadBacheca(); startBachecaPolling(); startChatBadgePolling() }
+function showApp(){ _h('landing');_h('auth');_s('app'); applyPermissions(); loadBacheca(); startBachecaPolling() }
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
 
@@ -74,8 +72,6 @@ async function showPage(id, link){
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(link) link.classList.add('active');
-  // Se apre comunicazioni, azzera il badge
-  if(id==='comunicazioni') markChatRead();
   // Aggiorna sempre permessi dal server prima di caricare sezione
   await refreshCurrentUser();
   if(id==='finanze') loadFinanze();
@@ -83,39 +79,6 @@ async function showPage(id, link){
   if(id==='liste')   loadListe();
   if(id==='admin')   loadAdminUsers();
 }
-
-// ── UNREAD CHAT BADGE ─────────────────────────────────────────────
-function getChatLastReadId(){ return localStorage.getItem('au-chat-last-read') }
-function markChatRead(){
-  if(lastKnownChatMsgId) localStorage.setItem('au-chat-last-read', String(lastKnownChatMsgId));
-  setChatBadge(0);
-}
-function setChatBadge(n){
-  document.querySelectorAll('.chat-unread-badge').forEach(el=>{
-    el.textContent = n > 99 ? '99+' : String(n);
-    el.style.display = n > 0 ? '' : 'none';
-  });
-}
-async function checkChatUnread(){
-  // Salta se la pagina comunicazioni è già attiva
-  if(document.getElementById('page-comunicazioni')?.classList.contains('active')) return;
-  try {
-    const msgs = await api('GET','/api/chat');
-    if(!msgs||!msgs.length){ setChatBadge(0); return; }
-    // Aggiorna l'ID massimo conosciuto
-    const maxId = Math.max(...msgs.map(m=>m.id||0));
-    lastKnownChatMsgId = maxId;
-    const lastRead = parseInt(getChatLastReadId()||'0');
-    const unread = msgs.filter(m=>(m.id||0) > lastRead).length;
-    setChatBadge(unread);
-  } catch(e){ /* silenzioso */ }
-}
-function startChatBadgePolling(){
-  stopChatBadgePolling();
-  checkChatUnread();
-  chatPollInterval = setInterval(checkChatUnread, 12000);
-}
-function stopChatBadgePolling(){ if(chatPollInterval){ clearInterval(chatPollInterval); chatPollInterval=null } }
 
 // Ricarica currentUser dal server (permessi sempre freschi, nessun re-login)
 async function refreshCurrentUser(){
@@ -174,7 +137,7 @@ async function doRegister(){
   } catch(e){ showAuthError(e.message) }
 }
 function showAuthError(msg){ const el=document.getElementById('authError');el.textContent='⚠ '+msg;el.style.display='block' }
-async function doLogout(){ token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();stopChatBadgePolling();showLanding() }
+async function doLogout(){ token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();showLanding() }
 async function tryAutoLogin(){
   if(!token) return;
   try {
@@ -311,13 +274,8 @@ function renderListContent(){
   }).join('');
 }
 
-function getLastName(s){
-  const name=(s.full_name||s.username||'').trim();
-  const parts=name.split(/\s+/);
-  return (parts[parts.length-1]||'').toLowerCase();
-}
 function renderSignupList(l,isAdmin,isParlatorio){
-  const signups=[...(l.signups||[])].sort((a,b)=>getLastName(a).localeCompare(getLastName(b),'it'));
+  const signups=l.signups||[];
   if(!signups.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:.5rem">Nessuno iscritto ancora.</div>';
   return signups.map((s,i)=>`
     <div class="signup-row">
