@@ -646,7 +646,7 @@ app.get('/api/lists/:id', auth, async (req, res) => {
     const [signups] = await c.execute(`
       SELECT s.*, u.username, u.full_name, u.military_rank
       FROM list_signups s JOIN users u ON s.user_id=u.id
-      WHERE s.list_id=? ORDER BY s.created_at ASC
+      WHERE s.list_id=? ORDER BY s.signed_up_at ASC
     `, [req.params.id]);
     res.json({ ...lists[0], signups });
   } catch(e) { res.status(500).json({ error: e.message }); }
