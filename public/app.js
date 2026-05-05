@@ -13,12 +13,10 @@ let vdb = {
   schedule: {}, notes: [],
   settings: { weight_uni:50, weight_acad:50, weight_gym:50, weight_mil:50, pen_consegna_rate:0.5 }
 };
-let allLists = [], currentListTab = 'liberi_sab_pom', openListId = null;
+let allLists = [], currentListTab = 'liberi_sab_pom';
 let bachecaInterval = null;
-let comChatInterval = null;
-let currentComTab = 'chat';
-let comChatMessages = [], comPosts = [];
-let pendingComFile = null;
+let chatPollInterval = null;
+let lastKnownChatMsgId = null; // ID of latest chat message seen by user
 
 const LIST_LABELS = {
   liberi_sab_pom:  'Liberi Uscenti Sabato Pomeriggio',
@@ -27,23 +25,6 @@ const LIST_LABELS = {
   messa:           'Lista Messa',
   parlatorio:      'Lista Parlatorio'
 };
-const ROLE_LABELS = {
-  'none':               'Allievo',
-  'allievo_servizio':   'Allievo di Servizio',
-  'capo_compagnia':     'Capo Compagnia',
-  'vice_capo_compagnia':'Vice Capo Compagnia',
-  'tenente':            'Tenente'
-};
- 
-const ROLE_CLASSES = {
-  'none':               'role-none',
-  'allievo_servizio':   'role-servizio',
-  'capo_compagnia':     'role-capo',
-  'vice_capo_compagnia':'role-vice',
-  'tenente':            'role-tenente'
-};
- 
-const ROLES_WITH_WRITE = ['allievo_servizio','capo_compagnia','vice_capo_compagnia','tenente'];
 
 // ── UTILS ──────────────────────────────────────────────────────────
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
@@ -55,37 +36,9 @@ function fmtDate(d){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '—';
   return new Date(s+'T12:00:00').toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'});
 }
-function fmtTime(d){
-  if(!d) return '';
-  const dt = new Date(d);
-  return dt.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-}
-function fmtDateTime(d){
-  if(!d) return '—';
-  const dt = new Date(d);
-  return dt.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+fmtTime(d);
-}
 function today(){ return new Date().toISOString().slice(0,10) }
 function escHtml(s){ const d=document.createElement('div');d.textContent=s;return d.innerHTML }
-function roleBadge(role, isAdmin) {
-  if (isAdmin) return '<span class="role-badge role-admin">⭐ Amministratore</span>';
-  const r = role || 'none';
-  const label = ROLE_LABELS[r] || r;
-  const cls = ROLE_CLASSES[r] || 'role-none';
-  if (r === 'none') return '';
-  const icons = { allievo_servizio:'🎯', capo_compagnia:'⚔', vice_capo_compagnia:'🛡', tenente:'🎖' };
-  return `<span class="role-badge ${cls}">${icons[r]||''} ${label}</span>`;
-}
- 
-function canWriteCom() {
-  if (!currentUser) return false;
-  return currentUser.is_admin || ROLES_WITH_WRITE.includes(currentUser.role);
-}
- 
-function getInitials(name) {
-  if (!name) return '?';
-  return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-}
+
 function toast(msg,type='ok'){
   const t=document.getElementById('toast');
   t.textContent=(type==='ok'?'✓ ':type==='err'?'✗ ':'ℹ ')+msg;
@@ -112,7 +65,7 @@ async function api(method, path, body){
 // ── NAVIGATION ─────────────────────────────────────────────────────
 function showLanding(){ _s('landing');_h('auth');_h('app') }
 function showAuth(tab='login'){ _h('landing');_s('auth');_h('app'); switchAuthTab(tab) }
-function showApp(){ _h('landing');_h('auth');_s('app'); applyPermissions(); loadBacheca(); startBachecaPolling() }
+function showApp(){ _h('landing');_h('auth');_s('app'); applyPermissions(); loadBacheca(); startBachecaPolling(); startChatBadgePolling() }
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
 
@@ -121,15 +74,48 @@ async function showPage(id, link){
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(link) link.classList.add('active');
+  // Se apre comunicazioni, azzera il badge
+  if(id==='comunicazioni') markChatRead();
   // Aggiorna sempre permessi dal server prima di caricare sezione
   await refreshCurrentUser();
-  if(id==='finanze')        loadFinanze();
-  if(id==='voti')           loadVoti();
-  if(id==='liste')          loadListe();
-  if(id==='admin')          loadAdminUsers();
-  if(id==='comunicazioni')  loadComunicazioni();
-  if(id==='profilo')        loadProfile();
+  if(id==='finanze') loadFinanze();
+  if(id==='voti')    loadVoti();
+  if(id==='liste')   loadListe();
+  if(id==='admin')   loadAdminUsers();
 }
+
+// ── UNREAD CHAT BADGE ─────────────────────────────────────────────
+function getChatLastReadId(){ return localStorage.getItem('au-chat-last-read') }
+function markChatRead(){
+  if(lastKnownChatMsgId) localStorage.setItem('au-chat-last-read', String(lastKnownChatMsgId));
+  setChatBadge(0);
+}
+function setChatBadge(n){
+  document.querySelectorAll('.chat-unread-badge').forEach(el=>{
+    el.textContent = n > 99 ? '99+' : String(n);
+    el.style.display = n > 0 ? '' : 'none';
+  });
+}
+async function checkChatUnread(){
+  // Salta se la pagina comunicazioni è già attiva
+  if(document.getElementById('page-comunicazioni')?.classList.contains('active')) return;
+  try {
+    const msgs = await api('GET','/api/chat');
+    if(!msgs||!msgs.length){ setChatBadge(0); return; }
+    // Aggiorna l'ID massimo conosciuto
+    const maxId = Math.max(...msgs.map(m=>m.id||0));
+    lastKnownChatMsgId = maxId;
+    const lastRead = parseInt(getChatLastReadId()||'0');
+    const unread = msgs.filter(m=>(m.id||0) > lastRead).length;
+    setChatBadge(unread);
+  } catch(e){ /* silenzioso */ }
+}
+function startChatBadgePolling(){
+  stopChatBadgePolling();
+  checkChatUnread();
+  chatPollInterval = setInterval(checkChatUnread, 12000);
+}
+function stopChatBadgePolling(){ if(chatPollInterval){ clearInterval(chatPollInterval); chatPollInterval=null } }
 
 // Ricarica currentUser dal server (permessi sempre freschi, nessun re-login)
 async function refreshCurrentUser(){
@@ -150,8 +136,6 @@ function applyPermissions(){
   if(btnNew) btnNew.classList.toggle('hidden', !isAdmin);
   document.getElementById('sbUserName').textContent = currentUser.full_name||currentUser.username;
   document.getElementById('sbUserRank').textContent = currentUser.military_rank||'Allievo Ufficiale';
-  const rbEl = document.getElementById('sbUserRole');
-  if(rbEl) rbEl.innerHTML = roleBadge(currentUser.role, isAdmin);
 }
 
 // ── AUTH ───────────────────────────────────────────────────────────
@@ -190,7 +174,7 @@ async function doRegister(){
   } catch(e){ showAuthError(e.message) }
 }
 function showAuthError(msg){ const el=document.getElementById('authError');el.textContent='⚠ '+msg;el.style.display='block' }
-async function doLogout(){ token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();showLanding() }
+async function doLogout(){ token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();stopChatBadgePolling();showLanding() }
 async function tryAutoLogin(){
   if(!token) return;
   try {
@@ -199,43 +183,6 @@ async function tryAutoLogin(){
     if(data.token){ token=data.token; localStorage.setItem('jwt',token); }
     showApp();
   } catch { token='';localStorage.removeItem('jwt');showLanding() }
-}
-// ── PROFILO ────────────────────────────────────────────────────────
-async function loadProfile(){
-  if(!currentUser) return;
-  document.getElementById('prof-avatar').textContent = getInitials(currentUser.full_name||currentUser.username);
-  document.getElementById('prof-username').textContent = '@'+currentUser.username;
-  document.getElementById('prof-email').textContent = currentUser.email||'—';
-  document.getElementById('prof-role-badge').innerHTML = roleBadge(currentUser.role, currentUser.is_admin) ||
-    '<span class="role-badge role-none">Allievo</span>';
- 
-  // Form fields
-  document.getElementById('prof-name').value     = currentUser.full_name||'';
-  document.getElementById('prof-rank').value     = currentUser.military_rank||'';
-  document.getElementById('prof-platoon').value  = currentUser.platoon||'';
-  document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
- 
-  // Permessi
-  document.getElementById('prof-perm-finance').textContent = currentUser.can_access_finance ? '✓ Abilitato' : '✗ Non abilitato';
-  document.getElementById('prof-perm-finance').className   = 'perm-indicator '+(currentUser.can_access_finance?'perm-ok':'perm-no');
-  document.getElementById('prof-perm-grades').textContent  = currentUser.can_access_grades ? '✓ Abilitato' : '✗ Non abilitato';
-  document.getElementById('prof-perm-grades').className    = 'perm-indicator '+(currentUser.can_access_grades?'perm-ok':'perm-no');
-  document.getElementById('prof-perm-com').textContent     = canWriteCom() ? '✓ Abilitato' : '✗ Solo lettura';
-  document.getElementById('prof-perm-com').className       = 'perm-indicator '+(canWriteCom()?'perm-ok':'perm-no');
-}
- 
-async function saveProfile(){
-  const full_name     = document.getElementById('prof-name').value.trim();
-  const military_rank = document.getElementById('prof-rank').value.trim();
-  const platoon       = document.getElementById('prof-platoon').value.trim();
-  const academic_year = document.getElementById('prof-year').value;
-  try {
-    await api('PUT','/api/profile',{full_name,military_rank,platoon,academic_year});
-    // Aggiorna currentUser localmente
-    Object.assign(currentUser, {full_name,military_rank,platoon,academic_year});
-    applyPermissions();
-    toast('Profilo aggiornato');
-  } catch(e){ toast(e.message,'err') }
 }
 
 // ── BACHECA + POLLING ──────────────────────────────────────────────
@@ -248,7 +195,7 @@ function startBachecaPolling(){
   },15000);
 }
 function stopBachecaPolling(){ if(bachecaInterval){ clearInterval(bachecaInterval); bachecaInterval=null } }
- 
+
 async function loadBacheca(){
   try { renderFeed(await api('GET','/api/announcements')) } catch(e){ toast(e.message,'err') }
 }
@@ -258,10 +205,8 @@ function renderFeed(posts){
   feed.innerHTML=posts.map(p=>`
     <div class="post-card">
       <div class="post-author">
-        <span>⚔</span>
-        <span>${p.military_rank?p.military_rank+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
-        ${roleBadge(p.role, p.is_admin)}
-        <span class="post-rank">@${escHtml(p.username)}</span>
+        <span>⚔</span><span>${p.military_rank?p.military_rank+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
+        <span class="post-rank">@${p.username}</span>
         <span class="post-time">${fmtDate(p.created_at?.slice(0,10))}</span>
       </div>
       <div class="post-content">${escHtml(p.content)}</div>
@@ -273,600 +218,183 @@ function renderFeed(posts){
 async function postAnnouncement(){
   const content=document.getElementById('postContent').value.trim();
   if(!content){ toast('Scrivi un messaggio','err'); return }
-  try {
-    await api('POST','/api/announcements',{content});
-    document.getElementById('postContent').value='';
-    toast('Annuncio pubblicato');
-    loadBacheca();
-  } catch(e){ toast(e.message,'err') }
+  try { await api('POST','/api/announcements',{content}); document.getElementById('postContent').value=''; toast('Annuncio pubblicato'); loadBacheca() }
+  catch(e){ toast(e.message,'err') }
 }
 async function deletePost(id){
   if(!confirm('Eliminare questo annuncio?')) return;
-  try { await api('DELETE','/api/announcements/'+id); loadBacheca(); toast('Eliminato') }
-  catch(e){ toast(e.message,'err') }
+  try { await api('DELETE','/api/announcements/'+id); loadBacheca(); toast('Eliminato') } catch(e){ toast(e.message,'err') }
 }
-// ── COMUNICAZIONI ──────────────────────────────────────────────────
-function startComPolling(){
-  stopComPolling();
-  comChatInterval = setInterval(async()=>{
-    if(document.getElementById('page-comunicazioni').classList.contains('active') && currentComTab==='chat'){
-      try {
-        const msgs = await api('GET','/api/comunicazioni/chat');
-        const prevCount = comChatMessages.length;
-        comChatMessages = msgs;
-        renderComChat(msgs, prevCount < msgs.length);
-      } catch {}
-    }
-  }, 15000);
-}
-function stopComPolling(){ if(comChatInterval){ clearInterval(comChatInterval); comChatInterval=null } }
- 
-async function loadComunicazioni(){
-  startComPolling();
-  switchComTab(currentComTab);
-}
- 
-function switchComTab(tab, btn){
-  currentComTab = tab;
-  document.querySelectorAll('.com-tab-panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.com-tab-btn').forEach(b=>b.classList.remove('active'));
-  const panel = document.getElementById('com-'+tab);
-  if(panel) panel.classList.add('active');
-  if(btn) btn.classList.add('active');
-  if(tab==='chat')     loadComChat();
-  if(tab==='ufficiali') loadComPosts();
-}
- 
-async function loadComChat(){
-  try {
-    const msgs = await api('GET','/api/comunicazioni/chat');
-    comChatMessages = msgs;
-    renderComChat(msgs, true);
-  } catch(e){ toast(e.message,'err') }
-}
- 
-function renderComChat(msgs, scrollToBottom=false){
-  const container = document.getElementById('chatMessages');
-  if(!container) return;
- 
-  if(!msgs.length){
-    container.innerHTML='<div class="chat-empty">Nessun messaggio. '+(canWriteCom()?'Scrivi il primo!':'Solo i ruoli autorizzati possono scrivere.')+'</div>';
-    return;
-  }
- 
-  let lastDate = null;
-  container.innerHTML = msgs.map(m=>{
-    const isOwn = currentUser && m.author_id === currentUser.id;
-    const msgDate = m.created_at ? new Date(m.created_at).toLocaleDateString('it-IT') : '';
-    let dateSep = '';
-    if(msgDate !== lastDate){
-      lastDate = msgDate;
-      dateSep = `<div class="chat-date-sep"><span>${msgDate}</span></div>`;
-    }
-    const initials = getInitials(m.full_name||m.username);
-    const canDel = currentUser && (m.author_id===currentUser.id || currentUser.is_admin);
-    return `${dateSep}
-    <div class="chat-row ${isOwn?'chat-row-own':''}">
-      ${!isOwn?`<div class="chat-avatar">${escHtml(initials)}</div>`:''}
-      <div class="chat-bubble-wrap">
-        ${!isOwn?`<div class="chat-meta">${m.military_rank?escHtml(m.military_rank)+' ':''}<strong>${escHtml(m.full_name||m.username)}</strong> ${roleBadge(m.role,m.is_admin)}</div>`:''}
-        <div class="chat-bubble ${isOwn?'chat-bubble-own':'chat-bubble-other'}">
-          <span>${escHtml(m.content)}</span>
-          ${canDel?`<button class="chat-del-btn" onclick="deleteComMsg('${m.id}')" title="Elimina">✕</button>`:''}
-        </div>
-        <div class="chat-time">${fmtTime(m.created_at)}</div>
-      </div>
-    </div>`;
-  }).join('');
- 
-  if(scrollToBottom){
-    container.scrollTop = container.scrollHeight;
-  }
- 
-  // Mostra/nascondi input
-  const inputArea = document.getElementById('chatInputArea');
-  const lockedMsg = document.getElementById('chatLockedMsg');
-  if(inputArea) inputArea.classList.toggle('hidden', !canWriteCom());
-  if(lockedMsg) lockedMsg.classList.toggle('hidden', canWriteCom());
-}
- 
-async function sendComMsg(){
-  const input = document.getElementById('chatInput');
-  const content = input.value.trim();
-  if(!content) return;
-  try {
-    await api('POST','/api/comunicazioni/chat',{id:uid(),content});
-    input.value = '';
-    await loadComChat();
-  } catch(e){ toast(e.message,'err') }
-}
- 
-async function deleteComMsg(id){
-  if(!confirm('Eliminare questo messaggio?')) return;
-  try {
-    await api('DELETE','/api/comunicazioni/chat/'+id);
-    await loadComChat();
-    toast('Messaggio eliminato');
-  } catch(e){ toast(e.message,'err') }
-}
- 
-async function loadComPosts(){
-  try {
-    const posts = await api('GET','/api/comunicazioni/posts');
-    comPosts = posts;
-    renderComPosts(posts);
-  } catch(e){ toast(e.message,'err') }
-}
- 
-function renderComPosts(posts){
-  const el = document.getElementById('comPostsList');
-  if(!el) return;
- 
-  // Mostra/nascondi pulsante nuovo comunicato
-  const btnNew = document.getElementById('btnNewComPost');
-  if(btnNew) btnNew.classList.toggle('hidden', !canWriteCom());
- 
-  if(!posts.length){
-    el.innerHTML='<div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-mono);font-size:.72rem">Nessun comunicato ufficiale.</div>';
-    return;
-  }
- 
-  el.innerHTML = posts.map(p=>`
-    <div class="com-post-card">
-      <div class="com-post-header">
-        <div>
-          <div class="com-post-title">${escHtml(p.title||'Senza titolo')}</div>
-          <div class="com-post-meta">
-            <span>📅 ${fmtDateTime(p.created_at)}</span>
-            <span>·</span>
-            <span>${p.military_rank?escHtml(p.military_rank)+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
-            ${roleBadge(p.role,p.is_admin)}
-          </div>
-        </div>
-        ${(currentUser&&(p.author_id===currentUser.id||currentUser.is_admin))?
-          `<button class="btn btn-sm btn-red" onclick="deleteComPost('${p.id}')">🗑</button>`:''}
-      </div>
-      ${p.content?`<div class="com-post-content">${escHtml(p.content)}</div>`:''}
-      ${p.file_name?`
-        <div class="com-post-file">
-          <span>📎 ${escHtml(p.file_name)}</span>
-          <button class="btn btn-sm btn-gold" onclick="downloadComFile('${p.id}','${escHtml(p.file_name)}')">⬇ Scarica</button>
-        </div>`:''
-      }
-    </div>`).join('');
-}
- 
-function openComPostModal(){
-  document.getElementById('comPostTitle').value='';
-  document.getElementById('comPostContent').value='';
-  document.getElementById('comPostFile').value='';
-  document.getElementById('comFileInfo').textContent='';
-  pendingComFile = null;
-  openModal('comPostModal');
-}
- 
-document.addEventListener('DOMContentLoaded', ()=>{
-  const fileInput = document.getElementById('comPostFile');
-  if(fileInput){
-    fileInput.addEventListener('change', async (e)=>{
-      const file = e.target.files[0];
-      if(!file){ pendingComFile=null; document.getElementById('comFileInfo').textContent=''; return; }
-      if(file.size > 5*1024*1024){ toast('File troppo grande (max 5MB)','err'); fileInput.value=''; return; }
-      document.getElementById('comFileInfo').textContent='⏳ '+file.name;
-      const reader = new FileReader();
-      reader.onload = ev => {
-        pendingComFile = {
-          file_data: ev.target.result.split(',')[1],
-          file_name: file.name,
-          file_type: file.type
-        };
-        document.getElementById('comFileInfo').textContent='📎 '+file.name;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-});
- 
-async function saveComPost(){
-  const title   = document.getElementById('comPostTitle').value.trim();
-  const content = document.getElementById('comPostContent').value.trim();
-  if(!title && !content){ toast('Inserisci titolo o contenuto','err'); return; }
-  try {
-    const body = { id:uid(), title, content };
-    if(pendingComFile) Object.assign(body, pendingComFile);
-    await api('POST','/api/comunicazioni/posts', body);
-    closeModal('comPostModal');
-    toast('Comunicato pubblicato');
-    await loadComPosts();
-  } catch(e){ toast(e.message,'err') }
-}
- 
-async function deleteComPost(id){
-  if(!confirm('Eliminare questo comunicato?')) return;
-  try {
-    await api('DELETE','/api/comunicazioni/posts/'+id);
-    toast('Comunicato eliminato');
-    await loadComPosts();
-  } catch(e){ toast(e.message,'err') }
-}
- 
-async function downloadComFile(postId, fileName){
-  try {
-    const data = await api('GET','/api/comunicazioni/posts/'+postId+'/file');
-    const link = document.createElement('a');
-    link.href = 'data:'+data.file_type+';base64,'+data.file_data;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } catch(e){ toast(e.message,'err') }
-}
- 
-// ── LISTE ──────────────────────────────────────────────────────────
 
+// ── LISTE ──────────────────────────────────────────────────────────
 async function loadListe(){
   try {
-    allLists = await api('GET','/api/lists');
+    allLists=await api('GET','/api/lists');
     renderListContent();
   } catch(e){ toast(e.message,'err') }
 }
-
 function switchListTab(type, btn){
-  currentListTab = type;
-  openListId = null;
-  document.querySelectorAll('#page-liste .tab-btn').forEach(b=>b.classList.remove('active'));
+  currentListTab=type;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   renderListContent();
 }
-
 function toggleAdminListPanel(){
-  const p = document.getElementById('list-admin-panel');
+  const p=document.getElementById('list-admin-panel');
   p.classList.toggle('hidden');
   if(!p.classList.contains('hidden')){
-    document.getElementById('newListType').value = currentListTab;
-    document.getElementById('newListDate').value = today();
-    updateNewListTypeUI();
+    // Pre-seleziona il tipo della tab corrente
+    document.getElementById('newListType').value=currentListTab;
+    document.getElementById('newListDate').value=today();
   }
 }
-
-function updateNewListTypeUI(){
-  const t = document.getElementById('newListType').value;
-  const customSection = document.getElementById('newListCustomSection');
-  if(customSection) customSection.classList.toggle('hidden', t !== 'custom');
-}
-
 async function createList(){
-  const list_type          = document.getElementById('newListType').value;
-  const list_date          = document.getElementById('newListDate').value;
-  const notes              = document.getElementById('newListNotes').value.trim();
-  const custom_name        = document.getElementById('newListCustomName')?.value.trim()  || '';
-  const custom_field_label = document.getElementById('newListCustomLabel')?.value.trim() || '';
+  const list_type=document.getElementById('newListType').value;
+  const list_date=document.getElementById('newListDate').value;
+  const notes=document.getElementById('newListNotes').value.trim();
   if(!list_date){ toast('Seleziona una data','err'); return }
-  if(list_type==='custom' && !custom_name){ toast('Inserisci il nome della lista','err'); return }
   try {
-    await api('POST','/api/lists',{id:uid(),list_type,list_date,notes,custom_name,custom_field_label});
+    await api('POST','/api/lists',{id:uid(),list_type,list_date,notes});
     document.getElementById('list-admin-panel').classList.add('hidden');
-    document.getElementById('newListNotes').value = '';
-    if(document.getElementById('newListCustomName')) document.getElementById('newListCustomName').value = '';
-    if(document.getElementById('newListCustomLabel')) document.getElementById('newListCustomLabel').value = '';
+    document.getElementById('newListNotes').value='';
     toast('Lista creata');
     await loadListe();
   } catch(e){ toast(e.message,'err') }
 }
-
 async function deleteList(id){
   if(!confirm('Eliminare questa lista e tutte le iscrizioni?')) return;
-  try {
-    await api('DELETE','/api/lists/'+id);
-    if(openListId===id) openListId=null;
-    toast('Lista eliminata');
-    await loadListe();
-  } catch(e){ toast(e.message,'err') }
+  try { await api('DELETE','/api/lists/'+id); toast('Lista eliminata'); await loadListe() }
+  catch(e){ toast(e.message,'err') }
 }
 
-// ── render principale ──
 function renderListContent(){
-  const el = document.getElementById('list-content');
-  const isAdmin = !!currentUser?.is_admin;
-
-  let filtered;
-  if(currentListTab === 'custom'){
-    filtered = allLists.filter(l => l.list_type === 'custom');
-  } else {
-    filtered = allLists.filter(l => l.list_type === currentListTab);
-  }
-
+  const el=document.getElementById('list-content');
+  const filtered=allLists.filter(l=>l.list_type===currentListTab);
+  const isAdmin=currentUser?.is_admin;
   if(!filtered.length){
-    const hint = isAdmin ? ' — usa "Nuova Lista" per crearne una' : '.';
-    el.innerHTML = `<div class="card" style="text-align:center;padding:3rem">
+    el.innerHTML=`<div class="card" style="text-align:center;padding:3rem">
       <div style="font-size:2rem;margin-bottom:.8rem">📋</div>
-      <div style="font-family:var(--font-display);font-size:1rem;color:var(--text2);margin-bottom:.4rem">${getListLabel(currentListTab)}</div>
-      <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--text3)">Nessuna lista creata per questa categoria${hint}</div>
-    </div>`;
-    return;
+      <div style="font-family:var(--font-display);font-size:1rem;color:var(--text2);margin-bottom:.4rem">${LIST_LABELS[currentListTab]}</div>
+      <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--text3)">Nessuna lista creata per questa categoria${isAdmin?' — usa "Nuova Lista" per crearne una':'.'}</div>
+    </div>`; return;
   }
-
-  el.innerHTML = filtered.map(l => renderListCard(l, isAdmin)).join('');
-  _applyOpenList();
-}
-
-function getListLabel(type, customName){
-  if(type === 'custom') return customName || 'Lista Personalizzata';
-  return LIST_LABELS[type] || type;
-}
-
-function renderListCard(l, isAdmin){
-  const isParlatorio = l.list_type === 'parlatorio';
-  const isMessa      = l.list_type === 'messa';
-  const isCustom     = l.list_type === 'custom';
-  const title        = isCustom ? (l.custom_name || 'Lista Personalizzata') : LIST_LABELS[l.list_type];
-  const signups      = l.signups || [];
-  const mySignup     = signups.find(s => s.user_id === currentUser?.id);
-  const isSignedUp   = !!mySignup;
-
-  return `<div class="list-card">
-    <div class="list-card-header" onclick="toggleListCard('lbody-${l.id}')">
-      <div>
-        <div style="font-family:var(--font-display);font-size:.95rem;color:var(--text);letter-spacing:.06em">${escHtml(title)}</div>
-        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.15rem">
-          📅 ${fmtDate(l.list_date)}${l.notes?' · '+escHtml(l.notes):''}
-          ${isCustom&&l.custom_field_label?' · Campo: '+escHtml(l.custom_field_label):''}
+  el.innerHTML=filtered.map(l=>{
+    const mySignup=l.signups?.find(s=>s.user_id===currentUser?.id);
+    const isSignedUp=!!mySignup;
+    const isParlatorio=l.list_type==='parlatorio';
+    return `<div class="list-card">
+      <div class="list-card-header" onclick="toggleListCard('lbody-${l.id}')">
+        <div>
+          <div style="font-family:var(--font-display);font-size:.95rem;color:var(--text);letter-spacing:.06em">${LIST_LABELS[l.list_type]}</div>
+          <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.15rem">📅 ${fmtDate(l.list_date)}${l.notes?' · '+escHtml(l.notes):''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:.8rem">
+          <span class="badge badge-gold">${l.signup_count} iscritti</span>
+          ${isAdmin?`<button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteList('${l.id}')">🗑</button>`:''}
+          <span style="color:var(--text3);font-family:var(--font-mono);font-size:.8rem">▾</span>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:.8rem">
-        <span class="badge badge-gold">${l.signup_count} iscritti</span>
-        ${isAdmin?`<button class="btn btn-sm btn-red" onclick="event.stopPropagation();deleteList('${l.id}')">🗑</button>`:''}
-        <span style="color:var(--text3);font-family:var(--font-mono)">▾</span>
+      <div class="list-card-body" id="lbody-${l.id}">
+        <div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap">
+          ${!isSignedUp
+            ? isParlatorio
+              ? `<button class="btn btn-gold" onclick="openParlatorioModal('${l.id}')">✋ Iscriviti (Parlatorio)</button>`
+              : `<button class="btn btn-gold" onclick="signupList('${l.id}')">✋ Iscriviti</button>`
+            : `<button class="btn btn-red" onclick="unsignupList('${l.id}')">✗ Rimuovi iscrizione</button>`
+          }
+          ${isAdmin&&isSignedUp?`<button class="btn btn-sm" onclick="removeSignup('${l.id}',${currentUser.id})">Rimuovi (admin)</button>`:''}
+        </div>
+        <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.5rem">Iscritti (${l.signup_count})</div>
+        ${renderSignupList(l,isAdmin,isParlatorio)}
       </div>
-    </div>
-    <div class="list-card-body" id="lbody-${l.id}">
-      <div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap">
-        ${renderSignupButton(l, isSignedUp, mySignup, isAdmin)}
-      </div>
-      ${isCustom&&l.custom_field_label?`<div class="alert alert-info" style="margin-bottom:.8rem">✏ Ogni allievo inserisce: <strong>${escHtml(l.custom_field_label)}</strong></div>`:''}
-      <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.5rem">Iscritti (${l.signup_count})</div>
-      ${renderSignupRows(l, isAdmin)}
-    </div>
-  </div>`;
-}
-
-function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
-  const isParlatorio = l.list_type === 'parlatorio';
-  const isMessa      = l.list_type === 'messa';
-  const isCustom     = l.list_type === 'custom';
-
-  if(!isSignedUp){
-    if(isParlatorio)
-      return `<button class="btn btn-gold" onclick="openParlatorioModal('${l.id}')">✋ Iscriviti (Parlatorio)</button>`;
-    if(isMessa)
-      return `<button class="btn btn-gold" onclick="openMessaModal('${l.id}')">✋ Iscriviti alla Messa</button>`;
-    if(isCustom)
-      return `<button class="btn btn-gold" onclick="openCustomSignupModal('${l.id}')">✋ Iscriviti</button>`;
-    return `<button class="btn btn-gold" onclick="signupList('${l.id}')">✋ Iscriviti</button>`;
-  }
-
-  let extra = '';
-  if(isParlatorio)
-    extra = `<button class="btn btn-blue" onclick="openParlatorioModal('${l.id}',true)">👥 Gestisci parenti</button>`;
-
-  return extra + `<button class="btn btn-red" onclick="unsignupList('${l.id}')">✗ Rimuovi iscrizione</button>`;
-}
-
-function renderSignupRows(l, isAdmin){
-  const signups = l.signups || [];
-  if(!signups.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:.5rem">Nessuno iscritto ancora.</div>';
-  const isParlatorio = l.list_type === 'parlatorio';
-  const isMessa      = l.list_type === 'messa';
-  const isCustom     = l.list_type === 'custom';
-
-  return signups.map((s,i) => {
-    let detail = '';
-    if(isCustom && s.note)
-      detail = `<span style="color:var(--gold)">→ ${escHtml(s.note)}</span>`;
-    if(isMessa && s.relative_name)
-      detail = `<span style="color:var(--text2)">👥 ${escHtml(s.relative_name)}${s.relative_relation?' ('+escHtml(s.relative_relation)+')':''}</span>`;
-    if(isParlatorio){
-      const rels = s.relatives || [];
-      if(rels.length){
-        detail = rels.map(r =>
-          `<div style="margin-left:1.5rem;color:var(--text2);font-size:.68rem">↳ ${escHtml(r.relative_name)} (${escHtml(r.relative_relation||'—')})${r.relative_id_card?' · CI: '+escHtml(r.relative_id_card):''}</div>`
-        ).join('');
-      }
-    }
-
-    return `<div class="signup-row" style="flex-wrap:wrap">
-      <span style="color:var(--text3);width:22px">${i+1}.</span>
-      <span style="color:var(--gold)">${s.military_rank?escHtml(s.military_rank)+' ':''}<strong>${escHtml(s.full_name||s.username)}</strong></span>
-      ${detail}
-      ${isAdmin?`<button class="btn btn-sm btn-red del-btn" onclick="removeSignup('${l.id}',${s.user_id})" style="margin-left:auto">✕</button>`:''}
     </div>`;
   }).join('');
 }
 
-// ── OPEN / CLOSE con stato ──
-function _applyOpenList(){
-  if(!openListId) return;
-  const el = document.getElementById('lbody-'+openListId);
-  if(el) el.classList.add('open');
+function getLastName(s){
+  const name=(s.full_name||s.username||'').trim();
+  const parts=name.split(/\s+/);
+  return (parts[parts.length-1]||'').toLowerCase();
+}
+function renderSignupList(l,isAdmin,isParlatorio){
+  const signups=[...(l.signups||[])].sort((a,b)=>getLastName(a).localeCompare(getLastName(b),'it'));
+  if(!signups.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:.5rem">Nessuno iscritto ancora.</div>';
+  return signups.map((s,i)=>`
+    <div class="signup-row">
+      <span style="color:var(--text3);width:22px">${i+1}.</span>
+      <span style="color:var(--gold)">${escHtml(s.military_rank?s.military_rank+' ':'')}<strong>${escHtml(s.full_name||s.username)}</strong></span>
+      ${isParlatorio&&s.relative_name?`<span style="color:var(--text2)">→ ${escHtml(s.relative_name)} (${escHtml(s.relative_relation||'—')})${s.relative_id_card?' · CI: '+escHtml(s.relative_id_card):''}</span>`:''}
+      ${isAdmin?`<button class="btn btn-sm btn-red del-btn" onclick="removeSignup('${l.id}',${s.user_id})" style="margin-left:auto">✕</button>`:''}
+    </div>`).join('');
 }
 
 async function loadListDetail(listId){
   try {
-    const detail = await api('GET','/api/lists/'+listId);
-    const idx = allLists.findIndex(l => l.id === listId);
-    if(idx >= 0) allLists[idx] = {...allLists[idx], ...detail, signup_count: detail.signups.length};
+    const detail=await api('GET','/api/lists/'+listId);
+    const idx=allLists.findIndex(l=>l.id===listId);
+    if(idx>=0) allLists[idx]={...allLists[idx],...detail,signup_count:detail.signups.length};
     renderListContent();
-    _applyOpenList();
   } catch(e){ toast(e.message,'err') }
 }
 
 function toggleListCard(id){
-  const listId = id.replace('lbody-','');
-  if(openListId === listId){
-    openListId = null;
-    const el = document.getElementById(id);
-    if(el) el.classList.remove('open');
-    return;
+  const el=document.getElementById(id);
+  if(!el) return;
+  const isOpen=el.classList.contains('open');
+  // Carica dettaglio se apre per la prima volta
+  if(!isOpen){
+    const listId=id.replace('lbody-','');
+    const list=allLists.find(l=>l.id===listId);
+    if(list&&!list.signups) loadListDetail(listId);
+    else renderListContent();
   }
-  openListId = listId;
-  const list = allLists.find(l => l.id === listId);
-  if(list && !list.signups){
-    loadListDetail(listId);
-  } else {
-    renderListContent();
-    _applyOpenList();
-  }
+  el.classList.toggle('open',!isOpen);
 }
 
-// ── ISCRIVITI ──
 async function signupList(listId){
   try {
     await api('POST','/api/lists/'+listId+'/signup',{signup_id:uid()});
     toast('Iscritto!');
-    openListId = listId;
     await loadListDetail(listId);
+    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
-
 async function unsignupList(listId){
   if(!confirm('Rimuovere la tua iscrizione?')) return;
   try {
     await api('DELETE','/api/lists/'+listId+'/signup');
     toast('Iscrizione rimossa');
-    openListId = listId;
     await loadListDetail(listId);
+    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
-
-async function removeSignup(listId, userId){
+async function removeSignup(listId,userId){
   if(!confirm('Rimuovere questo iscritto?')) return;
   try {
     await api('DELETE','/api/lists/'+listId+'/signup/'+userId);
     toast('Iscritto rimosso');
-    openListId = listId;
     await loadListDetail(listId);
+    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
-
-// ── MESSA (iscrizione con parente opzionale) ──
-function openMessaModal(listId){
-  document.getElementById('messaListId').value = listId;
-  document.getElementById('messaHasRelative').value = 'no';
-  document.getElementById('messaRelativeFields').classList.add('hidden');
-  document.getElementById('messaRelName').value    = '';
-  document.getElementById('messaRelRelation').value= '';
-  openModal('messaModal');
-}
-async function confirmMessaSignup(){
-  const listId     = document.getElementById('messaListId').value;
-  const hasRel     = document.getElementById('messaHasRelative').value === 'si';
-  const rel_name   = document.getElementById('messaRelName').value.trim();
-  const rel_rel    = document.getElementById('messaRelRelation').value.trim();
-  if(hasRel && !rel_name){ toast('Inserisci il nome del parente','err'); return }
-  try {
-    await api('POST','/api/lists/'+listId+'/signup',{
-      signup_id: uid(),
-      relative_name:     hasRel ? rel_name : '',
-      relative_relation: hasRel ? rel_rel  : ''
-    });
-    closeModal('messaModal');
-    toast('Iscritto alla Messa!');
-    openListId = listId;
-    await loadListDetail(listId);
-  } catch(e){ toast(e.message,'err') }
-}
-
-// ── LISTA PERSONALIZZATA (iscrizione con campo custom) ──
-let _customSignupListId = '', _customSignupLabel = '';
-function openCustomSignupModal(listId){
-  _customSignupListId = listId;
-  const list = allLists.find(l => l.id === listId);
-  _customSignupLabel  = list?.custom_field_label || '';
-  document.getElementById('customSignupLabel').textContent = _customSignupLabel || 'Nota / Info';
-  document.getElementById('customSignupValue').value = '';
-  openModal('customSignupModal');
-}
-async function confirmCustomSignup(){
-  const note = document.getElementById('customSignupValue').value.trim();
-  try {
-    await api('POST','/api/lists/'+_customSignupListId+'/signup',{signup_id:uid(), note});
-    closeModal('customSignupModal');
-    toast('Iscritto!');
-    openListId = _customSignupListId;
-    await loadListDetail(_customSignupListId);
-  } catch(e){ toast(e.message,'err') }
-}
-
-// ── PARLATORIO (multi-parente) ──
-let _parlListId = '', _parlManage = false;
-// Lista temporanea dei nuovi parenti da aggiungere
-let _parlNewRelatives = [];
-
-function openParlatorioModal(listId, manage=false){
-  _parlListId     = listId;
-  _parlManage     = manage;
-  _parlNewRelatives = [];
-  document.getElementById('parlatorioListId').value = listId;
-  // Titolo
-  document.getElementById('parlatorioModalTitle').textContent = manage ? '👥 Gestisci Parenti Parlatorio' : '👥 Iscrizione Parlatorio';
-  // Sezione iscrizione (mostra solo se non già iscritto)
-  const signupSection = document.getElementById('parlSignupSection');
-  if(signupSection) signupSection.classList.toggle('hidden', manage);
-  // Reset parenti
-  renderParlNewRelatives();
+function openParlatorioModal(listId){
+  document.getElementById('parlListId').value=listId;
+  document.getElementById('parlName').value='';
+  document.getElementById('parlRelation').value='';
+  document.getElementById('parlIdCard').value='';
   openModal('parlatorioModal');
 }
-
-function renderParlNewRelatives(){
-  const el = document.getElementById('parlNewRelativesList');
-  if(!el) return;
-  if(!_parlNewRelatives.length){
-    el.innerHTML = '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.7rem;margin-bottom:.5rem">Nessun parente aggiunto. Premi + per aggiungere.</div>';
-    return;
-  }
-  el.innerHTML = _parlNewRelatives.map((r,i)=>`
-    <div style="display:flex;gap:.5rem;align-items:center;padding:.4rem 0;border-bottom:1px solid rgba(42,58,74,.4)">
-      <span style="font-family:var(--font-mono);font-size:.72rem;color:var(--text)">${escHtml(r.name)} <span style="color:var(--text3)">(${escHtml(r.relation||'—')})</span>${r.id_card?'<span style="color:var(--text3)"> · CI: '+escHtml(r.id_card)+'</span>':''}</span>
-      <button class="btn btn-sm btn-red" style="margin-left:auto" onclick="removeParlNewRelative(${i})">✕</button>
-    </div>`).join('');
-}
-
-function addParlNewRelative(){
-  const name    = document.getElementById('parlRelName').value.trim();
-  const relation= document.getElementById('parlRelRelation').value.trim();
-  const id_card = document.getElementById('parlRelIdCard').value.trim();
-  if(!name){ toast('Inserisci il nome del parente','err'); return }
-  _parlNewRelatives.push({name, relation, id_card});
-  document.getElementById('parlRelName').value     = '';
-  document.getElementById('parlRelRelation').value = '';
-  document.getElementById('parlRelIdCard').value   = '';
-  renderParlNewRelatives();
-}
-
-function removeParlNewRelative(i){
-  _parlNewRelatives.splice(i,1);
-  renderParlNewRelatives();
-}
-
 async function confirmParlatorioSignup(){
+  const listId=document.getElementById('parlListId').value;
+  const relative_name=document.getElementById('parlName').value.trim();
+  const relative_relation=document.getElementById('parlRelation').value.trim();
+  const relative_id_card=document.getElementById('parlIdCard').value.trim();
+  if(!relative_name||!relative_relation){ toast('Inserisci nome e parentela del parente','err'); return }
   try {
-    // Step 1: Iscrivi (se non già iscritto)
-    if(!_parlManage){
-      await api('POST','/api/lists/'+_parlListId+'/signup',{signup_id:uid()});
-    }
-    // Step 2: Aggiungi tutti i parenti
-    for(const r of _parlNewRelatives){
-      await api('POST','/api/lists/'+_parlListId+'/relatives',{
-        id: uid(),
-        relative_name:     r.name,
-        relative_relation: r.relation,
-        relative_id_card:  r.id_card
-      });
-    }
-    closeModal('parlatorioModal');
-    toast(_parlManage ? 'Parenti aggiornati!' : 'Iscritto al parlatorio!');
-    openListId = _parlListId;
-    await loadListDetail(_parlListId);
+    await api('POST','/api/lists/'+listId+'/signup',{signup_id:uid(),relative_name,relative_relation,relative_id_card});
+    closeModal('parlatorioModal'); toast('Iscritto al parlatorio!');
+    await loadListDetail(listId);
+    document.getElementById('lbody-'+listId)?.classList.add('open');
   } catch(e){ toast(e.message,'err') }
 }
 
@@ -1449,11 +977,6 @@ async function loadAdminUsers(){
         <td style="color:var(--text3)">${u.id}</td>
         <td>${escHtml(u.username)}</td>
         <td style="color:var(--text2)">${escHtml(u.full_name||'—')}</td>
-        <td>
-          <select class="role-select" onchange="setUserRole(${u.id},this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:.2rem .4rem;font-family:var(--font-mono);font-size:.65rem">
-            ${Object.entries(ROLE_LABELS).map(([val,lbl])=>`<option value="${val}" ${u.role===val?'selected':''}>${lbl}</option>`).join('')}
-          </select>
-        </td>
         <td style="color:var(--text3);font-size:.65rem">${fmtDate(u.created_at?.slice(0,10))}</td>
         <td><span class="perm-toggle ${u.can_access_finance?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'finance',${!u.can_access_finance})">${u.can_access_finance?'✓ Sì':'✗ No'}</span></td>
         <td><span class="perm-toggle ${u.can_access_grades?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'grades',${!u.can_access_grades})">${u.can_access_grades?'✓ Sì':'✗ No'}</span></td>
@@ -1462,20 +985,6 @@ async function loadAdminUsers(){
       </tr>`).join('');
   } catch(e){toast(e.message,'err')}
 }
-async function setUserRole(id, role){
-  try {
-    const users = await api('GET','/api/admin/users');
-    const u = users.find(x=>x.id===id);
-    if(!u) return;
-    await api('PUT','/api/admin/users/'+id,{
-      can_access_finance: u.can_access_finance,
-      can_access_grades:  u.can_access_grades,
-      is_admin:           u.is_admin,
-      role
-    });
-    toast('Ruolo aggiornato');
-  } catch(e){ toast(e.message,'err'); loadAdminUsers(); }
-}
 async function togglePerm(id,field,val){
   try {
     const users=await api('GET','/api/admin/users');
@@ -1483,8 +992,7 @@ async function togglePerm(id,field,val){
     const upd={
       can_access_finance: field==='finance'?val:u.can_access_finance,
       can_access_grades:  field==='grades' ?val:u.can_access_grades,
-      is_admin:           field==='admin'  ?val:u.is_admin,
-      role: u.role
+      is_admin:           field==='admin'  ?val:u.is_admin
     };
     await api('PUT','/api/admin/users/'+id,upd);
     loadAdminUsers();toast('Permessi aggiornati — effettivi immediatamente per l\'utente','ok');
