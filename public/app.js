@@ -15,6 +15,8 @@ let vdb = {
 };
 let allLists = [], currentListTab = 'liberi_sab_pom', openListId = null;
 let bachecaInterval = null;
+let chatBadgeInterval = null;
+let lastSeenChatId = parseInt(localStorage.getItem('au-last-chat-id') || '0');
 let comChatInterval = null;
 let currentComTab = 'chat';
 let comChatMessages = [], comPosts = [];
@@ -112,15 +114,70 @@ async function api(method, path, body){
 // ── NAVIGATION ─────────────────────────────────────────────────────
 function showLanding(){ _s('landing');_h('auth');_h('app') }
 function showAuth(tab='login'){ _h('landing');_s('auth');_h('app'); switchAuthTab(tab) }
-function showApp(){ _h('landing');_h('auth');_s('app'); applyPermissions(); loadBacheca(); startBachecaPolling() }
+function showApp(){ _h('landing');_h('auth');_s('app'); applyPermissions(); loadBacheca(); startBachecaPolling(); startChatBadgePolling(); }
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
+
+// ── CHAT UNREAD BADGE ─────────────────────────────────────────────
+function setChatBadge(n){
+  document.querySelectorAll('.chat-unread-badge').forEach(el => {
+    if(n > 0){
+      el.textContent = n > 99 ? '99+' : String(n);
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+}
+function markChatRead(){
+  if(lastSeenChatId > 0) localStorage.setItem('au-last-chat-id', String(lastSeenChatId));
+  setChatBadge(0);
+}
+async function checkChatUnread(){
+  // Non controllare se la pagina comunicazioni è già aperta
+  const comPage = document.getElementById('page-comunicazioni');
+  if(comPage && comPage.classList.contains('active')) return;
+  try {
+    const msgs = await api('GET', '/api/comunicazioni/chat');
+    if(!msgs || !msgs.length){ setChatBadge(0); return; }
+    // Trova l'ID massimo (i messaggi hanno created_at, usiamo l'indice come proxy)
+    // Usiamo l'id stringa: convertiamo in timestamp confrontabile
+    const saved = localStorage.getItem('au-last-chat-id') || '0';
+    // Confronta per created_at stringa — ISO ordina correttamente
+    const savedTime = localStorage.getItem('au-last-chat-ts') || '';
+    const latestMsg = msgs[msgs.length - 1];
+    const latestTs = latestMsg.created_at || '';
+    lastSeenChatId = latestMsg.id || latestTs;
+    const unread = msgs.filter(m => (m.created_at || '') > savedTime).length;
+    setChatBadge(unread);
+  } catch(e){ /* silenzioso */ }
+}
+function startChatBadgePolling(){
+  stopChatBadgePolling();
+  checkChatUnread();
+  chatBadgeInterval = setInterval(checkChatUnread, 12000);
+}
+function stopChatBadgePolling(){
+  if(chatBadgeInterval){ clearInterval(chatBadgeInterval); chatBadgeInterval = null; }
+}
 
 async function showPage(id, link){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(link) link.classList.add('active');
+  // Se l'utente apre comunicazioni, segna i messaggi come letti
+  if(id === 'comunicazioni'){
+    // Salva il timestamp dell'ultimo messaggio visto
+    try {
+      const msgs = await api('GET', '/api/comunicazioni/chat');
+      if(msgs && msgs.length){
+        const lastTs = msgs[msgs.length-1].created_at || '';
+        localStorage.setItem('au-last-chat-ts', lastTs);
+      }
+    } catch(e){}
+    markChatRead();
+  }
   // Aggiorna sempre permessi dal server prima di caricare sezione
   await refreshCurrentUser();
   if(id==='finanze')        loadFinanze();
@@ -190,7 +247,7 @@ async function doRegister(){
   } catch(e){ showAuthError(e.message) }
 }
 function showAuthError(msg){ const el=document.getElementById('authError');el.textContent='⚠ '+msg;el.style.display='block' }
-async function doLogout(){ token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();showLanding() }
+async function doLogout(){ token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();stopChatBadgePolling();showLanding() }
 async function tryAutoLogin(){
   if(!token) return;
   try {
@@ -652,8 +709,16 @@ function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
   return extra + `<button class="btn btn-red" onclick="unsignupList('${l.id}')">✗ Rimuovi iscrizione</button>`;
 }
 
+function getLastName(s){
+  const name = (s.full_name || s.username || '').trim();
+  const parts = name.split(/\s+/);
+  return (parts[parts.length - 1] || '').toLowerCase();
+}
+
 function renderSignupRows(l, isAdmin){
-  const signups = l.signups || [];
+  const signups = [...(l.signups || [])].sort((a,b) =>
+    getLastName(a).localeCompare(getLastName(b), 'it', {sensitivity:'base'})
+  );
   if(!signups.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:.5rem">Nessuno iscritto ancora.</div>';
   const isParlatorio = l.list_type === 'parlatorio';
   const isMessa      = l.list_type === 'messa';
