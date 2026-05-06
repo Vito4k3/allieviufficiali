@@ -113,19 +113,25 @@ async function api(method, path, body){
 // ── NAVIGATION ─────────────────────────────────────────────────────
 function showLanding(){ _s('landing');_h('auth');_h('app') }
 function showAuth(tab='login'){ _h('landing');_s('auth');_h('app'); switchAuthTab(tab) }
-function showApp(){ _h('landing');_h('auth');_s('app'); applyPermissions(); loadBacheca(); startBachecaPolling(); startChatBadgePolling(); }
+function showApp(){
+  _h('landing');_h('auth');_s('app');
+  applyPermissions();
+  loadBacheca();
+  startBachecaPolling();
+  startChatBadgePolling();
+}
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
 
-// ── CHAT UNREAD BADGE ────────────────────────────────────────────
-// Usa localStorage 'au-chat-last-ts': stringa ISO del created_at
-// dell'ultimo messaggio che l'utente ha "visto" aprendo Comunicazioni.
-// Ogni 12s il polling confronta i messaggi nuovi col timestamp salvato.
+// ── BADGE MESSAGGI NON LETTI ──────────────────────────────────────
+// Logica: salviamo in localStorage il created_at (ISO string) dell'ultimo
+// messaggio che l'utente ha visto aprendo la pagina Comunicazioni.
+// Ogni 12s controlliamo quanti messaggi hanno created_at più recente di quel valore.
 
-function _chatLastTs(){ return localStorage.getItem('au-chat-last-ts') || '' }
-function _chatSaveTs(ts){ if(ts) localStorage.setItem('au-chat-last-ts', ts) }
+function chatGetSavedTs(){ return localStorage.getItem('au-chat-ts') || '' }
+function chatSaveTs(ts){ if(ts) localStorage.setItem('au-chat-ts', ts) }
 
-function setChatBadge(n){
+function chatSetBadge(n){
   document.querySelectorAll('.chat-unread-badge').forEach(el => {
     if(n > 0){
       el.textContent = n > 99 ? '99+' : String(n);
@@ -136,36 +142,30 @@ function setChatBadge(n){
   });
 }
 
-async function checkChatUnread(){
-  if(!token) return; // non loggato
-  // Non fare nulla se la pagina comunicazioni è già aperta
-  const comPage = document.getElementById('page-comunicazioni');
-  if(comPage && comPage.classList.contains('active')){ setChatBadge(0); return; }
+async function chatCheckUnread(){
+  if(!token) return;
+  // Se comunicazioni è già aperta non serve contare
+  const pg = document.getElementById('page-comunicazioni');
+  if(pg && pg.classList.contains('active')){ chatSetBadge(0); return; }
   try {
     const msgs = await api('GET', '/api/comunicazioni/chat');
-    if(!msgs || !msgs.length){ setChatBadge(0); return; }
-    const saved = _chatLastTs();
-    if(!saved){
-      // Prima volta assoluta: salva subito l'ultimo timestamp come visto,
-      // così non inondiamo di notifiche i messaggi storici già presenti.
-      _chatSaveTs(msgs[msgs.length - 1].created_at || '');
-      setChatBadge(0);
+    if(!msgs || !msgs.length){ chatSetBadge(0); return; }
+    const savedTs = chatGetSavedTs();
+    if(!savedTs){
+      // Prima volta: salviamo subito l'ultimo ts così non esplodono le notifiche
+      chatSaveTs(msgs[msgs.length-1].created_at || '');
+      chatSetBadge(0);
       return;
     }
-    const unread = msgs.filter(m => (m.created_at || '') > saved).length;
-    setChatBadge(unread);
-  } catch(e){ /* silenzioso: badge rimane com'è */ }
-}
-
-function markChatRead(){
-  // Chiamata quando l'utente apre la pagina Comunicazioni
-  setChatBadge(0);
+    const unread = msgs.filter(m => (m.created_at || '') > savedTs).length;
+    chatSetBadge(unread);
+  } catch(e){ /* silenzioso */ }
 }
 
 function startChatBadgePolling(){
   stopChatBadgePolling();
-  checkChatUnread(); // controllo immediato al login
-  chatBadgeInterval = setInterval(checkChatUnread, 12000);
+  chatCheckUnread();                                         // subito al login
+  chatBadgeInterval = setInterval(chatCheckUnread, 12000);  // poi ogni 12s
 }
 function stopChatBadgePolling(){
   if(chatBadgeInterval){ clearInterval(chatBadgeInterval); chatBadgeInterval = null; }
@@ -177,14 +177,12 @@ async function showPage(id, link){
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(link) link.classList.add('active');
-  // Quando l'utente apre comunicazioni: salva il ts dell'ultimo messaggio e azzera badge
+  // Se l'utente apre comunicazioni: azzera badge e aggiorna ts salvato
   if(id === 'comunicazioni'){
-    markChatRead();
+    chatSetBadge(0);
     try {
       const msgs = await api('GET', '/api/comunicazioni/chat');
-      if(msgs && msgs.length){
-        _chatSaveTs(msgs[msgs.length - 1].created_at || '');
-      }
+      if(msgs && msgs.length) chatSaveTs(msgs[msgs.length-1].created_at || '');
     } catch(e){}
   }
   // Aggiorna sempre permessi dal server prima di caricare sezione
@@ -690,7 +688,10 @@ function renderListCard(l, isAdmin){
         ${renderSignupButton(l, isSignedUp, mySignup, isAdmin)}
       </div>
       ${isCustom&&l.custom_field_label?`<div class="alert alert-info" style="margin-bottom:.8rem">✏ Ogni allievo inserisce: <strong>${escHtml(l.custom_field_label)}</strong></div>`:''}
-      <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.5rem">Iscritti (${l.signup_count})</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;flex-wrap:wrap;gap:.5rem">
+        <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.12em;text-transform:uppercase">Iscritti (${l.signup_count})</div>
+        ${l.signup_count>0?`<button class="btn btn-sm btn-green" onclick="event.stopPropagation();downloadListExcel('${l.id}')">⬇ Excel</button>`:''}
+      </div>
       ${renderSignupRows(l, isAdmin)}
     </div>
   </div>`;
@@ -718,15 +719,61 @@ function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
   return extra + `<button class="btn btn-red" onclick="unsignupList('${l.id}')">✗ Rimuovi iscrizione</button>`;
 }
 
+// Estrae il cognome (ultima parola) per l'ordinamento
 function getLastName(s){
   const name = (s.full_name || s.username || '').trim();
   const parts = name.split(/\s+/);
-  return (parts[parts.length - 1] || '').toLowerCase();
+  return (parts[parts.length-1] || '').toLowerCase();
+}
+
+// Formatta il nome come "Cognome Nome" rimuovendo il grado militare
+function formatNameForList(s){
+  let name = (s.full_name || s.username || '').trim();
+  // Rimuove il grado in testa se presente
+  if(s.military_rank && name.toLowerCase().startsWith(s.military_rank.toLowerCase())){
+    name = name.slice(s.military_rank.length).trim();
+  }
+  // Rimuove abbreviazioni di grado comuni
+  name = name.replace(/^(Ten\.|Asp\.|S\.Ten\.|Cap\.|Mag\.|Col\.|Gen\.|Sgt\.|Serg\.|Brig\.|M\.llo|Lgt\.)\s*/i,'').trim();
+  // Ricostruisce come "Cognome Nome"
+  const parts = name.split(/\s+/);
+  if(parts.length <= 1) return name;
+  const cognome = parts[parts.length-1];
+  const nome    = parts.slice(0, parts.length-1).join(' ');
+  return `${cognome} ${nome}`;
+}
+
+// Scarica la lista come CSV apribile in Excel
+function downloadListExcel(listId){
+  const l = allLists.find(x => x.id === listId);
+  if(!l){ toast('Lista non trovata','err'); return; }
+  if(!l.signups || !l.signups.length){ toast('Nessun iscritto da scaricare','err'); return; }
+  const title   = l.list_type==='custom' ? (l.custom_name||'Lista') : (LIST_LABELS[l.list_type]||l.list_type);
+  const sorted  = [...l.signups].sort((a,b) =>
+    getLastName(a).localeCompare(getLastName(b),'it',{sensitivity:'base'})
+  );
+  // BOM UTF-8 + CSV — Excel lo apre direttamente con caratteri italiani corretti
+  let csv = '\uFEFF' + 'N°\tNominativo\r\n';
+  sorted.forEach((s,i) => {
+    const nome = formatNameForList(s);
+    csv += `${i+1}\t${nome}\r\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${title}_${l.list_date||'lista'}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Lista scaricata ✓');
 }
 
 function renderSignupRows(l, isAdmin){
-  const signups = [...(l.signups || [])].sort((a, b) =>
-    getLastName(a).localeCompare(getLastName(b), 'it', {sensitivity: 'base'})
+  // Ordina per cognome alfabeticamente
+  const signups = [...(l.signups||[])].sort((a,b) =>
+    getLastName(a).localeCompare(getLastName(b),'it',{sensitivity:'base'})
   );
   if(!signups.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:.5rem">Nessuno iscritto ancora.</div>';
   const isParlatorio = l.list_type === 'parlatorio';
