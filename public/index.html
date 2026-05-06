@@ -925,7 +925,7 @@ canvas{max-height:220px}
 .uni-subject-section{padding:.8rem 1.1rem;border-top:1px solid var(--border)}
 .rank-row{display:flex;align-items:center;gap:1rem;padding:.78rem 1rem;border-bottom:1px solid var(--border)}
 .rank-row:hover{background:rgba(196,162,66,.03)}
-.rank-bar-bg{flex:1;height:4px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.rank-bar-bg{flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden}
 .rank-bar-fill{height:100%;background:linear-gradient(90deg,var(--green-l),var(--gold));border-radius:3px}
 
 .schedule-grid{display:grid;grid-template-columns:70px repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;min-width:600px}
@@ -1362,8 +1362,8 @@ canvas{max-height:220px}
         ℹ La chat è <strong>leggibile da tutti</strong>. Possono scrivere solo: Allievo di Servizio, Capo Compagnia, Vice Capo Compagnia, Tenente e Amministratori.
       </div>
       <div class="com-tabs">
-        <button class="com-tab-btn active" onclick="switchComTab('chat',this)">💬 Chat</button>
-        <button class="com-tab-btn" onclick="switchComTab('ufficiali',this)">📋 Comunicati Ufficiali</button>
+        <button class="com-tab-btn active" data-tab="chat" onclick="switchComTab('chat',this)">💬 Chat</button>
+        <button class="com-tab-btn" data-tab="ufficiali" onclick="switchComTab('ufficiali',this)">📋 Comunicati Ufficiali</button>
       </div>
       <div class="com-tab-panel active" id="com-chat">
         <div class="chat-container">
@@ -1711,8 +1711,11 @@ canvas{max-height:220px}
     </div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:1rem;margin-bottom:.8rem">
       <div style="font-family:var(--font-m);font-size:.62rem;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem">➕ Aggiungi parente</div>
-      <div class="form-row-3" style="margin-bottom:.5rem">
-        <div class="form-group"><label>Nome e Cognome *</label><input type="text" id="parlRelName" placeholder="es. Maria Rossi"></div>
+      <div class="form-group" style="margin-bottom:.5rem">
+        <label>Nome e Cognome *</label>
+        <input type="text" id="parlRelName" placeholder="es. Maria Rossi">
+      </div>
+      <div class="form-row-2" style="margin-bottom:.5rem">
         <div class="form-group"><label>Parentela</label><input type="text" id="parlRelRelation" placeholder="es. Madre"></div>
         <div class="form-group"><label>N° Carta d'Identità</label><input type="text" id="parlRelIdCard" placeholder="es. CA12345AB"></div>
       </div>
