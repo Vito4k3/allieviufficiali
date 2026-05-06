@@ -1331,13 +1331,17 @@ canvas{max-height:220px}
         <div class="card-header"><div class="card-title">Modifica Dati Personali</div></div>
         <div class="grid-2">
           <div class="form-group"><label>Nome e Cognome Completo</label><input type="text" id="prof-name" placeholder="Ten. Mario Rossi"></div>
-          <div class="form-group"><label>Grado Militare</label><input type="text" id="prof-rank" placeholder="es. Aspirante, Sottotenente…"></div>
+          <div class="form-group">
+            <label>Cognome (per ordinamento liste) <span style="color:var(--gold);font-size:.55rem">★ compilare se il cognome è composto</span></label>
+            <input type="text" id="prof-cognome" placeholder="es. Di Iorio · Cuocci Martorano">
+          </div>
         </div>
         <div class="grid-2">
+          <div class="form-group"><label>Grado Militare</label><input type="text" id="prof-rank" placeholder="es. Aspirante, Sottotenente…"></div>
           <div class="form-group"><label>Reparto / Plotone</label><input type="text" id="prof-platoon" placeholder="es. 3° Plotone Alpha"></div>
-          <div class="form-group"><label>Anno di Corso</label>
-            <select id="prof-year"><option>1° Anno</option><option>2° Anno</option><option>3° Anno</option><option>4° Anno</option><option>5° Anno</option></select>
-          </div>
+        </div>
+        <div class="form-group"><label>Anno di Corso</label>
+          <select id="prof-year"><option>1° Anno</option><option>2° Anno</option><option>3° Anno</option><option>4° Anno</option><option>5° Anno</option></select>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:.5rem"><button class="btn btn-gold" onclick="saveProfile()">💾 &nbsp;Salva Modifiche</button></div>
       </div>
@@ -1392,12 +1396,12 @@ canvas{max-height:220px}
       <div class="page-desc">Liberi Uscenti · Messa · Parlatorio · Personalizzate</div>
       <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap">
         <div class="tabs" style="flex:1;margin-bottom:0;border-bottom:none;min-width:0">
-          <button class="tab-btn active" onclick="switchListTab('liberi_sab_pom',this)">🚶 Sab. Pom.</button>
+          <button class="tab-btn active" onclick="switchListTab('custom',this)">🎯 Personalizzata</button>
+          <button class="tab-btn" onclick="switchListTab('liberi_sab_pom',this)">🚶 Sab. Pom.</button>
           <button class="tab-btn" onclick="switchListTab('liberi_sab_sera',this)">🌙 Sab. Sera</button>
           <button class="tab-btn" onclick="switchListTab('liberi_dom_pom',this)">☀ Dom. Pom.</button>
           <button class="tab-btn" onclick="switchListTab('messa',this)">⛪ Messa</button>
           <button class="tab-btn" onclick="switchListTab('parlatorio',this)">👥 Parlatorio</button>
-          <button class="tab-btn" onclick="switchListTab('custom',this)">🎯 Personalizzata</button>
         </div>
         <button id="btnNewList" class="btn btn-gold hidden" onclick="toggleAdminListPanel()">➕ &nbsp;Nuova Lista</button>
       </div>
