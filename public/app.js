@@ -13,7 +13,7 @@ let vdb = {
   schedule: {}, notes: [],
   settings: { weight_uni:50, weight_acad:50, weight_gym:50, weight_mil:50, pen_consegna_rate:0.5 }
 };
-let allLists = [], currentListTab = 'liberi_sab_pom', openListId = null;
+let allLists = [], currentListTab = 'custom', openListId = null;
 let bachecaInterval = null;
 let chatBadgeInterval = null;
 let comChatInterval = null;
@@ -272,14 +272,11 @@ async function loadProfile(){
   document.getElementById('prof-email').textContent = currentUser.email||'—';
   document.getElementById('prof-role-badge').innerHTML = roleBadge(currentUser.role, currentUser.is_admin) ||
     '<span class="role-badge role-none">Allievo</span>';
- 
-  // Form fields
   document.getElementById('prof-name').value     = currentUser.full_name||'';
+  document.getElementById('prof-cognome').value  = currentUser.cognome||'';
   document.getElementById('prof-rank').value     = currentUser.military_rank||'';
   document.getElementById('prof-platoon').value  = currentUser.platoon||'';
   document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
- 
-  // Permessi
   document.getElementById('prof-perm-finance').textContent = currentUser.can_access_finance ? '✓ Abilitato' : '✗ Non abilitato';
   document.getElementById('prof-perm-finance').className   = 'perm-indicator '+(currentUser.can_access_finance?'perm-ok':'perm-no');
   document.getElementById('prof-perm-grades').textContent  = currentUser.can_access_grades ? '✓ Abilitato' : '✗ Non abilitato';
@@ -287,16 +284,16 @@ async function loadProfile(){
   document.getElementById('prof-perm-com').textContent     = canWriteCom() ? '✓ Abilitato' : '✗ Solo lettura';
   document.getElementById('prof-perm-com').className       = 'perm-indicator '+(canWriteCom()?'perm-ok':'perm-no');
 }
- 
+
 async function saveProfile(){
   const full_name     = document.getElementById('prof-name').value.trim();
+  const cognome       = document.getElementById('prof-cognome').value.trim();
   const military_rank = document.getElementById('prof-rank').value.trim();
   const platoon       = document.getElementById('prof-platoon').value.trim();
   const academic_year = document.getElementById('prof-year').value;
   try {
-    await api('PUT','/api/profile',{full_name,military_rank,platoon,academic_year});
-    // Aggiorna currentUser localmente
-    Object.assign(currentUser, {full_name,military_rank,platoon,academic_year});
+    await api('PUT','/api/profile',{full_name,cognome,military_rank,platoon,academic_year});
+    Object.assign(currentUser, {full_name,cognome,military_rank,platoon,academic_year});
     applyPermissions();
     toast('Profilo aggiornato');
   } catch(e){ toast(e.message,'err') }
@@ -728,28 +725,35 @@ function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
   return extra + `<button class="btn btn-red" onclick="unsignupList('${l.id}')">✗ Rimuovi iscrizione</button>`;
 }
 
-// Estrae il cognome (ultima parola) per l'ordinamento
+// Estrae chiave di sort: usa 'cognome' se compilato, altrimenti PRIMA parola del full_name
+// (in Italia il formato standard militare è "COGNOME Nome", quindi la prima parola è il cognome)
 function getLastName(s){
+  if(s.cognome && s.cognome.trim()) return s.cognome.trim().toLowerCase();
   const name = (s.full_name || s.username || '').trim();
-  const parts = name.split(/\s+/);
-  return (parts[parts.length-1] || '').toLowerCase();
+  return (name.split(/\s+/)[0] || '').toLowerCase();
 }
 
-// Formatta il nome come "Cognome Nome" rimuovendo il grado militare
+// Formatta come "Cognome Nome" per Excel, rimuovendo il grado militare
 function formatNameForList(s){
-  let name = (s.full_name || s.username || '').trim();
-  // Rimuove il grado in testa se presente
-  if(s.military_rank && name.toLowerCase().startsWith(s.military_rank.toLowerCase())){
-    name = name.slice(s.military_rank.length).trim();
+  // Se ha il campo cognome dedicato, usalo direttamente
+  if(s.cognome && s.cognome.trim()){
+    const cognome = s.cognome.trim();
+    let nome = (s.full_name || '').trim();
+    // Rimuove gradi militari comuni all'inizio
+    nome = nome.replace(/^(Ten\.|S\.Ten\.|Cap\.|Mag\.|Col\.|Gen\.|Asp\.|Sgt\.|Serg\.|Brig\.|M\.llo|Lgt\.)\s*/i,'').trim();
+    // Rimuove il cognome dalla fine per avere solo il nome
+    const parts = nome.split(/\s+/);
+    const nomeOnly = parts.filter(w => w.toLowerCase() !== cognome.toLowerCase().split(/\s+/)[0]).join(' ') || nome;
+    return `${cognome} ${nomeOnly}`.trim();
   }
-  // Rimuove abbreviazioni di grado comuni
-  name = name.replace(/^(Ten\.|Asp\.|S\.Ten\.|Cap\.|Mag\.|Col\.|Gen\.|Sgt\.|Serg\.|Brig\.|M\.llo|Lgt\.)\s*/i,'').trim();
-  // Ricostruisce come "Cognome Nome"
+  // Fallback: prende tutto il full_name, assume "PrimaParola = Cognome"
+  let name = (s.full_name || s.username || '').trim();
+  name = name.replace(/^(Ten\.|S\.Ten\.|Cap\.|Mag\.|Col\.|Gen\.|Asp\.|Sgt\.|Serg\.|Brig\.|M\.llo|Lgt\.)\s*/i,'').trim();
+  if(!name) return s.username || '';
   const parts = name.split(/\s+/);
-  if(parts.length <= 1) return name;
-  const cognome = parts[parts.length-1];
-  const nome    = parts.slice(0, parts.length-1).join(' ');
-  return `${cognome} ${nome}`;
+  if(parts.length === 1) return name;
+  // Formato già "Cognome Nome" (convenzione militare)
+  return name;
 }
 
 // Scarica la lista come CSV apribile in Excel
