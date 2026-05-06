@@ -52,6 +52,11 @@ async function initDB() {
       await c.execute("ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'none'");
     } catch(e) { /* colonna già esistente */ }
 
+    // Aggiungi colonna cognome per ordinamento liste
+    try {
+      await c.execute("ALTER TABLE users ADD COLUMN cognome VARCHAR(100) NOT NULL DEFAULT ''");
+    } catch(e) { /* colonna già esistente */ }
+
     // Tabella chat comunicazioni
     await c.execute(`
       CREATE TABLE IF NOT EXISTS comunicazioni_chat (
@@ -97,8 +102,27 @@ async function initDB() {
         relative_name VARCHAR(255),
         relative_relation VARCHAR(100),
         relative_id_card VARCHAR(100),
+        note VARCHAR(500),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY unique_signup (list_id, user_id)
+      )
+    `);
+
+    // Aggiungi colonna note se non esiste (per chi ha già la tabella)
+    try {
+      await c.execute("ALTER TABLE list_signups ADD COLUMN note VARCHAR(500)");
+    } catch(e) { /* colonna già esistente */ }
+
+    // Tabella parenti parlatorio (multi-parente per iscrizione)
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS list_relatives (
+        id VARCHAR(64) PRIMARY KEY,
+        list_id VARCHAR(64) NOT NULL,
+        user_id INT NOT NULL,
+        relative_name VARCHAR(255) NOT NULL,
+        relative_relation VARCHAR(100),
+        relative_id_card VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -214,7 +238,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,military_rank,platoon,academic_year,role,can_access_finance,can_access_grades,is_admin FROM users WHERE id=?',
+      'SELECT id,username,email,full_name,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_grades,is_admin FROM users WHERE id=?',
       [req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
@@ -229,12 +253,12 @@ app.get('/api/auth/me', auth, async (req, res) => {
 
 // ── PROFILO ───────────────────────────────────────────────────
 app.put('/api/profile', auth, async (req, res) => {
-  const { full_name, military_rank, platoon, academic_year } = req.body;
+  const { full_name, cognome, military_rank, platoon, academic_year } = req.body;
   try {
     const c = await db();
     await c.execute(
-      'UPDATE users SET full_name=?, military_rank=?, platoon=?, academic_year=? WHERE id=?',
-      [full_name || '', military_rank || '', platoon || '', academic_year || '1° Anno', req.user.id]
+      'UPDATE users SET full_name=?, cognome=?, military_rank=?, platoon=?, academic_year=? WHERE id=?',
+      [full_name || '', (cognome||'').trim(), military_rank || '', platoon || '', academic_year || '1° Anno', req.user.id]
     );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -644,21 +668,31 @@ app.get('/api/lists/:id', auth, async (req, res) => {
     const [lists] = await c.execute('SELECT * FROM lists WHERE id=?', [req.params.id]);
     if (!lists.length) return res.status(404).json({ error: 'Lista non trovata' });
     const [signups] = await c.execute(`
-      SELECT s.*, u.username, u.full_name, u.military_rank
+      SELECT s.*, u.username, u.full_name, u.cognome, u.military_rank
       FROM list_signups s JOIN users u ON s.user_id=u.id
-      WHERE s.list_id=? ORDER BY s.signed_up_at ASC
+      WHERE s.list_id=? ORDER BY s.created_at ASC
     `, [req.params.id]);
-    res.json({ ...lists[0], signups });
+    // Carica i parenti parlatorio per ogni iscritto
+    const [allRelatives] = await c.execute(
+      'SELECT * FROM list_relatives WHERE list_id=? ORDER BY created_at ASC',
+      [req.params.id]
+    );
+    // Associa i parenti all'iscritto corrispondente
+    const signupsWithRelatives = signups.map(s => ({
+      ...s,
+      relatives: allRelatives.filter(r => r.user_id === s.user_id)
+    }));
+    res.json({ ...lists[0], signups: signupsWithRelatives });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/lists/:id/signup', auth, async (req, res) => {
-  const { signup_id, relative_name, relative_relation, relative_id_card } = req.body;
+  const { signup_id, relative_name, relative_relation, relative_id_card, note } = req.body;
   try {
     const c = await db();
     await c.execute(
-      'INSERT INTO list_signups (id,list_id,user_id,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?)',
-      [signup_id, req.params.id, req.user.id, relative_name || null, relative_relation || null, relative_id_card || null]
+      'INSERT INTO list_signups (id,list_id,user_id,relative_name,relative_relation,relative_id_card,note) VALUES (?,?,?,?,?,?,?)',
+      [signup_id, req.params.id, req.user.id, relative_name || null, relative_relation || null, relative_id_card || null, note || null]
     );
     res.json({ ok: true });
   } catch(e) {
@@ -679,6 +713,30 @@ app.delete('/api/lists/:listId/signup/:userId', auth, requireAdmin, async (req, 
   try {
     const c = await db();
     await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.listId, req.params.userId]);
+    // Rimuove anche i parenti parlatorio
+    await c.execute('DELETE FROM list_relatives WHERE list_id=? AND user_id=?', [req.params.listId, req.params.userId]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PARENTI PARLATORIO ────────────────────────────────────────────
+app.post('/api/lists/:id/relatives', auth, async (req, res) => {
+  const { id, relative_name, relative_relation, relative_id_card } = req.body;
+  if (!relative_name?.trim()) return res.status(400).json({ error: 'Nome parente obbligatorio' });
+  try {
+    const c = await db();
+    await c.execute(
+      'INSERT INTO list_relatives (id,list_id,user_id,relative_name,relative_relation,relative_id_card) VALUES (?,?,?,?,?,?)',
+      [id, req.params.id, req.user.id, relative_name.trim(), relative_relation || null, relative_id_card || null]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/lists/:id/relatives/:relId', auth, async (req, res) => {
+  try {
+    const c = await db();
+    await c.execute('DELETE FROM list_relatives WHERE id=? AND user_id=?', [req.params.relId, req.user.id]);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
