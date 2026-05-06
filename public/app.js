@@ -726,34 +726,33 @@ function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
 }
 
 // Estrae chiave di sort: usa 'cognome' se compilato, altrimenti PRIMA parola del full_name
-// (in Italia il formato standard militare è "COGNOME Nome", quindi la prima parola è il cognome)
 function getLastName(s){
   if(s.cognome && s.cognome.trim()) return s.cognome.trim().toLowerCase();
   const name = (s.full_name || s.username || '').trim();
   return (name.split(/\s+/)[0] || '').toLowerCase();
 }
 
-// Formatta come "Cognome Nome" per Excel, rimuovendo il grado militare
+// Nome da mostrare nelle liste (in display).
+// Se 'cognome' è compilato E non è già la prima parola del full_name, lo prepende.
+function displayName(s){
+  const fn = (s.full_name || s.username || '').trim();
+  const cog = (s.cognome || '').trim();
+  if(!cog) return fn;
+  // Controlla se full_name inizia già col cognome (case-insensitive)
+  if(fn.toLowerCase().startsWith(cog.toLowerCase())) return fn;
+  // Altrimenti prependi il cognome
+  return `${cog} ${fn}`.trim();
+}
+
+// Formatta come "Cognome Nome" per Excel, senza gradi militari
 function formatNameForList(s){
-  // Se ha il campo cognome dedicato, usalo direttamente
-  if(s.cognome && s.cognome.trim()){
-    const cognome = s.cognome.trim();
-    let nome = (s.full_name || '').trim();
-    // Rimuove gradi militari comuni all'inizio
-    nome = nome.replace(/^(Ten\.|S\.Ten\.|Cap\.|Mag\.|Col\.|Gen\.|Asp\.|Sgt\.|Serg\.|Brig\.|M\.llo|Lgt\.)\s*/i,'').trim();
-    // Rimuove il cognome dalla fine per avere solo il nome
-    const parts = nome.split(/\s+/);
-    const nomeOnly = parts.filter(w => w.toLowerCase() !== cognome.toLowerCase().split(/\s+/)[0]).join(' ') || nome;
-    return `${cognome} ${nomeOnly}`.trim();
-  }
-  // Fallback: prende tutto il full_name, assume "PrimaParola = Cognome"
-  let name = (s.full_name || s.username || '').trim();
-  name = name.replace(/^(Ten\.|S\.Ten\.|Cap\.|Mag\.|Col\.|Gen\.|Asp\.|Sgt\.|Serg\.|Brig\.|M\.llo|Lgt\.)\s*/i,'').trim();
-  if(!name) return s.username || '';
-  const parts = name.split(/\s+/);
-  if(parts.length === 1) return name;
-  // Formato già "Cognome Nome" (convenzione militare)
-  return name;
+  // Rimuove gradi militari comuni
+  const stripRank = str => str.replace(/^(Ten\.|S\.Ten\.|Cap\.|Mag\.|Col\.|Gen\.|Asp\.|Sgt\.|Serg\.|Brig\.|M\.llo|Lgt\.)\s*/i,'').trim();
+  const cog = (s.cognome || '').trim();
+  const fn  = stripRank((s.full_name || s.username || '').trim());
+  if(!cog) return fn;
+  if(fn.toLowerCase().startsWith(cog.toLowerCase())) return fn;
+  return `${cog} ${fn}`.trim();
 }
 
 // Scarica la lista come CSV apribile in Excel
@@ -810,7 +809,7 @@ function renderSignupRows(l, isAdmin){
 
     return `<div class="signup-row" style="flex-wrap:wrap">
       <span style="color:var(--text3);width:22px">${i+1}.</span>
-      <span style="color:var(--gold)">${s.military_rank?escHtml(s.military_rank)+' ':''}<strong>${escHtml(s.full_name||s.username)}</strong></span>
+      <span style="color:var(--gold)">${s.military_rank?escHtml(s.military_rank)+' ':''}<strong>${escHtml(displayName(s))}</strong></span>
       ${detail}
       ${isAdmin?`<button class="btn btn-sm btn-red del-btn" onclick="removeSignup('${l.id}',${s.user_id})" style="margin-left:auto">✕</button>`:''}
     </div>`;
