@@ -376,8 +376,10 @@ function switchComTab(tab, btn){
   document.querySelectorAll('.com-tab-btn').forEach(b=>b.classList.remove('active'));
   const panel = document.getElementById('com-'+tab);
   if(panel) panel.classList.add('active');
-  if(btn) btn.classList.add('active');
-  if(tab==='chat')     loadComChat();
+  // Se btn non è passato (chiamata programmatica), trova il bottone giusto dal DOM
+  const activeBtn = btn || document.querySelector(`.com-tab-btn[data-tab="${tab}"]`);
+  if(activeBtn) activeBtn.classList.add('active');
+  if(tab==='chat')      loadComChat();
   if(tab==='ufficiali') loadComPosts();
 }
  
@@ -571,7 +573,14 @@ async function downloadComFile(postId, fileName){
 async function loadListe(){
   try {
     allLists = await api('GET','/api/lists');
+    // Se c'era una lista aperta, ricarica il dettaglio (con i signups)
+    if(openListId){
+      const detail = await api('GET','/api/lists/'+openListId);
+      const idx = allLists.findIndex(l => l.id === openListId);
+      if(idx >= 0) allLists[idx] = {...allLists[idx], ...detail, signup_count: detail.signups.length};
+    }
     renderListContent();
+    if(openListId) _applyOpenList();
   } catch(e){ toast(e.message,'err') }
 }
 
@@ -672,9 +681,9 @@ function renderListCard(l, isAdmin){
     <div class="list-card-header" onclick="toggleListCard('lbody-${l.id}')">
       <div>
         <div style="font-family:var(--font-display);font-size:.95rem;color:var(--text);letter-spacing:.06em">${escHtml(title)}</div>
-        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.15rem">
-          📅 ${fmtDate(l.list_date)}${l.notes?' · '+escHtml(l.notes):''}
-          ${isCustom&&l.custom_field_label?' · Campo: '+escHtml(l.custom_field_label):''}
+        <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--text2);margin-top:.25rem">
+          📅 ${fmtDate(l.list_date)}${l.notes?` &nbsp;·&nbsp; <span style="color:var(--gold-hi,#e8c96a)">${escHtml(l.notes)}</span>`:''}
+          ${isCustom&&l.custom_field_label?` &nbsp;·&nbsp; Campo: ${escHtml(l.custom_field_label)}`:''}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:.8rem">
@@ -752,11 +761,11 @@ function downloadListExcel(listId){
   const sorted  = [...l.signups].sort((a,b) =>
     getLastName(a).localeCompare(getLastName(b),'it',{sensitivity:'base'})
   );
-  // BOM UTF-8 + CSV — Excel lo apre direttamente con caratteri italiani corretti
-  let csv = '\uFEFF' + 'N°\tNominativo\r\n';
+  // Usa ; come separatore (standard europeo Excel) e BOM UTF-8
+  let csv = '\uFEFF' + 'N°;Nominativo\r\n';
   sorted.forEach((s,i) => {
     const nome = formatNameForList(s);
-    csv += `${i+1}\t${nome}\r\n`;
+    csv += `${i+1};"${nome}"\r\n`;
   });
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const url  = URL.createObjectURL(blob);
@@ -1199,10 +1208,10 @@ function renderGraduatoria(){
   ].filter(x=>x.val!=null);
   document.getElementById('g-rank-detail').innerHTML=items.map(item=>`
     <div class="rank-row">
-      <div style="width:170px;font-family:var(--font-mono);font-size:.72rem;color:var(--text2)">${item.label}</div>
+      <div style="width:190px;font-family:var(--font-mono);font-size:.8rem;color:var(--text2)">${item.label}</div>
       <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${(Math.abs(item.val)/maxVal*100).toFixed(1)}%${item.val<0?';background:var(--red)':''}"></div></div>
-      <div style="width:55px;text-align:right;font-family:var(--font-mono);font-size:.82rem;color:${item.val<0?'var(--red-light)':'var(--gold)'}">${item.val<0?'−':'+'}${fmt(Math.abs(item.val))}</div>
-      <div style="font-family:var(--font-mono);font-size:.6rem;color:var(--text3);padding-left:.5rem">${item.desc}</div>
+      <div style="width:65px;text-align:right;font-family:var(--font-mono);font-size:1rem;font-weight:600;color:${item.val<0?'var(--red-l)':'var(--gold)'}">${item.val<0?'−':'+'}${fmt(Math.abs(item.val))}</div>
+      <div style="font-family:var(--font-mono);font-size:.68rem;color:var(--text3);padding-left:.5rem">${item.desc}</div>
     </div>`).join('')||'<div style="color:var(--text3);padding:1rem;font-family:var(--font-mono);font-size:.72rem">Inserisci voti per visualizzare</div>';
   const allG=[];
   ['university','gym','military'].forEach(type=>{ vdb.subjects[type].forEach(s=>s.grades.forEach(g=>allG.push({...g,subjectName:s.name,stype:type}))) });
