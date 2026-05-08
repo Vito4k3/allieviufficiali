@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-theme="dark">
+<html lang="it" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1058,6 +1058,31 @@ canvas{max-height:220px}
   .auth-box{padding:1.8rem}
   .profile-hero{flex-direction:column;text-align:center;gap:1rem}
 }
+/* ════════════════════════════════════════════════════
+   CALENDARIO
+   ════════════════════════════════════════════════════ */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem}
+.cal-month-label{font-family:var(--font-d);font-size:1.1rem;color:var(--gold);letter-spacing:.1em}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:1.5rem}
+.cal-dow{background:var(--surface2);padding:.5rem .2rem;text-align:center;font-family:var(--font-m);font-size:.58rem;color:var(--text3);letter-spacing:.1em;text-transform:uppercase}
+.cal-day{background:var(--surface);padding:.4rem .3rem;min-height:58px;cursor:pointer;transition:background .15s}
+.cal-day:hover{background:var(--surface2)}
+.cal-day-empty{background:var(--bg);cursor:default}
+.cal-today .cal-day-num{background:var(--gold);color:var(--bg);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:600}
+.cal-day-num{font-family:var(--font-m);font-size:.72rem;color:var(--text);margin-bottom:.2rem;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.cal-dots{display:flex;gap:2px;flex-wrap:wrap}
+.cal-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.cal-event-group{margin-bottom:1.2rem}
+.cal-event-date{font-family:var(--font-d);font-size:.8rem;color:var(--gold);letter-spacing:.08em;margin-bottom:.5rem;padding-bottom:.3rem;border-bottom:1px solid var(--border);text-transform:capitalize}
+.cal-event-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:var(--r);padding:.7rem 1rem;margin-bottom:.5rem}
+.cal-event-card:hover{border-color:var(--border2)}
+.cal-event-header{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.cal-event-time{font-family:var(--font-m);font-size:.65rem;color:var(--gold);margin-right:.5rem}
+.cal-event-title{font-family:var(--font-d);font-size:.88rem;color:var(--text);letter-spacing:.05em}
+.cal-event-desc{font-family:var(--font-b);font-size:.9rem;color:var(--text2);margin-top:.3rem;font-style:italic}
+.color-picker{display:flex;gap:.4rem;margin-top:.3rem}
+.color-opt{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s}
+.color-opt.selected{border-color:var(--text);transform:scale(1.2)}
 </style>
 </head>
 <body>
@@ -1197,7 +1222,7 @@ canvas{max-height:220px}
         <div class="form-group"><label>Username *</label><input type="text" id="regUser" placeholder="mario.rossi"></div>
         <div class="form-group"><label>Email *</label><input type="email" id="regEmail" placeholder="mario@mail.it"></div>
       </div>
-      <div class="form-group"><label>Nome e Cognome</label><input type="text" id="regName" placeholder="Mario Rossi"></div>
+      <div class="form-group"><label>Nome e Cognome</label><input type="text" id="regName" placeholder="Ten. Mario Rossi"></div>
       <div class="form-row-2">
         <div class="form-group"><label>Password *</label><input type="password" id="regPass" placeholder="min 6 caratteri"></div>
         <div class="form-group"><label>Conferma *</label><input type="password" id="regPass2" placeholder="••••••••"></div>
@@ -1244,6 +1269,7 @@ canvas{max-height:220px}
       <nav>
         <a class="sb-link" onclick="showPage('bacheca',this);closeDrawer()"><span class="sb-icon">📢</span>Bacheca Annunci</a>
         <a class="sb-link" onclick="showPage('comunicazioni',this);closeDrawer()"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
+        <a class="sb-link" onclick="showPage('calendario',this);closeDrawer()"><span class="sb-icon">📅</span>Calendario</a>
         <a class="sb-link" onclick="showPage('liste',this);closeDrawer()"><span class="sb-icon">📋</span>Liste</a>
       </nav>
       <div class="sb-section">Personale</div>
@@ -1282,6 +1308,7 @@ canvas{max-height:220px}
       <nav>
         <a class="sb-link active" onclick="showPage('bacheca',this)"><span class="sb-icon">📢</span>Bacheca Annunci</a>
         <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
+        <a class="sb-link" onclick="showPage('calendario',this)"><span class="sb-icon">📅</span>Calendario</a>
         <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
       </nav>
       <div class="sb-section">Personale</div>
@@ -1584,6 +1611,26 @@ canvas{max-height:220px}
       </div>
     </div>
 
+    <!-- ── CALENDARIO ── -->
+    <div class="page" id="page-calendario">
+      <div class="page-hd">
+        <div class="page-title">Calen<em>dario</em></div>
+        <div class="page-desc">Eventi · Attività · Scadenze</div>
+      </div>
+      <div class="card">
+        <div class="cal-nav">
+          <button class="btn" onclick="calNavMonth(-1)">◀</button>
+          <div class="cal-month-label" id="calMonthLabel"></div>
+          <button class="btn" onclick="calNavMonth(1)">▶</button>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+          <button class="btn btn-gold" onclick="document.getElementById('calEventDate').value=new Date().toISOString().slice(0,10);openModal('calEventModal')">➕ &nbsp;Nuovo Evento</button>
+        </div>
+        <div id="calEventList"></div>
+      </div>
+    </div>
+
     <!-- ── ADMIN ── -->
     <div class="page" id="page-admin">
       <div class="page-title">Gestione <em>Utenti</em></div>
@@ -1734,6 +1781,33 @@ canvas{max-height:220px}
   </div>
 </div>
 <!-- COMUNICATO MODAL -->
+<!-- CALENDARIO MODAL -->
+<div class="modal-overlay" id="calEventModal">
+  <div class="modal">
+    <div class="modal-title">📅 Nuovo Evento</div>
+    <div class="form-row-2" style="margin-bottom:.7rem">
+      <div class="form-group"><label>Data *</label><input type="date" id="calEventDate"></div>
+      <div class="form-group"><label>Ora</label><input type="time" id="calEventTime"></div>
+    </div>
+    <div class="form-group" style="margin-bottom:.7rem"><label>Titolo *</label><input type="text" id="calEventTitle" placeholder="es. Ispezione, Uscita, Esame…"></div>
+    <div class="form-group" style="margin-bottom:.7rem"><label>Descrizione</label><textarea id="calEventDesc" rows="2" placeholder="Dettagli opzionali…"></textarea></div>
+    <div class="form-group" style="margin-bottom:.7rem">
+      <label>Colore</label>
+      <select id="calEventColor">
+        <option value="gold">⭐ Oro</option>
+        <option value="green">🟢 Verde</option>
+        <option value="red">🔴 Rosso</option>
+        <option value="blue">🔵 Blu</option>
+        <option value="amber">🟠 Arancione</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('calEventModal')">Annulla</button>
+      <button class="btn btn-gold" onclick="saveCalEvent()">💾 &nbsp;Salva</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="comPostModal">
   <div class="modal">
     <div class="modal-title">📋 Nuovo Comunicato Ufficiale</div>
@@ -1763,7 +1837,8 @@ function toggleTheme(){
 }
 (function(){
   const s=localStorage.getItem('au-theme');
-  if(s)document.documentElement.setAttribute('data-theme',s);
+  // Default: light. Solo se salvato esplicitamente usa il valore salvato
+  document.documentElement.setAttribute('data-theme', s||'light');
 })();
 
 /* ── MOBILE DRAWER ── */
