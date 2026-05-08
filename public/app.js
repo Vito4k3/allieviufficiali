@@ -192,6 +192,7 @@ async function showPage(id, link){
   if(id==='liste')          loadListe();
   if(id==='admin')          loadAdminUsers();
   if(id==='comunicazioni')  loadComunicazioni();
+  if(id==='calendario')    loadCalendario();
   if(id==='profilo')        loadProfile();
 }
 
@@ -211,7 +212,7 @@ function applyPermissions(){
   document.getElementById('sb-section-admin').style.display = isAdmin ? '' : 'none';
   document.getElementById('sb-nav-admin').style.display     = isAdmin ? '' : 'none';
   const btnNew = document.getElementById('btnNewList');
-  if(btnNew) btnNew.classList.toggle('hidden', !isAdmin);
+  if(btnNew) btnNew.classList.remove('hidden');
   document.getElementById('sbUserName').textContent = currentUser.full_name||currentUser.username;
   document.getElementById('sbUserRank').textContent = currentUser.military_rank||'Allievo Ufficiale';
   const rbEl = document.getElementById('sbUserRole');
@@ -732,27 +733,31 @@ function getLastName(s){
   return (name.split(/\s+/)[0] || '').toLowerCase();
 }
 
-// Nome da mostrare nelle liste (in display).
-// Se 'cognome' è compilato E non è già la prima parola del full_name, lo prepende.
+// Nome da mostrare nelle liste. Formato uniforme: "Cognome Nome"
+// - Se cognome compilato: rimuove cognome dal full_name e prepende
+// - Se cognome NON compilato: mostra full_name as-is (l'utente lo inserisce già nel formato giusto)
 function displayName(s){
-  const fn = (s.full_name || s.username || '').trim();
+  const fn  = (s.full_name || s.username || '').trim();
   const cog = (s.cognome || '').trim();
   if(!cog) return fn;
-  // Controlla se full_name inizia già col cognome (case-insensitive)
+  // Già in formato corretto (inizia col cognome)
   if(fn.toLowerCase().startsWith(cog.toLowerCase())) return fn;
-  // Altrimenti prependi il cognome
-  return `${cog} ${fn}`.trim();
+  // Rimuove il cognome da dove si trova nel full_name, poi prepende
+  const cogEscaped = cog.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
+  const cleaned = fn.replace(new RegExp(cogEscaped,'i'),'').replace(/\s+/g,' ').trim();
+  return `${cog} ${cleaned || fn}`.trim();
 }
 
 // Formatta come "Cognome Nome" per Excel, senza gradi militari
 function formatNameForList(s){
-  // Rimuove gradi militari comuni
   const stripRank = str => str.replace(/^(Ten\.|S\.Ten\.|Cap\.|Mag\.|Col\.|Gen\.|Asp\.|Sgt\.|Serg\.|Brig\.|M\.llo|Lgt\.)\s*/i,'').trim();
   const cog = (s.cognome || '').trim();
   const fn  = stripRank((s.full_name || s.username || '').trim());
   if(!cog) return fn;
   if(fn.toLowerCase().startsWith(cog.toLowerCase())) return fn;
-  return `${cog} ${fn}`.trim();
+  const cogEscaped = cog.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
+  const cleaned = fn.replace(new RegExp(cogEscaped,'i'),'').replace(/\s+/g,' ').trim();
+  return `${cog} ${cleaned || fn}`.trim();
 }
 
 // Scarica la lista come CSV apribile in Excel
@@ -764,21 +769,30 @@ function downloadListExcel(listId){
   const sorted  = [...l.signups].sort((a,b) =>
     getLastName(a).localeCompare(getLastName(b),'it',{sensitivity:'base'})
   );
-  // Usa ; come separatore (standard europeo Excel) e BOM UTF-8
-  let csv = '\uFEFF' + 'N°;Nominativo\r\n';
+  const isParlatorio = l.list_type === 'parlatorio';
+  const isMessa      = l.list_type === 'messa';
+  let csv = '\uFEFF';
+  if(isParlatorio)      csv += 'N°;Nominativo;Parenti\r\n';
+  else if(isMessa)      csv += 'N°;Nominativo;Parente\r\n';
+  else                  csv += 'N°;Nominativo\r\n';
   sorted.forEach((s,i) => {
     const nome = formatNameForList(s);
-    csv += `${i+1};"${nome}"\r\n`;
+    if(isParlatorio){
+      const rels = (s.relatives||[]).map(r=>r.relative_name+(r.relative_relation?' ('+r.relative_relation+')':'')).join(' / ');
+      csv += `${i+1};"${nome}";"${rels}"\r\n`;
+    } else if(isMessa){
+      const parente = s.relative_name ? s.relative_name+(s.relative_relation?' ('+s.relative_relation+')':'') : '';
+      csv += `${i+1};"${nome}";"${parente}"\r\n`;
+    } else {
+      csv += `${i+1};"${nome}"\r\n`;
+    }
   });
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `${title}_${l.list_date||'lista'}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = `${title}_${l.list_date||'lista'}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
   toast('Lista scaricata ✓');
 }
 
@@ -1628,7 +1642,132 @@ async function deleteUser(id,username){
   try { await api('DELETE','/api/admin/users/'+id);loadAdminUsers();toast('Utente eliminato') } catch(e){toast(e.message,'err')}
 }
 
+// ── CALENDARIO ────────────────────────────────────────────────────
+let calEvents = [];
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth(); // 0-based
+
+const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+const GIORNI = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
+const CAL_COLORS = { gold:'var(--gold)', green:'var(--green-l)', red:'var(--red-l)', blue:'var(--blue-l)', amber:'var(--amber-l)' };
+
+async function loadCalendario(){
+  try {
+    const data = await api('GET',`/api/calendar?month=${calMonth+1}&year=${calYear}`);
+    calEvents = data;
+    renderCalendario();
+  } catch(e){ toast(e.message,'err'); }
+}
+
+function renderCalendario(){
+  renderCalGrid();
+  renderCalEventList();
+}
+
+function calNavMonth(dir){
+  calMonth += dir;
+  if(calMonth > 11){ calMonth=0; calYear++; }
+  if(calMonth < 0) { calMonth=11; calYear--; }
+  document.getElementById('calMonthLabel').textContent = MESI[calMonth]+' '+calYear;
+  loadCalendario();
+}
+
+function renderCalGrid(){
+  const grid = document.getElementById('calGrid');
+  const firstDay = new Date(calYear, calMonth, 1);
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  // Lunedì=0 come primo giorno
+  let startDow = firstDay.getDay(); // 0=Dom
+  startDow = startDow === 0 ? 6 : startDow - 1;
+
+  let html = GIORNI.map(g=>`<div class="cal-dow">${g}</div>`).join('');
+  for(let i=0;i<startDow;i++) html += '<div class="cal-day cal-day-empty"></div>';
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayEvts = calEvents.filter(e=>e.event_date&&e.event_date.slice(0,10)===dateStr);
+    const today = new Date(); const isToday = today.getDate()===d&&today.getMonth()===calMonth&&today.getFullYear()===calYear;
+    const dots = dayEvts.map(e=>`<span class="cal-dot" style="background:${CAL_COLORS[e.color]||'var(--gold)'}"></span>`).join('');
+    html += `<div class="cal-day${isToday?' cal-today':''}" onclick="openCalDay('${dateStr}')">
+      <div class="cal-day-num">${d}</div>
+      <div class="cal-dots">${dots}</div>
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function renderCalEventList(){
+  const el = document.getElementById('calEventList');
+  if(!calEvents.length){
+    el.innerHTML='<div style="text-align:center;padding:2rem;color:var(--text3);font-family:var(--font-mono);font-size:.7rem">Nessun evento questo mese</div>';
+    return;
+  }
+  const grouped = {};
+  calEvents.forEach(e=>{
+    const d = (e.event_date||'').slice(0,10);
+    if(!grouped[d]) grouped[d]=[];
+    grouped[d].push(e);
+  });
+  el.innerHTML = Object.keys(grouped).sort().map(date=>{
+    const dt = new Date(date+'T12:00:00');
+    const label = dt.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
+    return `<div class="cal-event-group">
+      <div class="cal-event-date">${label}</div>
+      ${grouped[date].map(e=>`
+        <div class="cal-event-card" style="border-left-color:${CAL_COLORS[e.color]||'var(--gold)'}">
+          <div class="cal-event-header">
+            <div>
+              ${e.event_time?`<span class="cal-event-time">${e.event_time}</span>`:''}
+              <span class="cal-event-title">${escHtml(e.title)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <span style="font-family:var(--font-mono);font-size:.58rem;color:var(--text3)">${escHtml(e.full_name||e.username)}</span>
+              ${(currentUser&&(e.user_id===currentUser.id||currentUser.is_admin))?
+                `<button class="btn btn-sm btn-red" onclick="deleteCalEvent('${e.id}')">✕</button>`:''}
+            </div>
+          </div>
+          ${e.description?`<div class="cal-event-desc">${escHtml(e.description)}</div>`:''}
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function openCalDay(dateStr){
+  document.getElementById('calEventDate').value = dateStr;
+  openModal('calEventModal');
+}
+
+async function saveCalEvent(){
+  const title       = document.getElementById('calEventTitle').value.trim();
+  const event_date  = document.getElementById('calEventDate').value;
+  const event_time  = document.getElementById('calEventTime').value;
+  const description = document.getElementById('calEventDesc').value.trim();
+  const color       = document.getElementById('calEventColor').value;
+  if(!title){ toast('Inserisci un titolo','err'); return; }
+  if(!event_date){ toast('Seleziona una data','err'); return; }
+  try {
+    await api('POST','/api/calendar',{id:uid(),title,event_date,event_time,description,color});
+    closeModal('calEventModal');
+    document.getElementById('calEventTitle').value='';
+    document.getElementById('calEventTime').value='';
+    document.getElementById('calEventDesc').value='';
+    toast('Evento aggiunto');
+    await loadCalendario();
+  } catch(e){ toast(e.message,'err'); }
+}
+
+async function deleteCalEvent(id){
+  if(!confirm('Eliminare questo evento?')) return;
+  try {
+    await api('DELETE','/api/calendar/'+id);
+    toast('Evento eliminato');
+    await loadCalendario();
+  } catch(e){ toast(e.message,'err'); }
+}
+
 // ── INIT ───────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded',()=>{
+  // Inizializza etichetta mese calendario
+  const lbl = document.getElementById('calMonthLabel');
+  if(lbl) lbl.textContent = MESI[calMonth]+' '+calYear;
   if(token){ tryAutoLogin() } else { showLanding() }
 });
