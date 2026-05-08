@@ -1222,7 +1222,10 @@ canvas{max-height:220px}
         <div class="form-group"><label>Username *</label><input type="text" id="regUser" placeholder="mario.rossi"></div>
         <div class="form-group"><label>Email *</label><input type="email" id="regEmail" placeholder="mario@mail.it"></div>
       </div>
-      <div class="form-group"><label>Nome e Cognome</label><input type="text" id="regName" placeholder="Ten. Mario Rossi"></div>
+      <div class="form-row-2">
+        <div class="form-group"><label>Nome *</label><input type="text" id="regNome" placeholder="Mario"></div>
+        <div class="form-group"><label>Cognome *</label><input type="text" id="regCognome" placeholder="Rossi"></div>
+      </div>
       <div class="form-row-2">
         <div class="form-group"><label>Password *</label><input type="password" id="regPass" placeholder="min 6 caratteri"></div>
         <div class="form-group"><label>Conferma *</label><input type="password" id="regPass2" placeholder="••••••••"></div>
@@ -1357,11 +1360,8 @@ canvas{max-height:220px}
       <div class="card">
         <div class="card-header"><div class="card-title">Modifica Dati Personali</div></div>
         <div class="grid-2">
-          <div class="form-group"><label>Nome e Cognome Completo</label><input type="text" id="prof-name" placeholder="Ten. Mario Rossi"></div>
-          <div class="form-group">
-            <label>Cognome (per ordinamento liste) <span style="color:var(--gold);font-size:.55rem">★ compilare se il cognome è composto</span></label>
-            <input type="text" id="prof-cognome" placeholder="es. Di Iorio · Cuocci Martorano">
-          </div>
+          <div class="form-group"><label>Nome *</label><input type="text" id="prof-nome" placeholder="Mario"></div>
+          <div class="form-group"><label>Cognome * <span style="color:var(--gold);font-size:.55rem">(se composto es. "Di Iorio", scrivilo per intero)</span></label><input type="text" id="prof-cognome" placeholder="es. Rossi · Di Iorio · Cuocci Martorano"></div>
         </div>
         <div class="grid-2">
           <div class="form-group"><label>Grado Militare</label><input type="text" id="prof-rank" placeholder="es. Aspirante, Sottotenente…"></div>
