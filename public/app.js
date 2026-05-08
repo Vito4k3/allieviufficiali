@@ -239,16 +239,17 @@ async function doLogin(){
   } catch(e){ showAuthError(e.message) }
 }
 async function doRegister(){
-  const username=document.getElementById('regUser').value.trim();
-  const email=document.getElementById('regEmail').value.trim();
-  const full_name=document.getElementById('regName').value.trim();
-  const password=document.getElementById('regPass').value;
-  const password2=document.getElementById('regPass2').value;
-  if(!username||!email||!password){ showAuthError('Compila tutti i campi obbligatori'); return }
+  const username = document.getElementById('regUser').value.trim();
+  const email    = document.getElementById('regEmail').value.trim();
+  const nome     = document.getElementById('regNome').value.trim();
+  const cognome  = document.getElementById('regCognome').value.trim();
+  const password = document.getElementById('regPass').value;
+  const password2= document.getElementById('regPass2').value;
+  if(!username||!email||!nome||!cognome||!password){ showAuthError('Compila tutti i campi obbligatori'); return }
   if(password!==password2){ showAuthError('Le password non coincidono'); return }
   if(password.length<6){ showAuthError('Password troppo corta (min 6 caratteri)'); return }
   try {
-    await api('POST','/api/auth/register',{username,email,password,full_name});
+    await api('POST','/api/auth/register',{username,email,password,nome,cognome});
     toast('Account creato! Ora accedi.','info');
     switchAuthTab('login');
     document.getElementById('loginUser').value=username;
@@ -273,7 +274,7 @@ async function loadProfile(){
   document.getElementById('prof-email').textContent = currentUser.email||'—';
   document.getElementById('prof-role-badge').innerHTML = roleBadge(currentUser.role, currentUser.is_admin) ||
     '<span class="role-badge role-none">Allievo</span>';
-  document.getElementById('prof-name').value     = currentUser.full_name||'';
+  document.getElementById('prof-nome').value     = currentUser.nome||'';
   document.getElementById('prof-cognome').value  = currentUser.cognome||'';
   document.getElementById('prof-rank').value     = currentUser.military_rank||'';
   document.getElementById('prof-platoon').value  = currentUser.platoon||'';
@@ -287,14 +288,16 @@ async function loadProfile(){
 }
 
 async function saveProfile(){
-  const full_name     = document.getElementById('prof-name').value.trim();
+  const nome          = document.getElementById('prof-nome').value.trim();
   const cognome       = document.getElementById('prof-cognome').value.trim();
   const military_rank = document.getElementById('prof-rank').value.trim();
   const platoon       = document.getElementById('prof-platoon').value.trim();
   const academic_year = document.getElementById('prof-year').value;
+  if(!nome || !cognome){ toast('Nome e cognome obbligatori','err'); return; }
   try {
-    await api('PUT','/api/profile',{full_name,cognome,military_rank,platoon,academic_year});
-    Object.assign(currentUser, {full_name,cognome,military_rank,platoon,academic_year});
+    await api('PUT','/api/profile',{nome,cognome,military_rank,platoon,academic_year});
+    const full_name = `${nome} ${cognome}`;
+    Object.assign(currentUser, {nome,cognome,full_name,military_rank,platoon,academic_year});
     applyPermissions();
     toast('Profilo aggiornato');
   } catch(e){ toast(e.message,'err') }
@@ -726,38 +729,28 @@ function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
   return extra + `<button class="btn btn-red" onclick="unsignupList('${l.id}')">✗ Rimuovi iscrizione</button>`;
 }
 
-// Estrae chiave di sort: usa 'cognome' se compilato, altrimenti PRIMA parola del full_name
+// ── FUNZIONI NOME ─────────────────────────────────────────────────
+// Chiave di ordinamento: usa cognome direttamente
 function getLastName(s){
-  if(s.cognome && s.cognome.trim()) return s.cognome.trim().toLowerCase();
-  const name = (s.full_name || s.username || '').trim();
-  return (name.split(/\s+/)[0] || '').toLowerCase();
+  return (s.cognome||'').trim().toLowerCase() || (s.full_name||s.username||'').toLowerCase();
 }
 
-// Nome da mostrare nelle liste. Formato uniforme: "Cognome Nome"
-// - Se cognome compilato: rimuove cognome dal full_name e prepende
-// - Se cognome NON compilato: mostra full_name as-is (l'utente lo inserisce già nel formato giusto)
+// Visualizzazione: "Cognome Nome" — uniforme per tutti
 function displayName(s){
-  const fn  = (s.full_name || s.username || '').trim();
-  const cog = (s.cognome || '').trim();
-  if(!cog) return fn;
-  // Già in formato corretto (inizia col cognome)
-  if(fn.toLowerCase().startsWith(cog.toLowerCase())) return fn;
-  // Rimuove il cognome da dove si trova nel full_name, poi prepende
-  const cogEscaped = cog.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
-  const cleaned = fn.replace(new RegExp(cogEscaped,'i'),'').replace(/\s+/g,' ').trim();
-  return `${cog} ${cleaned || fn}`.trim();
+  const cog = (s.cognome||'').trim();
+  const nom = (s.nome||'').trim();
+  if(cog && nom) return `${cog} ${nom}`;
+  if(cog)        return `${cog} ${(s.full_name||s.username||'').replace(cog,'').trim()}`.trim();
+  return (s.full_name||s.username||'').trim();
 }
 
-// Formatta come "Cognome Nome" per Excel, senza gradi militari
+// Per Excel: "Cognome Nome" senza gradi militari
 function formatNameForList(s){
-  const stripRank = str => str.replace(/^(Ten\.|S\.Ten\.|Cap\.|Mag\.|Col\.|Gen\.|Asp\.|Sgt\.|Serg\.|Brig\.|M\.llo|Lgt\.)\s*/i,'').trim();
-  const cog = (s.cognome || '').trim();
-  const fn  = stripRank((s.full_name || s.username || '').trim());
-  if(!cog) return fn;
-  if(fn.toLowerCase().startsWith(cog.toLowerCase())) return fn;
-  const cogEscaped = cog.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
-  const cleaned = fn.replace(new RegExp(cogEscaped,'i'),'').replace(/\s+/g,' ').trim();
-  return `${cog} ${cleaned || fn}`.trim();
+  const cog = (s.cognome||'').trim();
+  const nom = (s.nome||'').trim();
+  if(cog && nom) return `${cog} ${nom}`;
+  if(cog)        return `${cog} ${(s.full_name||'').replace(cog,'').trim()}`.trim();
+  return (s.full_name||s.username||'').trim();
 }
 
 // Scarica la lista come CSV apribile in Excel
@@ -1595,7 +1588,7 @@ async function loadAdminUsers(){
       <tr>
         <td style="color:var(--text3)">${u.id}</td>
         <td>${escHtml(u.username)}</td>
-        <td style="color:var(--text2)">${escHtml(u.full_name||'—')}</td>
+        <td style="color:var(--text2)">${escHtml(u.cognome&&u.nome ? u.cognome+' '+u.nome : u.full_name||'—')}</td>
         <td>
           <select class="role-select" onchange="setUserRole(${u.id},this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:.2rem .4rem;font-family:var(--font-mono);font-size:.65rem">
             ${Object.entries(ROLE_LABELS).map(([val,lbl])=>`<option value="${val}" ${u.role===val?'selected':''}>${lbl}</option>`).join('')}
