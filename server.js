@@ -57,6 +57,32 @@ async function initDB() {
       await c.execute("ALTER TABLE users ADD COLUMN cognome VARCHAR(100) NOT NULL DEFAULT ''");
     } catch(e) { /* colonna già esistente */ }
 
+    // Aggiungi colonna nome (separato da cognome)
+    try {
+      await c.execute("ALTER TABLE users ADD COLUMN nome VARCHAR(100) NOT NULL DEFAULT ''");
+    } catch(e) { /* colonna già esistente */ }
+
+    // ── MIGRAZIONE AUTOMATICA UTENTI ESISTENTI ──────────────────
+    // Per chi ha cognome già impostato manualmente: ricava nome da full_name
+    await c.execute(`
+      UPDATE users
+      SET nome = TRIM(REPLACE(TRIM(full_name), cognome, ''))
+      WHERE cognome != '' AND nome = '' AND full_name != ''
+    `);
+    // Per chi NON ha cognome: ultima parola di full_name → cognome, resto → nome
+    await c.execute(`
+      UPDATE users
+      SET
+        cognome = IF(TRIM(full_name) LIKE '% %',
+          TRIM(SUBSTRING_INDEX(TRIM(full_name), ' ', -1)),
+          TRIM(full_name)),
+        nome = IF(TRIM(full_name) LIKE '% %',
+          TRIM(SUBSTRING(TRIM(full_name), 1,
+            LENGTH(TRIM(full_name)) - LENGTH(SUBSTRING_INDEX(TRIM(full_name),' ',-1)) - 1)),
+          '')
+      WHERE cognome = '' AND full_name != ''
+    `);
+
     // Tabella chat comunicazioni
     await c.execute(`
       CREATE TABLE IF NOT EXISTS comunicazioni_chat (
@@ -199,17 +225,20 @@ app.post('/api/setup', async (req, res) => {
 
 // ── AUTH ──────────────────────────────────────────────────────
 app.post('/api/auth/register', async (req, res) => {
-  const { username, email, password, full_name } = req.body;
+  const { username, email, password, nome, cognome } = req.body;
   if (!username || !email || !password)
     return res.status(400).json({ error: 'Username, email e password sono obbligatori' });
+  if (!nome?.trim() || !cognome?.trim())
+    return res.status(400).json({ error: 'Nome e cognome sono obbligatori' });
   if (password.length < 6)
     return res.status(400).json({ error: 'La password deve avere almeno 6 caratteri' });
   try {
     const c    = await db();
     const hash = await bcrypt.hash(password, 12);
+    const full_name = `${nome.trim()} ${cognome.trim()}`;
     const [result] = await c.execute(
-      "INSERT INTO users (username,email,password_hash,full_name,role) VALUES (?,?,?,?,'none')",
-      [username.trim(), email.trim().toLowerCase(), hash, full_name?.trim() || '']
+      "INSERT INTO users (username,email,password_hash,full_name,nome,cognome,role) VALUES (?,?,?,?,?,?,'none')",
+      [username.trim(), email.trim().toLowerCase(), hash, full_name, nome.trim(), cognome.trim()]
     );
     res.json({ ok: true, id: result.insertId });
   } catch (e) {
@@ -252,7 +281,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_grades,is_admin FROM users WHERE id=?',
+      'SELECT id,username,email,full_name,nome,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_grades,is_admin FROM users WHERE id=?',
       [req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
@@ -267,12 +296,15 @@ app.get('/api/auth/me', auth, async (req, res) => {
 
 // ── PROFILO ───────────────────────────────────────────────────
 app.put('/api/profile', auth, async (req, res) => {
-  const { full_name, cognome, military_rank, platoon, academic_year } = req.body;
+  const { nome, cognome, military_rank, platoon, academic_year } = req.body;
+  if (!nome?.trim() || !cognome?.trim())
+    return res.status(400).json({ error: 'Nome e cognome obbligatori' });
+  const full_name = `${nome.trim()} ${cognome.trim()}`;
   try {
     const c = await db();
     await c.execute(
-      'UPDATE users SET full_name=?, cognome=?, military_rank=?, platoon=?, academic_year=? WHERE id=?',
-      [full_name || '', (cognome||'').trim(), military_rank || '', platoon || '', academic_year || '1° Anno', req.user.id]
+      'UPDATE users SET nome=?, cognome=?, full_name=?, military_rank=?, platoon=?, academic_year=? WHERE id=?',
+      [nome.trim(), cognome.trim(), full_name, military_rank||'', platoon||'', academic_year||'1° Anno', req.user.id]
     );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -682,9 +714,9 @@ app.get('/api/lists/:id', auth, async (req, res) => {
     const [lists] = await c.execute('SELECT * FROM lists WHERE id=?', [req.params.id]);
     if (!lists.length) return res.status(404).json({ error: 'Lista non trovata' });
     const [signups] = await c.execute(`
-      SELECT s.*, u.username, u.full_name, u.cognome, u.military_rank
+      SELECT s.*, u.username, u.full_name, u.nome, u.cognome, u.military_rank
       FROM list_signups s JOIN users u ON s.user_id=u.id
-      WHERE s.list_id=? ORDER BY s.signed_up_at ASC
+      WHERE s.list_id=? ORDER BY s.created_at ASC
     `, [req.params.id]);
     // Carica i parenti parlatorio per ogni iscritto
     const [allRelatives] = await c.execute(
@@ -805,7 +837,7 @@ app.get('/api/admin/users', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,military_rank,role,can_access_finance,can_access_grades,is_admin,created_at FROM users ORDER BY created_at DESC'
+      'SELECT id,username,email,full_name,nome,cognome,military_rank,role,can_access_finance,can_access_grades,is_admin,created_at FROM users ORDER BY cognome ASC, nome ASC'
     );
     rows.forEach(u => {
       u.can_access_finance = !!u.can_access_finance;
