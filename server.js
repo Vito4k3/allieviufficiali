@@ -126,6 +126,20 @@ async function initDB() {
       )
     `);
 
+    // Tabella calendario eventi
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        event_date DATE NOT NULL,
+        event_time VARCHAR(10),
+        description TEXT,
+        color VARCHAR(20) DEFAULT 'gold',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     console.log('   DB: tabelle inizializzate');
   } catch(e) {
     console.error('   DB init error:', e.message);
@@ -642,7 +656,7 @@ app.get('/api/lists', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/lists', auth, requireAdmin, async (req, res) => {
+app.post('/api/lists', auth, async (req, res) => {
   const { id, list_type, list_date, notes } = req.body;
   if (!list_date) return res.status(400).json({ error: 'Data obbligatoria' });
   try {
@@ -670,7 +684,7 @@ app.get('/api/lists/:id', auth, async (req, res) => {
     const [signups] = await c.execute(`
       SELECT s.*, u.username, u.full_name, u.cognome, u.military_rank
       FROM list_signups s JOIN users u ON s.user_id=u.id
-      WHERE s.list_id=? ORDER BY s.signed_up_at ASC
+      WHERE s.list_id=? ORDER BY s.created_at ASC
     `, [req.params.id]);
     // Carica i parenti parlatorio per ogni iscritto
     const [allRelatives] = await c.execute(
@@ -739,6 +753,51 @@ app.delete('/api/lists/:id/relatives/:relId', auth, async (req, res) => {
     await c.execute('DELETE FROM list_relatives WHERE id=? AND user_id=?', [req.params.relId, req.user.id]);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── CALENDARIO ────────────────────────────────────────────────
+app.get('/api/calendar', auth, async (req, res) => {
+  const { month, year } = req.query;
+  try {
+    const c = await db();
+    let query = `
+      SELECT e.*, u.full_name, u.cognome, u.username, u.military_rank
+      FROM calendar_events e JOIN users u ON e.user_id = u.id
+    `;
+    const params = [];
+    if(month && year){
+      query += ' WHERE MONTH(e.event_date)=? AND YEAR(e.event_date)=?';
+      params.push(parseInt(month), parseInt(year));
+    }
+    query += ' ORDER BY e.event_date ASC, e.event_time ASC';
+    const [rows] = await c.execute(query, params);
+    res.json(rows);
+  } catch(e){ res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/calendar', auth, async (req, res) => {
+  const { id, title, event_date, event_time, description, color } = req.body;
+  if(!title?.trim() || !event_date) return res.status(400).json({ error: 'Titolo e data obbligatori' });
+  try {
+    const c = await db();
+    await c.execute(
+      'INSERT INTO calendar_events (id,user_id,title,event_date,event_time,description,color) VALUES (?,?,?,?,?,?,?)',
+      [id, req.user.id, title.trim(), event_date, event_time||null, description||null, color||'gold']
+    );
+    res.json({ ok: true });
+  } catch(e){ res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/calendar/:id', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute('SELECT user_id FROM calendar_events WHERE id=?', [req.params.id]);
+    if(!rows.length) return res.status(404).json({ error: 'Evento non trovato' });
+    if(rows[0].user_id !== req.user.id && !req.user.is_admin)
+      return res.status(403).json({ error: 'Non puoi eliminare questo evento' });
+    await c.execute('DELETE FROM calendar_events WHERE id=?', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e){ res.status(500).json({ error: e.message }); }
 });
 
 // ── ADMIN ─────────────────────────────────────────────────────
