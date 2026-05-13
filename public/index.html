@@ -3,102 +3,106 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Portale Allievi Ufficiali</title>
+<meta name="description" content="Portale riservato Allievi Ufficiali — Accademia Militare di Modena. Bacheca, comunicazioni, registro voti, finanze e liste.">
+<meta name="theme-color" content="#ece8df">
+<title>Portale Allievi Ufficiali · AM Modena</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════
-   PORTALE AU — DESIGN SYSTEM v3
-   Aesthetic: Sovereign Precision
+   PORTALE AU — Design System v4 (presentazione istituzionale)
    ═══════════════════════════════════════════════════ */
 
 /* ── DARK (default) ── */
 :root,[data-theme="dark"]{
-  --bg:#070b10;
-  --bg-alt:#0a0f18;
-  --surface:#0e1520;
-  --surface2:#131d2c;
-  --surface3:#192638;
-  --surface4:#1f2f44;
-  --border:rgba(255,255,255,.06);
-  --border2:rgba(255,255,255,.11);
-  --border-gold:rgba(196,162,66,.28);
+  color-scheme: dark;
+  --bg:#05080d;
+  --bg-alt:#070c14;
+  --surface:#0b121c;
+  --surface2:#111a28;
+  --surface3:#172235;
+  --surface4:#1e2d42;
+  --border:rgba(255,255,255,.055);
+  --border2:rgba(255,255,255,.12);
+  --border-gold:rgba(212,175,88,.32);
 
-  --gold:#c4a242;
-  --gold-hi:#e8c96a;
-  --gold-lo:#7a622a;
-  --gold-a10:rgba(196,162,66,.10);
-  --gold-a18:rgba(196,162,66,.18);
-  --gold-a30:rgba(196,162,66,.30);
+  --gold:#d4af58;
+  --gold-hi:#f0d78c;
+  --gold-lo:#8a6f2a;
+  --gold-a10:rgba(212,175,88,.09);
+  --gold-a18:rgba(212,175,88,.16);
+  --gold-a30:rgba(212,175,88,.28);
 
-  --green:#1e6640;
-  --green-l:#3aad6e;
-  --green-a12:rgba(58,173,110,.12);
-  --red:#7a1e1e;
-  --red-l:#e05858;
-  --red-a12:rgba(224,88,88,.12);
-  --blue:#1a4080;
-  --blue-l:#5a98f2;
-  --blue-a12:rgba(90,152,242,.12);
-  --amber:#8a5418;
-  --amber-l:#e8a040;
-  --amber-a12:rgba(232,160,64,.12);
-  --purple-light:#c488ff;
+  --green:#1a5c3a;
+  --green-l:#42c78a;
+  --green-a12:rgba(66,199,138,.11);
+  --red:#6e2222;
+  --red-l:#f07070;
+  --red-a12:rgba(240,112,112,.1);
+  --blue:#1e3a6e;
+  --blue-l:#6ba8ff;
+  --blue-a12:rgba(107,168,255,.1);
+  --amber:#8a5a18;
+  --amber-l:#f0b24a;
+  --amber-a12:rgba(240,178,74,.1);
+  --purple-light:#b894f5;
 
-  --text:#d8e2f0;
-  --text2:#7e94b0;
-  --text3:#3e5068;
-  --text4:#243040;
+  --text:#e6edf5;
+  --text2:#8fa3bd;
+  --text3:#54687f;
+  --text4:#384858;
 
-  --sh-sm:0 1px 6px rgba(0,0,0,.4);
-  --sh-md:0 4px 18px rgba(0,0,0,.5);
-  --sh-lg:0 8px 40px rgba(0,0,0,.6);
-  --sh-xl:0 16px 60px rgba(0,0,0,.7);
+  --sh-sm:0 1px 2px rgba(0,0,0,.35), 0 4px 12px rgba(0,0,0,.25);
+  --sh-md:0 4px 6px rgba(0,0,0,.2), 0 12px 28px rgba(0,0,0,.35);
+  --sh-lg:0 8px 16px rgba(0,0,0,.22), 0 24px 48px rgba(0,0,0,.4);
+  --sh-xl:0 16px 32px rgba(0,0,0,.25), 0 40px 80px rgba(0,0,0,.45);
 }
 
 /* ── LIGHT ── */
 [data-theme="light"]{
-  --bg:#f0ebe0;
-  --bg-alt:#ede7db;
+  color-scheme: light;
+  --bg:#ece8df;
+  --bg-alt:#e4dfd4;
   --surface:#ffffff;
-  --surface2:#f6f1e8;
-  --surface3:#ede7db;
-  --surface4:#e4ddd0;
-  --border:rgba(0,0,0,.08);
-  --border2:rgba(0,0,0,.14);
-  --border-gold:rgba(148,112,28,.30);
+  --surface2:#f5f2eb;
+  --surface3:#ebe6dc;
+  --surface4:#e0d9cc;
+  --border:rgba(26,32,48,.08);
+  --border2:rgba(26,32,48,.14);
+  --border-gold:rgba(120,90,28,.28);
 
-  --gold:#946e1c;
-  --gold-hi:#7a5a10;
-  --gold-lo:#c4a242;
-  --gold-a10:rgba(148,112,28,.10);
-  --gold-a18:rgba(148,112,28,.18);
-  --gold-a30:rgba(148,112,28,.30);
+  --gold:#7a5c18;
+  --gold-hi:#5c4510;
+  --gold-lo:#a8862a;
+  --gold-a10:rgba(120,90,24,.08);
+  --gold-a18:rgba(120,90,24,.14);
+  --gold-a30:rgba(120,90,24,.26);
 
-  --green:#1a5c38;
-  --green-l:#177040;
-  --green-a12:rgba(23,112,64,.10);
-  --red:#8a2020;
-  --red-l:#b83030;
-  --red-a12:rgba(184,48,48,.10);
-  --blue:#18387a;
-  --blue-l:#2450b0;
-  --blue-a12:rgba(36,80,176,.10);
+  --green:#145a38;
+  --green-l:#0d7a4a;
+  --green-a12:rgba(13,122,74,.09);
+  --red:#8b2222;
+  --red-l:#c42d2d;
+  --red-a12:rgba(196,45,45,.08);
+  --blue:#1a3d7a;
+  --blue-l:#1e55b8;
+  --blue-a12:rgba(30,85,184,.09);
   --amber:#7a4810;
-  --amber-l:#9c6018;
-  --amber-a12:rgba(156,96,24,.10);
-  --purple-light:#8030cc;
+  --amber-l:#a86208;
+  --amber-a12:rgba(168,98,8,.1);
+  --purple-light:#6b3eb8;
 
-  --text:#1a2030;
-  --text2:#445068;
-  --text3:#8090a8;
-  --text4:#b0bac8;
+  --text:#141a24;
+  --text2:#3d4a5f;
+  --text3:#6b7a90;
+  --text4:#9aa6b8;
 
-  --sh-sm:0 1px 6px rgba(0,0,0,.07);
-  --sh-md:0 4px 18px rgba(0,0,0,.09);
-  --sh-lg:0 8px 40px rgba(0,0,0,.11);
-  --sh-xl:0 16px 60px rgba(0,0,0,.13);
+  --sh-sm:0 1px 2px rgba(20,26,36,.06), 0 4px 12px rgba(20,26,36,.06);
+  --sh-md:0 4px 8px rgba(20,26,36,.06), 0 14px 32px rgba(20,26,36,.08);
+  --sh-lg:0 8px 16px rgba(20,26,36,.07), 0 24px 48px rgba(20,26,36,.1);
+  --sh-xl:0 16px 32px rgba(20,26,36,.08), 0 40px 72px rgba(20,26,36,.12);
 }
 
 :root{
@@ -106,16 +110,20 @@
   --font-b:'Cormorant Garamond',serif;
   --font-m:'JetBrains Mono',monospace;
   --font-u:'Outfit',sans-serif;
-  --r:8px;--r2:14px;--r3:22px;
-  --sidebar-w:252px;
+  --r:10px;--r2:16px;--r3:24px;
+  --sidebar-w:280px;
+  --ease-out:cubic-bezier(.22,.61,.36,1);
+  --focus-ring:0 0 0 2px var(--bg), 0 0 0 4px var(--gold-a30);
 }
 
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-html{font-size:15px;scroll-behavior:smooth}
+html{font-size:15px;scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}
 body{
   background:var(--bg);color:var(--text);
   font-family:var(--font-b);
-  min-height:100vh;overflow-x:hidden;line-height:1.65;
+  min-height:100vh;overflow-x:hidden;line-height:1.6;
+  letter-spacing:.01em;
+  -webkit-font-smoothing:antialiased;
 }
 /* Smooth theme switch */
 body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
@@ -195,27 +203,39 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
 
 /* ── NAV ── */
 .land-nav{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:1.1rem 3.5rem;
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  padding:1rem clamp(1rem, 3vw, 3rem);
   border-bottom:1px solid var(--border);
   position:sticky;top:0;z-index:100;
-  background:rgba(7,11,16,.82);
-  backdrop-filter:blur(18px);
-  -webkit-backdrop-filter:blur(18px);
+  background:rgba(5,8,13,.88);
+  backdrop-filter:saturate(140%) blur(20px);
+  -webkit-backdrop-filter:saturate(140%) blur(20px);
 }
-[data-theme="light"] .land-nav{background:rgba(240,235,224,.88)}
+[data-theme="light"] .land-nav{background:rgba(244,241,234,.92)}
+.land-nav-center{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;min-width:0;padding:0 .5rem;
+}
+.land-inst{
+  font-family:var(--font-u);font-size:.68rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--text2);line-height:1.3;
+}
+.land-inst-sub{
+  font-family:var(--font-m);font-size:.52rem;color:var(--text3);letter-spacing:.2em;text-transform:uppercase;margin-top:.15rem;
+}
+@media(max-width:900px){.land-nav-center{display:none}}
 .land-logo{display:flex;align-items:center;gap:.85rem;text-decoration:none}
 .land-emblem{
-  width:40px;height:40px;border-radius:50%;
+  width:44px;height:44px;border-radius:50%;
   border:1px solid var(--border-gold);
   display:flex;align-items:center;justify-content:center;
-  font-size:1.15rem;
-  background:radial-gradient(circle,var(--surface3) 55%,var(--bg) 100%);
-  box-shadow:0 0 24px var(--gold-a10);
+  font-size:1.2rem;
+  background:radial-gradient(circle at 30% 25%,var(--surface3) 0%,var(--bg) 100%);
+  box-shadow:0 0 0 1px rgba(212,175,88,.08), 0 8px 24px rgba(0,0,0,.35);
   flex-shrink:0;
 }
-.land-logo-text{font-family:var(--font-d);font-size:.82rem;color:var(--gold);letter-spacing:.2em;line-height:1.2}
-.land-logo-sub{font-family:var(--font-m);font-size:.48rem;color:var(--text3);letter-spacing:.3em;text-transform:uppercase}
+.land-logo-text{font-family:var(--font-d);font-size:.84rem;color:var(--gold);letter-spacing:.22em;line-height:1.2;font-weight:600}
+.land-logo-sub{font-family:var(--font-m);font-size:.5rem;color:var(--text3);letter-spacing:.32em;text-transform:uppercase}
 .land-nav-btns{display:flex;align-items:center;gap:.6rem}
 
 /* ── HERO ── */
@@ -250,11 +270,16 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
   background-clip:text;
 }
 .hero-sub{
-  font-family:var(--font-b);font-style:italic;
-  font-size:1.25rem;color:var(--text2);
-  max-width:520px;margin:0 auto 2.8rem;
-  line-height:1.9;
+  font-family:var(--font-u);font-style:normal;font-weight:400;
+  font-size:1.08rem;color:var(--text2);
+  max-width:540px;margin:0 auto 2.4rem;
+  line-height:1.75;
   animation:fadeUp .7s .2s ease both;
+}
+.hero-kicker{
+  font-family:var(--font-m);font-size:.56rem;color:var(--gold);letter-spacing:.28em;text-transform:uppercase;
+  margin-bottom:1rem;opacity:.95;
+  animation:fadeUp .65s .08s ease both;
 }
 .hero-actions{
   display:flex;gap:.9rem;justify-content:center;flex-wrap:wrap;
@@ -372,50 +397,57 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
 .step-body p{font-family:var(--font-u);font-size:.83rem;color:var(--text2);line-height:1.75}
 
 .land-footer{
-  text-align:center;padding:2rem;
+  text-align:center;padding:2.25rem 1.5rem 2.5rem;
   border-top:1px solid var(--border);
   background:var(--surface);
-  font-family:var(--font-m);font-size:.58rem;color:var(--text4);letter-spacing:.22em;
 }
-.land-footer b{color:var(--gold);font-weight:400;opacity:.5}
+.land-footer-line1{
+  font-family:var(--font-d);font-size:.62rem;color:var(--gold);letter-spacing:.28em;text-transform:uppercase;margin-bottom:.5rem;
+}
+.land-footer-line2{
+  font-family:var(--font-m);font-size:.54rem;color:var(--text3);letter-spacing:.12em;line-height:1.7;
+}
+.land-footer b{color:var(--gold);font-weight:500;opacity:.65}
 
 /* ════════════════════════════════════════════════════
    BUTTONS
    ════════════════════════════════════════════════════ */
 .btn{
-  font-family:var(--font-m);font-size:.64rem;letter-spacing:.1em;
-  padding:.48rem 1.2rem;
-  border:1px solid var(--border2);border-radius:var(--r);
+  font-family:var(--font-u);font-size:.68rem;font-weight:600;letter-spacing:.06em;
+  padding:.55rem 1.25rem;
+  border:1px solid var(--border2);border-radius:var(--r2);
   cursor:pointer;
   background:var(--surface2);color:var(--text2);
-  text-transform:uppercase;text-decoration:none;
-  display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;
+  text-transform:none;text-decoration:none;
+  display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;
   box-shadow:var(--sh-sm);
-  transition:all .18s;
+  transition:transform .15s var(--ease-out), border-color .2s, background .2s, color .2s, box-shadow .2s;
 }
-.btn:hover{border-color:var(--border2);color:var(--text);background:var(--surface3)}
-.btn-gold{border-color:var(--border-gold);color:var(--gold);background:var(--gold-a10)}
-.btn-gold:hover{background:var(--gold-a18);border-color:var(--gold-lo);box-shadow:0 0 18px var(--gold-a10),var(--sh-sm);color:var(--gold-hi)}
-.btn-green{border-color:var(--green);color:var(--green-l);background:var(--green-a12)}
-.btn-green:hover{background:rgba(58,173,110,.22)}
-.btn-red{border-color:var(--red);color:var(--red-l);background:var(--red-a12)}
-.btn-red:hover{background:rgba(224,88,88,.22)}
-.btn-blue{border-color:var(--blue);color:var(--blue-l);background:var(--blue-a12)}
-.btn-blue:hover{background:rgba(90,152,242,.22)}
-.btn-lg{font-size:.76rem;padding:.75rem 2.2rem;border-radius:var(--r2)}
-.btn-sm{font-size:.58rem;padding:.2rem .55rem}
+.btn:hover{border-color:var(--border2);color:var(--text);background:var(--surface3);transform:translateY(-1px)}
+.btn:focus-visible{outline:none;box-shadow:var(--focus-ring), var(--sh-sm)}
+.btn-gold{border-color:var(--border-gold);color:var(--gold-hi);background:linear-gradient(165deg,var(--gold-a18),var(--gold-a10))}
+.btn-gold:hover{background:linear-gradient(165deg,var(--gold-a30),var(--gold-a18));border-color:var(--gold);color:var(--gold-hi);box-shadow:0 0 0 1px var(--gold-a18), var(--sh-md)}
+.btn-green{border-color:rgba(66,199,138,.35);color:var(--green-l);background:var(--green-a12)}
+.btn-green:hover{background:rgba(66,199,138,.2)}
+.btn-red{border-color:rgba(240,112,112,.35);color:var(--red-l);background:var(--red-a12)}
+.btn-red:hover{background:rgba(240,112,112,.18)}
+.btn-blue{border-color:rgba(107,168,255,.35);color:var(--blue-l);background:var(--blue-a12)}
+.btn-blue:hover{background:rgba(107,168,255,.16)}
+.btn-lg{font-size:.78rem;padding:.82rem 2rem;border-radius:var(--r2)}
+.btn-sm{font-size:.6rem;padding:.28rem .62rem;border-radius:var(--r)}
 
 /* ════════════════════════════════════════════════════
    THEME TOGGLE
    ════════════════════════════════════════════════════ */
 .theme-toggle{
-  width:36px;height:36px;border-radius:50%;
+  width:38px;height:38px;border-radius:10px;
   border:1px solid var(--border2);
   background:var(--surface2);color:var(--text2);
   cursor:pointer;display:flex;align-items:center;justify-content:center;
-  font-size:.95rem;flex-shrink:0;transition:all .2s;
+  font-size:.95rem;flex-shrink:0;transition:transform .15s, border-color .2s, background .2s, color .2s;
 }
-.theme-toggle:hover{border-color:var(--border-gold);color:var(--gold);background:var(--gold-a10)}
+.theme-toggle:hover{border-color:var(--border-gold);color:var(--gold);background:var(--gold-a10);transform:translateY(-1px)}
+.theme-toggle:focus-visible{outline:none;box-shadow:var(--focus-ring)}
 [data-theme="dark"] .icon-sun{display:inline}[data-theme="dark"] .icon-moon{display:none}
 [data-theme="light"] .icon-sun{display:none}[data-theme="light"] .icon-moon{display:inline}
 
@@ -519,34 +551,43 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
 /* ════════════════════════════════════════════════════
    APP SHELL
    ════════════════════════════════════════════════════ */
-#app{display:grid;grid-template-columns:var(--sidebar-w) 1fr;min-height:100vh}
+#app{display:grid;grid-template-columns:var(--sidebar-w) 1fr;min-height:100vh;height:100vh}
 
 /* ── SIDEBAR ── */
 aside{
-  background:var(--surface);
+  background:linear-gradient(180deg,var(--surface) 0%,var(--surface2) 100%);
   border-right:1px solid var(--border);
   display:flex;flex-direction:column;
   position:sticky;top:0;height:100vh;overflow-y:auto;
-  box-shadow:6px 0 28px rgba(0,0,0,.25);
+  box-shadow:4px 0 32px rgba(0,0,0,.18);
   z-index:50;
 }
+aside::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:linear-gradient(180deg,var(--gold-lo),var(--gold),var(--gold-lo));
+  opacity:.55;pointer-events:none;
+}
 .sb-header{
-  padding:1.3rem 1.2rem;
+  padding:1.35rem 1.25rem 1.25rem;
   border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:.72rem;
-  background:var(--surface2);
+  display:flex;align-items:flex-start;gap:.85rem;
+  background:linear-gradient(135deg,var(--surface2),var(--surface));
   flex-shrink:0;
 }
 .sb-emblem{
-  width:34px;height:34px;border-radius:50%;
+  width:40px;height:40px;border-radius:12px;
   border:1px solid var(--border-gold);
   display:flex;align-items:center;justify-content:center;
-  font-size:.95rem;flex-shrink:0;
-  background:radial-gradient(circle,var(--surface3) 50%,var(--bg));
-  box-shadow:0 0 16px var(--gold-a10);
+  font-size:1rem;flex-shrink:0;
+  background:radial-gradient(circle at 30% 20%,var(--surface3),var(--surface));
+  box-shadow:0 4px 16px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.04);
 }
-.sb-title{font-family:var(--font-d);font-size:.7rem;color:var(--gold);letter-spacing:.18em;line-height:1.25}
-.sb-sub{font-family:var(--font-m);font-size:.48rem;color:var(--text3);letter-spacing:.26em;text-transform:uppercase;margin-top:.1rem}
+.sb-title{font-family:var(--font-d);font-size:.72rem;color:var(--gold);letter-spacing:.2em;line-height:1.3;font-weight:600}
+.sb-sub{font-family:var(--font-m);font-size:.48rem;color:var(--text3);letter-spacing:.24em;text-transform:uppercase;margin-top:.2rem}
+.sb-org{
+  font-family:var(--font-u);font-size:.58rem;font-weight:500;color:var(--text3);
+  letter-spacing:.04em;margin-top:.35rem;line-height:1.35;max-width:14rem;
+}
 
 .sb-user{
   padding:1rem 1.2rem;
@@ -557,15 +598,15 @@ aside{
 }
 .sb-user:hover{background:var(--surface2)}
 .sb-avatar{
-  width:34px;height:34px;border-radius:50%;
-  background:linear-gradient(135deg,var(--gold-a18),var(--surface3));
+  width:40px;height:40px;border-radius:12px;
+  background:linear-gradient(145deg,var(--gold-a18),var(--surface3));
   border:1px solid var(--border-gold);
   display:flex;align-items:center;justify-content:center;
-  font-family:var(--font-d);font-size:.75rem;color:var(--gold);
+  font-family:var(--font-d);font-size:.78rem;color:var(--gold);
   flex-shrink:0;
 }
-.sb-user-name{font-family:var(--font-m);font-size:.74rem;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-user-rank{font-family:var(--font-m);font-size:.55rem;color:var(--text3);letter-spacing:.1em;margin-top:.1rem}
+.sb-user-name{font-family:var(--font-u);font-size:.78rem;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-user-rank{font-family:var(--font-m);font-size:.54rem;color:var(--text3);letter-spacing:.08em;margin-top:.12rem}
 .sb-user-role{margin-top:.2rem}
 .sb-user-hint{font-family:var(--font-m);font-size:.5rem;color:var(--text4);margin-top:.25rem;letter-spacing:.1em}
 
@@ -578,16 +619,18 @@ aside{
 .sb-section::after{content:'';flex:1;height:1px;background:var(--border)}
 
 nav a.sb-link{
-  display:flex;align-items:center;gap:.62rem;
-  padding:.56rem 1.2rem;
+  display:flex;align-items:center;gap:.65rem;
+  padding:.58rem 1.15rem .58rem 1rem;
+  margin:0 .35rem;border-radius:0 var(--r2) var(--r2) 0;
   color:var(--text3);text-decoration:none;
-  font-family:var(--font-m);font-size:.64rem;letter-spacing:.04em;
-  border-left:2px solid transparent;cursor:pointer;
-  transition:all .18s;
+  font-family:var(--font-u);font-size:.74rem;font-weight:500;letter-spacing:.02em;
+  border-left:3px solid transparent;cursor:pointer;
+  transition:background .18s, color .18s, border-color .18s;
 }
-nav a.sb-link:hover{color:var(--text2);background:rgba(255,255,255,.02)}
+nav a.sb-link:hover{color:var(--text);background:rgba(212,175,88,.06)}
 nav a.sb-link.active{
-  color:var(--gold);background:var(--gold-a10);border-left-color:var(--gold);
+  color:var(--text);background:linear-gradient(90deg,var(--gold-a18),transparent);
+  border-left-color:var(--gold);
 }
 .sb-icon{width:16px;text-align:center;font-size:.85rem;flex-shrink:0}
 
@@ -611,12 +654,15 @@ nav a.sb-link.active{
 @keyframes badgePop{from{transform:scale(0)}to{transform:scale(1)}}
 
 .sb-footer{
-  padding:.85rem 1rem;
+  padding:1rem 1rem 1.1rem;
   border-top:1px solid var(--border);
-  display:flex;gap:.5rem;align-items:center;
+  display:flex;flex-wrap:wrap;gap:.5rem;align-items:stretch;
   flex-shrink:0;
-  background:var(--surface2);
+  background:var(--surface);
 }
+.sb-footer-actions{flex-direction:column;align-items:stretch}
+.sb-footer-actions .btn{flex:none;width:100%}
+.sb-footer-actions .theme-toggle-footer{align-self:center;margin-top:.15rem}
 
 /* ── MOBILE TOPBAR ── */
 .mobile-topbar{
@@ -670,39 +716,46 @@ nav a.sb-link.active{
 .drawer-close:hover{color:var(--red-l);border-color:var(--red)}
 
 /* ── MAIN ── */
-main{overflow-x:hidden;background:var(--bg-alt);min-width:0}
-.page{display:none;padding:2rem;animation:fadeIn .22s ease}
-.page.active{display:block}
-
-/* Page header */
-.page-hd{margin-bottom:1.8rem;padding-bottom:1.1rem;border-bottom:1px solid var(--border)}
-.page-title{
-  font-family:var(--font-d);font-size:1.35rem;color:var(--text);
-  letter-spacing:.07em;margin-bottom:.22rem;
+main{
+  overflow-x:hidden;overflow-y:auto;
+  background:
+    radial-gradient(ellipse 80% 50% at 100% 0%, var(--gold-a10) 0%, transparent 45%),
+    var(--bg-alt);
+  min-width:0;
+  min-height:0;
 }
-.page-title em{color:var(--gold);font-style:normal}
-.page-desc{font-family:var(--font-m);font-size:.57rem;color:var(--text3);letter-spacing:.18em;text-transform:uppercase}
-/* Also support old .page-title without .page-hd */
+.page{display:none;padding:clamp(1.25rem, 2.5vw, 2.25rem) clamp(1.25rem, 3vw, 2.75rem) 3rem;animation:fadeIn .28s var(--ease-out);max-width:1280px;margin:0 auto}
+.page.active{display:block}
+.page-title{
+  font-family:var(--font-d);font-size:clamp(1.2rem, 2.2vw, 1.45rem);color:var(--text);
+  letter-spacing:.12em;margin-bottom:.35rem;font-weight:600;
+}
+.page-title em{color:var(--gold);font-style:normal;font-weight:600}
+.page-desc{font-family:var(--font-m);font-size:.58rem;color:var(--text3);letter-spacing:.16em;text-transform:uppercase;margin-bottom:1.75rem;padding-bottom:1rem;border-bottom:1px solid var(--border)}
 div.page-title{margin-bottom:.2rem}
 div.page-desc{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--border)}
+.page-hd{margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--border)}
+.page-hd .page-desc{margin-bottom:0;padding-bottom:0;border-bottom:none}
 
 /* ════════════════════════════════════════════════════
    CARDS
    ════════════════════════════════════════════════════ */
 .card{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r2);padding:1.5rem;
-  margin-bottom:1.2rem;
+  border-radius:var(--r2);padding:1.35rem 1.45rem;
+  margin-bottom:1.15rem;
   box-shadow:var(--sh-sm);
   position:relative;overflow:hidden;
+  transition:border-color .2s, box-shadow .2s;
 }
 .card::before{
   content:'';position:absolute;top:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent,var(--border2),transparent);
+  background:linear-gradient(90deg,transparent,var(--gold-a30),transparent);
+  opacity:.6;
 }
-.card:hover{border-color:var(--border2)}
-.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem}
-.card-title{font-family:var(--font-d);font-size:.9rem;color:var(--text);letter-spacing:.07em}
+.card:hover{border-color:var(--border2);box-shadow:var(--sh-md)}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:1rem}
+.card-title{font-family:var(--font-d);font-size:.92rem;color:var(--text);letter-spacing:.1em;font-weight:600}
 .card-meta{font-family:var(--font-m);font-size:.58rem;color:var(--text3);letter-spacing:.1em}
 
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
@@ -841,7 +894,8 @@ div.page-desc{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var
 .chat-container{
   background:var(--surface);border:1px solid var(--border);
   border-radius:var(--r2);display:flex;flex-direction:column;
-  height:60vh;min-height:400px;overflow:hidden;
+  height:min(62vh,640px);min-height:420px;overflow:hidden;
+  box-shadow:var(--sh-sm);
 }
 .chat-messages{flex:1;overflow-y:auto;padding:1.2rem 1.5rem;display:flex;flex-direction:column;gap:.8rem}
 .chat-empty{text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-m);font-size:.68rem;margin:auto}
@@ -952,7 +1006,12 @@ canvas{max-height:220px}
 /* ════════════════════════════════════════════════════
    LISTE
    ════════════════════════════════════════════════════ */
-.list-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:.8rem;overflow:hidden}
+.list-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);
+  margin-bottom:.85rem;overflow:hidden;box-shadow:var(--sh-sm);
+  transition:box-shadow .2s, border-color .2s;
+}
+.list-card:hover{box-shadow:var(--sh-md);border-color:var(--border2)}
 .list-card-header{padding:.88rem 1.2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:background .14s}
 .list-card-header:hover{background:rgba(255,255,255,.02)}
 .list-card-body{padding:1rem 1.2rem;border-top:1px solid var(--border);display:none}
@@ -1021,13 +1080,14 @@ canvas{max-height:220px}
    TOAST
    ════════════════════════════════════════════════════ */
 #toast{
-  position:fixed;bottom:2rem;right:2rem;
+  position:fixed;bottom:1.75rem;right:1.75rem;left:auto;
   background:var(--surface);border:1px solid var(--border2);
-  border-radius:var(--r);padding:.82rem 1.25rem;
-  font-family:var(--font-m);font-size:.74rem;
-  z-index:500;transform:translateY(120%);opacity:0;
-  transition:all .33s cubic-bezier(.22,.61,.36,1);
-  max-width:320px;box-shadow:var(--sh-lg);color:var(--text);
+  border-radius:var(--r2);padding:.95rem 1.35rem;
+  font-family:var(--font-u);font-size:.78rem;font-weight:500;
+  z-index:500;transform:translateY(140%);opacity:0;
+  transition:transform .35s var(--ease-out), opacity .35s;
+  max-width:min(360px,calc(100vw - 2.5rem));box-shadow:var(--sh-lg);color:var(--text);
+  border-left:4px solid var(--text3);
 }
 #toast.show{transform:translateY(0);opacity:1}
 #toast.ok{border-left:3px solid var(--green-l)}
@@ -1038,7 +1098,7 @@ canvas{max-height:220px}
    RESPONSIVE
    ════════════════════════════════════════════════════ */
 @media(max-width:960px){
-  #app{grid-template-columns:1fr}
+  #app{grid-template-columns:1fr;height:auto;min-height:100vh}
   aside{display:none}
   .mobile-topbar{display:flex}
   main{min-height:calc(100vh - 54px)}
@@ -1107,6 +1167,10 @@ canvas{max-height:220px}
         <div class="land-logo-sub">Allievi Ufficiali</div>
       </div>
     </div>
+    <div class="land-nav-center">
+      <span class="land-inst">Accademia Militare di Modena</span>
+      <span class="land-inst-sub">Sistema informativo · Uso interno</span>
+    </div>
     <div class="land-nav-btns">
       <button class="theme-toggle" onclick="toggleTheme()" title="Cambia tema">
         <span class="icon-sun">☀</span><span class="icon-moon">☾</span>
@@ -1117,12 +1181,13 @@ canvas{max-height:220px}
   </nav>
 
   <div class="land-hero">
-    <div class="hero-eyebrow">⚔ &nbsp;Sistema Integrato Allievi Ufficiali</div>
+    <p class="hero-kicker">Accademia Militare di Modena</p>
+    <div class="hero-eyebrow">Sistema integrato · Allievi Ufficiali</div>
     <h1 class="hero-title">
       Portale
       <span class="ht-accent">Allievi Ufficiali</span>
     </h1>
-    <p class="hero-sub">Voti, finanze, comunicazioni, liste e graduatoria — tutto in un unico sistema riservato.</p>
+    <p class="hero-sub">Registro voti, gestione finanziaria, comunicazioni ufficiali, liste di reparto e calendario — un ambiente unico, strutturato e riservato.</p>
     <div class="hero-actions">
       <button class="btn btn-gold btn-lg" onclick="showAuth('register')">✦ &nbsp;Inizia Ora</button>
       <button class="btn btn-lg" onclick="showAuth('login')">→ &nbsp;Accedi al Portale</button>
@@ -1149,33 +1214,33 @@ canvas{max-height:220px}
     <div class="land-features">
       <div class="feat-card">
         <div class="feat-icon-wrap">📢</div>
-        <div class="feat-title">Bacheca Annunci</div>
-        <div class="feat-desc">Messaggi in tempo reale per tutti gli allievi registrati, con aggiornamento automatico ogni 15 secondi.</div>
+        <div class="feat-title">Bacheca annunci</div>
+        <div class="feat-desc">Comunicazioni di reparto visibili a tutti gli utenti registrati, con aggiornamento periodico automatico.</div>
       </div>
       <div class="feat-card">
         <div class="feat-icon-wrap">💬</div>
         <div class="feat-title">Comunicazioni</div>
-        <div class="feat-desc">Chat ufficiale di reparto e comunicati firmati dagli ufficiali. Accesso in scrittura per ruoli autorizzati.</div>
+        <div class="feat-desc">Canale chat ufficiale e pubblicazione di comunicati con allegati. Scrittura riservata ai ruoli autorizzati.</div>
       </div>
       <div class="feat-card">
         <div class="feat-icon-wrap">🎓</div>
-        <div class="feat-title">Registro Voti</div>
-        <div class="feat-desc">Esami universitari, accertamenti militari, esami ginnici. Due medie separate e graduatoria finale.</div>
+        <div class="feat-title">Registro voti</div>
+        <div class="feat-desc">Università, accertamenti militari e ginnastica con medie distinte e sintesi per la graduatoria.</div>
       </div>
       <div class="feat-card">
         <div class="feat-icon-wrap">📋</div>
         <div class="feat-title">Liste</div>
-        <div class="feat-desc">Liberi uscenti, messa, parlatorio e liste personalizzate. Iscrizione immediata con gestione parenti.</div>
+        <div class="feat-desc">Liberi uscenti, messa, parlatorio e liste personalizzate con campi configurabili ed export tabellare.</div>
       </div>
       <div class="feat-card">
         <div class="feat-icon-wrap">💰</div>
         <div class="feat-title">Finanze</div>
-        <div class="feat-desc">Entrate, uscite, investimenti e ricavi con grafici mensili e storico completo su database.</div>
+        <div class="feat-desc">Rilevazione entrate, uscite, investimenti e ricavi con indicatori e grafici mensili.</div>
       </div>
       <div class="feat-card">
         <div class="feat-icon-wrap">🔐</div>
-        <div class="feat-title">Permessi & Ruoli</div>
-        <div class="feat-desc">L'admin assegna ruoli e permessi che si attivano immediatamente senza necessità di ri-login.</div>
+        <div class="feat-title">Governance</div>
+        <div class="feat-desc">Amministratori che gestiscono ruoli e permessi con effetto immediato sulle funzioni sensibili.</div>
       </div>
     </div>
   </div>
@@ -1201,7 +1266,8 @@ canvas{max-height:220px}
   </div>
 
   <footer class="land-footer">
-    PORTALE ALLIEVI UFFICIALI <b>✦</b> TUTTI I DIRITTI RISERVATI <b>✦</b> SISTEMA RISERVATO
+    <div class="land-footer-line1">Portale Allievi Ufficiali</div>
+    <div class="land-footer-line2">Uso riservato · Trattamento dati secondo normativa vigente · <b>AM Modena</b></div>
   </footer>
 </div>
 
@@ -1263,7 +1329,11 @@ canvas{max-height:220px}
     <!-- Stessi contenuti della sidebar desktop, clonati via JS -->
     <div class="sb-header">
       <div class="sb-emblem">⚔</div>
-      <div><div class="sb-title">Portale AU</div><div class="sb-sub">Allievi Ufficiali</div></div>
+      <div>
+        <div class="sb-title">Portale AU</div>
+        <div class="sb-sub">Allievi Ufficiali</div>
+        <div class="sb-org">Accademia Militare di Modena</div>
+      </div>
     </div>
     <div class="sb-user" onclick="showPage('profilo',null);closeDrawer()">
       <div class="sb-avatar" id="drawerAvatar">A</div>
@@ -1301,7 +1371,11 @@ canvas{max-height:220px}
   <aside>
     <div class="sb-header">
       <div class="sb-emblem">⚔</div>
-      <div><div class="sb-title">Portale AU</div><div class="sb-sub">Allievi Ufficiali</div></div>
+      <div>
+        <div class="sb-title">Portale AU</div>
+        <div class="sb-sub">Allievi Ufficiali</div>
+        <div class="sb-org">Accademia Militare di Modena</div>
+      </div>
     </div>
     <div class="sb-user" onclick="showPage('profilo', document.querySelector('[data-page=profilo]'))">
       <div class="sb-avatar" id="sbAvatar">A</div>
@@ -1330,10 +1404,10 @@ canvas{max-height:220px}
         <a class="sb-link" onclick="showPage('admin',this)"><span class="sb-icon">🔐</span>Gestione Utenti</a>
       </nav>
     </div>
-    <div class="sb-footer">
-      <button class="btn btn-sm w-full" style="justify-content:center;margin-bottom:.4rem" onclick="showPage('profilo',null)">👤 Profilo</button>
-      <button class="btn btn-sm btn-red w-full" style="justify-content:center" onclick="doLogout()">⏻ Esci</button>
-      <button class="theme-toggle" onclick="toggleTheme()" title="Tema" style="margin-left:.3rem;flex-shrink:0">
+    <div class="sb-footer sb-footer-actions">
+      <button class="btn btn-sm w-full" style="justify-content:center;margin-bottom:.4rem" onclick="showPage('profilo',null)">Profilo</button>
+      <button class="btn btn-sm btn-red w-full" style="justify-content:center;margin-bottom:.4rem" onclick="doLogout()">Esci</button>
+      <button class="theme-toggle theme-toggle-footer" onclick="toggleTheme()" title="Tema chiaro/scuro" aria-label="Cambia tema">
         <span class="icon-sun">☀</span><span class="icon-moon">☾</span>
       </button>
     </div>
@@ -1383,7 +1457,7 @@ canvas{max-height:220px}
     <!-- ── BACHECA ── -->
     <div class="page active" id="page-bacheca">
       <div class="page-title">Bacheca <em>Annunci</em></div>
-      <div class="page-desc"><span class="poll-dot"></span>Aggiornamento automatico ogni 15 secondi</div>
+      <div class="page-desc"><span class="poll-dot"></span>Aggiornamento periodico automatico degli annunci</div>
       <div class="post-form card">
         <div class="form-group" style="margin-bottom:.8rem"><label>Nuovo Annuncio</label><textarea id="postContent" placeholder="Scrivi qui il tuo annuncio per i commilitoni..." rows="3"></textarea></div>
         <div style="display:flex;justify-content:flex-end"><button class="btn btn-gold" onclick="postAnnouncement()">📢 &nbsp;Pubblica</button></div>
@@ -1489,7 +1563,7 @@ canvas{max-height:220px}
         <div class="card">
           <div class="card-header"><div class="card-title">Transazioni</div><button class="btn btn-gold" onclick="openTxModal()">+ &nbsp;Aggiungi</button></div>
           <div class="fin-filter-row">
-            <div class="search-wrap"><span class="search-icon">🔍</span><input type="text" id="finSearch" placeholder="Cerca..." onkeyup="renderFinTx()"></div>
+            <div class="search-wrap"><span class="search-icon">🔍</span><input type="text" id="finSearch" placeholder="Cerca…" autocomplete="off" oninput="scheduleFinSearch()"></div>
             <button class="filter-btn active" onclick="setFinFilter('all',this)">Tutti</button>
             <button class="filter-btn" onclick="setFinFilter('guadagno',this)">Guadagni</button>
             <button class="filter-btn" onclick="setFinFilter('spesa',this)">Spese</button>
@@ -1840,11 +1914,15 @@ function toggleTheme(){
   const next=h.getAttribute('data-theme')==='dark'?'light':'dark';
   h.setAttribute('data-theme',next);
   localStorage.setItem('au-theme',next);
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', next==='dark' ? '#05080d' : '#ece8df');
 }
 (function(){
   const s=localStorage.getItem('au-theme');
-  // Default: light. Solo se salvato esplicitamente usa il valore salvato
-  document.documentElement.setAttribute('data-theme', s||'light');
+  const t = s||'light';
+  document.documentElement.setAttribute('data-theme', t);
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', t==='dark' ? '#05080d' : '#ece8df');
 })();
 
 /* ── MOBILE DRAWER ── */
