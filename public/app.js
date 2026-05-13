@@ -1,8 +1,8 @@
 'use strict';
 
 const API = 'https://sito-allievi-accademia-militare.onrender.com';
-const DOC_TITLE_APP = 'Portale AU · AM Modena';
-const DOC_TITLE_PUBLIC = 'Portale Allievi Ufficiali · AM Modena';
+const DOC_TITLE_APP = 'Portale AU';
+const DOC_TITLE_PUBLIC = 'Portale Allievi Ufficiali';
 const SECTION_DOC_TITLES = {
   bacheca:'Bacheca annunci', comunicazioni:'Comunicazioni', calendario:'Calendario', liste:'Liste',
   finanze:'Gestione finanze', voti:'Voti e registro', profilo:'Profilo', admin:'Gestione utenti'
@@ -1561,10 +1561,11 @@ async function deletePenalty(id,type){
 
 // ORARIO
 const DAYS=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
-const HOURS=['07:30','08:30','09:30','10:30','11:30','12:30','13:30','14:30','15:30','16:30','17:30','18:30'];
+// Inizio lezioni 08:10, durata 45'. Prima pausa 5', poi pause 10' fino a pausa pranzo 13:40–14:10; ripresa 14:20, pause pomeriggio 5'.
+const HOURS=['08:10','09:00','09:55','10:50','11:45','12:40','14:20','15:10','16:00','16:50','17:40','18:30'];
 function renderSchedule(){
   const grid=document.getElementById('scheduleGrid');
-  grid.style.gridTemplateColumns='70px repeat(6,1fr)';
+  grid.style.gridTemplateColumns='76px repeat(6,1fr)';
   grid.style.gridTemplateRows=`auto repeat(${HOURS.length},50px)`;
   grid.innerHTML='';
   const mkC=(cls,txt)=>{ const c=document.createElement('div');c.className=cls;c.textContent=txt;return c };
@@ -1689,6 +1690,7 @@ function switchVotiTab(id,btn){
 async function loadAdminUsers(){
   try {
     const users=await api('GET','/api/admin/users');
+    users.sort((a,b)=>Number(b.id)-Number(a.id));
     document.getElementById('adminUserBody').innerHTML=users.map(u=>`
       <tr>
         <td style="color:var(--text3)">${u.id}</td>
