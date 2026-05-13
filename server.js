@@ -1,5 +1,5 @@
 // ============================================================
-//  ACCADEMIA MILITARE DI MODENA — Backend Server
+//  Portale Allievi Ufficiali — Backend Server
 //  Node.js + Express + MySQL
 // ============================================================
 'use strict';
@@ -16,7 +16,7 @@ const app = express();
 app.disable('x-powered-by');
 
 // ── CONFIG ────────────────────────────────────────────────────
-const JWT_SECRET = process.env.JWT_SECRET || 'accademia_modena_jwt_secret_2024_CAMBIA_IN_PROD';
+const JWT_SECRET = process.env.JWT_SECRET || 'portale_au_jwt_secret_CAMBIA_IN_PROD';
 const PORT       = parseInt(process.env.PORT || '3000');
 
 const DB_CONFIG = {
@@ -904,7 +904,7 @@ app.get('/api/admin/users', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,nome,cognome,military_rank,role,can_access_finance,can_access_grades,is_admin,created_at FROM users ORDER BY cognome ASC, nome ASC'
+      'SELECT id,username,email,full_name,nome,cognome,military_rank,role,can_access_finance,can_access_grades,is_admin,created_at FROM users ORDER BY id DESC'
     );
     rows.forEach(u => {
       u.can_access_finance = !!u.can_access_finance;
@@ -945,7 +945,7 @@ app.get('*', (req, res) => {
 
 // ── START ─────────────────────────────────────────────────────
 app.listen(PORT, async () => {
-  console.log(`\n⚔  Accademia Modena — Server avviato`);
+  console.log(`\n⚔  Portale AU — Server avviato`);
   console.log(`   URL:  http://localhost:${PORT}`);
   console.log(`   DB:   ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}\n`);
   await initDB();
