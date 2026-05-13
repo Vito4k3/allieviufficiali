@@ -1,6 +1,12 @@
 'use strict';
 
 const API = 'https://sito-allievi-accademia-militare.onrender.com';
+const DOC_TITLE_APP = 'Portale AU · AM Modena';
+const DOC_TITLE_PUBLIC = 'Portale Allievi Ufficiali · AM Modena';
+const SECTION_DOC_TITLES = {
+  bacheca:'Bacheca annunci', comunicazioni:'Comunicazioni', calendario:'Calendario', liste:'Liste',
+  finanze:'Gestione finanze', voti:'Voti e registro', profilo:'Profilo', admin:'Gestione utenti'
+};
 
 // ── STATE ──────────────────────────────────────────────────────────
 let currentUser = null;
@@ -20,6 +26,7 @@ let comChatInterval = null;
 let currentComTab = 'chat';
 let comChatMessages = [], comPosts = [];
 let pendingComFile = null;
+let _finSearchTimer = null;
 
 const LIST_LABELS = {
   liberi_sab_pom:  'Liberi Uscenti Sabato Pomeriggio',
@@ -117,7 +124,11 @@ function toast(msg,type='ok'){
   t.textContent=(type==='ok'?'✓ ':type==='err'?'✗ ':'ℹ ')+msg;
   t.className='show '+type;
   clearTimeout(t._tm);
-  t._tm=setTimeout(()=>t.className='',3500);
+  t._tm=setTimeout(()=>t.className='',3800);
+}
+function scheduleFinSearch(){
+  clearTimeout(_finSearchTimer);
+  _finSearchTimer = setTimeout(() => { renderFinTx(); _finSearchTimer = null; }, 200);
 }
 function openModal(id){ document.getElementById(id).classList.add('open') }
 function closeModal(id){ document.getElementById(id).classList.remove('open') }
@@ -136,9 +147,10 @@ async function api(method, path, body){
 }
 
 // ── NAVIGATION ─────────────────────────────────────────────────────
-function showLanding(){ _s('landing');_h('auth');_h('app') }
-function showAuth(tab='login'){ _h('landing');_s('auth');_h('app'); switchAuthTab(tab) }
+function showLanding(){ document.title = DOC_TITLE_PUBLIC; _s('landing');_h('auth');_h('app') }
+function showAuth(tab='login'){ document.title = DOC_TITLE_PUBLIC; _h('landing');_s('auth');_h('app'); switchAuthTab(tab) }
 async function showApp(){
+  document.title = DOC_TITLE_APP;
   _h('landing');_h('auth');_s('app');
   await refreshCurrentUser();
   applyPermissions();
@@ -203,6 +215,8 @@ async function showPage(id, link){
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(link) link.classList.add('active');
+  const st = SECTION_DOC_TITLES[id];
+  if(st) document.title = st+' · '+DOC_TITLE_APP;
   // Se l'utente apre comunicazioni: azzera badge e aggiorna ts salvato
   if(id === 'comunicazioni'){
     chatSetBadge(0);
