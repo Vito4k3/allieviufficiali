@@ -139,6 +139,17 @@ async function initDB() {
       await c.execute("ALTER TABLE list_signups ADD COLUMN note VARCHAR(500)");
     } catch(e) { /* colonna già esistente */ }
 
+    // Liste personalizzate: nome + definizione campi (JSON array di etichette)
+    try {
+      await c.execute("ALTER TABLE lists ADD COLUMN custom_name VARCHAR(255) NULL");
+    } catch(e) { /* già presente */ }
+    try {
+      await c.execute("ALTER TABLE lists ADD COLUMN custom_fields_json TEXT NULL");
+    } catch(e) { /* già presente */ }
+    try {
+      await c.execute("ALTER TABLE list_signups MODIFY COLUMN note TEXT NULL");
+    } catch(e) { /* già TEXT o errore host */ }
+
     // Tabella parenti parlatorio (multi-parente per iscrizione)
     await c.execute(`
       CREATE TABLE IF NOT EXISTS list_relatives (
@@ -267,9 +278,9 @@ app.post('/api/auth/login', async (req, res) => {
       id: user.id, username: user.username, full_name: user.full_name,
       military_rank: user.military_rank,
       role: user.role || 'none',
-      can_access_finance: !!user.can_access_finance,
-      can_access_grades:  !!user.can_access_grades,
-      is_admin: !!user.is_admin
+      can_access_finance: !!Number(user.can_access_finance),
+      can_access_grades:  !!Number(user.can_access_grades),
+      is_admin: !!Number(user.is_admin)
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('token', token, { httpOnly: true, maxAge: 7 * 86400 * 1000 });
@@ -286,11 +297,24 @@ app.get('/api/auth/me', auth, async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
     const u = rows[0];
-    u.can_access_finance = !!u.can_access_finance;
-    u.can_access_grades  = !!u.can_access_grades;
-    u.is_admin           = !!u.is_admin;
+    u.can_access_finance = !!Number(u.can_access_finance);
+    u.can_access_grades  = !!Number(u.can_access_grades);
+    u.is_admin           = !!Number(u.is_admin);
     u.role               = u.role || 'none';
-    res.json(u);
+    // Riemetti il JWT con i permessi aggiornati dal DB (altrimenti restano quelli del login)
+    const payload = {
+      id: u.id,
+      username: u.username,
+      full_name: u.full_name,
+      military_rank: u.military_rank,
+      role: u.role,
+      can_access_finance: u.can_access_finance,
+      can_access_grades: u.can_access_grades,
+      is_admin: u.is_admin
+    };
+    const newToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('token', newToken, { httpOnly: true, maxAge: 7 * 86400 * 1000 });
+    res.json({ ...u, token: newToken });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -689,12 +713,27 @@ app.get('/api/lists', auth, async (req, res) => {
 });
 
 app.post('/api/lists', auth, async (req, res) => {
-  const { id, list_type, list_date, notes } = req.body;
+  const { id, list_type, list_date, notes, custom_name, custom_field_label, custom_fields } = req.body;
   if (!list_date) return res.status(400).json({ error: 'Data obbligatoria' });
+  let customNameDb = null;
+  let fieldsJson = null;
+  if (list_type === 'custom') {
+    if (!custom_name?.trim()) return res.status(400).json({ error: 'Nome lista obbligatorio per liste personalizzate' });
+    customNameDb = custom_name.trim();
+    let arr = [];
+    if (Array.isArray(custom_fields)) arr = custom_fields.map(x => String(x || '').trim()).filter(Boolean);
+    else if (typeof custom_fields === 'string' && custom_fields.trim()) {
+      arr = custom_fields.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    }
+    if (!arr.length && custom_field_label?.trim()) arr = [custom_field_label.trim()];
+    fieldsJson = arr.length ? JSON.stringify(arr) : null;
+  }
   try {
     const c = await db();
-    await c.execute('INSERT INTO lists (id,list_type,list_date,notes,created_by) VALUES (?,?,?,?,?)',
-      [id, list_type, list_date, notes || '', req.user.id]);
+    await c.execute(
+      'INSERT INTO lists (id,list_type,list_date,notes,created_by,custom_name,custom_fields_json) VALUES (?,?,?,?,?,?,?)',
+      [id, list_type, list_date, notes || '', req.user.id, customNameDb, fieldsJson]
+    );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -716,7 +755,7 @@ app.get('/api/lists/:id', auth, async (req, res) => {
     const [signups] = await c.execute(`
       SELECT s.*, u.username, u.full_name, u.nome, u.cognome, u.military_rank
       FROM list_signups s JOIN users u ON s.user_id=u.id
-      WHERE s.list_id=? ORDER BY s.signed_up_at ASC
+      WHERE s.list_id=? ORDER BY s.created_at ASC
     `, [req.params.id]);
     // Carica i parenti parlatorio per ogni iscritto
     const [allRelatives] = await c.execute(
@@ -733,12 +772,39 @@ app.get('/api/lists/:id', auth, async (req, res) => {
 });
 
 app.post('/api/lists/:id/signup', auth, async (req, res) => {
-  const { signup_id, relative_name, relative_relation, relative_id_card, note } = req.body;
+  const { signup_id, relative_name, relative_relation, relative_id_card, note, custom_values } = req.body;
   try {
     const c = await db();
+    const [lists] = await c.execute(
+      'SELECT list_type, custom_fields_json FROM lists WHERE id=?',
+      [req.params.id]
+    );
+    if (!lists.length) return res.status(404).json({ error: 'Lista non trovata' });
+    const list = lists[0];
+    let noteToStore = note != null && String(note).trim() !== '' ? String(note).trim() : null;
+
+    if (list.list_type === 'custom' && list.custom_fields_json) {
+      let labels = [];
+      try {
+        const raw = list.custom_fields_json;
+        const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        labels = Array.isArray(p) ? p.map(x => String(x || '').trim()).filter(Boolean) : [];
+      } catch (e) { labels = []; }
+      if (labels.length) {
+        const vals = custom_values && typeof custom_values === 'object' && !Array.isArray(custom_values) ? custom_values : {};
+        const out = {};
+        for (const lab of labels) {
+          const v = vals[lab] != null ? String(vals[lab]).trim() : '';
+          if (!v) return res.status(400).json({ error: `Compila il campo: ${lab}` });
+          out[lab] = v;
+        }
+        noteToStore = JSON.stringify(out);
+      }
+    }
+
     await c.execute(
       'INSERT INTO list_signups (id,list_id,user_id,relative_name,relative_relation,relative_id_card,note) VALUES (?,?,?,?,?,?,?)',
-      [signup_id, req.params.id, req.user.id, relative_name || null, relative_relation || null, relative_id_card || null, note || null]
+      [signup_id, req.params.id, req.user.id, relative_name || null, relative_relation || null, relative_id_card || null, noteToStore]
     );
     res.json({ ok: true });
   } catch(e) {
