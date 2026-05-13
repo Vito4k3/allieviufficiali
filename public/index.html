@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Portale riservato Allievi Ufficiali — Accademia Militare di Modena. Bacheca, comunicazioni, registro voti, finanze e liste.">
+<meta name="description" content="Portale riservato Allievi Ufficiali: bacheca, comunicazioni, registro voti, finanze e liste.">
 <meta name="theme-color" content="#ece8df">
-<title>Portale Allievi Ufficiali · AM Modena</title>
+<title>Portale Allievi Ufficiali</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -568,12 +568,14 @@ aside::before{
   opacity:.55;pointer-events:none;
 }
 .sb-header{
-  padding:1.35rem 1.25rem 1.25rem;
+  padding:1.2rem 1.1rem 1.15rem;
   border-bottom:1px solid var(--border);
-  display:flex;align-items:flex-start;gap:.85rem;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;
   background:linear-gradient(135deg,var(--surface2),var(--surface));
   flex-shrink:0;
 }
+.sb-header-main{display:flex;align-items:flex-start;gap:.85rem;min-width:0;flex:1}
+.theme-toggle-sb{flex-shrink:0;margin-top:.15rem}
 .sb-emblem{
   width:40px;height:40px;border-radius:12px;
   border:1px solid var(--border-gold);
@@ -584,10 +586,6 @@ aside::before{
 }
 .sb-title{font-family:var(--font-d);font-size:.72rem;color:var(--gold);letter-spacing:.2em;line-height:1.3;font-weight:600}
 .sb-sub{font-family:var(--font-m);font-size:.48rem;color:var(--text3);letter-spacing:.24em;text-transform:uppercase;margin-top:.2rem}
-.sb-org{
-  font-family:var(--font-u);font-size:.58rem;font-weight:500;color:var(--text3);
-  letter-spacing:.04em;margin-top:.35rem;line-height:1.35;max-width:14rem;
-}
 
 .sb-user{
   padding:1rem 1.2rem;
@@ -660,9 +658,7 @@ nav a.sb-link.active{
   flex-shrink:0;
   background:var(--surface);
 }
-.sb-footer-actions{flex-direction:column;align-items:stretch}
-.sb-footer-actions .btn{flex:none;width:100%}
-.sb-footer-actions .theme-toggle-footer{align-self:center;margin-top:.15rem}
+.sb-footer .btn{flex:1;min-width:calc(50% - .25rem)}
 
 /* ── MOBILE TOPBAR ── */
 .mobile-topbar{
@@ -988,7 +984,7 @@ canvas{max-height:220px}
 .rank-bar-bg{flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden}
 .rank-bar-fill{height:100%;background:linear-gradient(90deg,var(--green-l),var(--gold));border-radius:3px}
 
-.schedule-grid{display:grid;grid-template-columns:70px repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;min-width:600px}
+.schedule-grid{display:grid;grid-template-columns:76px repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;min-width:600px}
 .sched-cell{background:var(--surface);padding:.42rem .32rem;min-height:42px;cursor:pointer;transition:background .14s}
 .sched-cell:hover{background:var(--surface2)}
 .sched-cell.hdr{font-family:var(--font-d);font-size:.56rem;letter-spacing:.1em;color:var(--gold);text-align:center;background:var(--surface2);cursor:default;padding:.5rem .3rem}
@@ -1168,8 +1164,8 @@ canvas{max-height:220px}
       </div>
     </div>
     <div class="land-nav-center">
-      <span class="land-inst">Accademia Militare di Modena</span>
-      <span class="land-inst-sub">Sistema informativo · Uso interno</span>
+      <span class="land-inst">Portale Allievi Ufficiali</span>
+      <span class="land-inst-sub">Sistema integrato · Uso interno</span>
     </div>
     <div class="land-nav-btns">
       <button class="theme-toggle" onclick="toggleTheme()" title="Cambia tema">
@@ -1181,7 +1177,7 @@ canvas{max-height:220px}
   </nav>
 
   <div class="land-hero">
-    <p class="hero-kicker">Accademia Militare di Modena</p>
+    <p class="hero-kicker">Sistema integrato</p>
     <div class="hero-eyebrow">Sistema integrato · Allievi Ufficiali</div>
     <h1 class="hero-title">
       Portale
@@ -1267,7 +1263,7 @@ canvas{max-height:220px}
 
   <footer class="land-footer">
     <div class="land-footer-line1">Portale Allievi Ufficiali</div>
-    <div class="land-footer-line2">Uso riservato · Trattamento dati secondo normativa vigente · <b>AM Modena</b></div>
+    <div class="land-footer-line2">Uso riservato · Trattamento dati secondo normativa vigente</div>
   </footer>
 </div>
 
@@ -1328,12 +1324,16 @@ canvas{max-height:220px}
     <button class="drawer-close" onclick="closeDrawer()">✕</button>
     <!-- Stessi contenuti della sidebar desktop, clonati via JS -->
     <div class="sb-header">
-      <div class="sb-emblem">⚔</div>
-      <div>
-        <div class="sb-title">Portale AU</div>
-        <div class="sb-sub">Allievi Ufficiali</div>
-        <div class="sb-org">Accademia Militare di Modena</div>
+      <div class="sb-header-main">
+        <div class="sb-emblem">⚔</div>
+        <div>
+          <div class="sb-title">Portale AU</div>
+          <div class="sb-sub">Allievi Ufficiali</div>
+        </div>
       </div>
+      <button type="button" class="theme-toggle theme-toggle-sb" onclick="toggleTheme(); closeDrawer()" title="Tema chiaro/scuro" aria-label="Cambia tema">
+        <span class="icon-sun">☀</span><span class="icon-moon">☾</span>
+      </button>
     </div>
     <div class="sb-user" onclick="showPage('profilo',null);closeDrawer()">
       <div class="sb-avatar" id="drawerAvatar">A</div>
@@ -1370,12 +1370,16 @@ canvas{max-height:220px}
   <!-- SIDEBAR DESKTOP -->
   <aside>
     <div class="sb-header">
-      <div class="sb-emblem">⚔</div>
-      <div>
-        <div class="sb-title">Portale AU</div>
-        <div class="sb-sub">Allievi Ufficiali</div>
-        <div class="sb-org">Accademia Militare di Modena</div>
+      <div class="sb-header-main">
+        <div class="sb-emblem">⚔</div>
+        <div>
+          <div class="sb-title">Portale AU</div>
+          <div class="sb-sub">Allievi Ufficiali</div>
+        </div>
       </div>
+      <button type="button" class="theme-toggle theme-toggle-sb" onclick="toggleTheme()" title="Tema chiaro/scuro" aria-label="Cambia tema">
+        <span class="icon-sun">☀</span><span class="icon-moon">☾</span>
+      </button>
     </div>
     <div class="sb-user" onclick="showPage('profilo', document.querySelector('[data-page=profilo]'))">
       <div class="sb-avatar" id="sbAvatar">A</div>
@@ -1404,12 +1408,9 @@ canvas{max-height:220px}
         <a class="sb-link" onclick="showPage('admin',this)"><span class="sb-icon">🔐</span>Gestione Utenti</a>
       </nav>
     </div>
-    <div class="sb-footer sb-footer-actions">
-      <button class="btn btn-sm w-full" style="justify-content:center;margin-bottom:.4rem" onclick="showPage('profilo',null)">Profilo</button>
-      <button class="btn btn-sm btn-red w-full" style="justify-content:center;margin-bottom:.4rem" onclick="doLogout()">Esci</button>
-      <button class="theme-toggle theme-toggle-footer" onclick="toggleTheme()" title="Tema chiaro/scuro" aria-label="Cambia tema">
-        <span class="icon-sun">☀</span><span class="icon-moon">☾</span>
-      </button>
+    <div class="sb-footer">
+      <button class="btn btn-sm w-full" style="justify-content:center" onclick="showPage('profilo',null)">Profilo</button>
+      <button class="btn btn-sm btn-red w-full" style="justify-content:center" onclick="doLogout()">Esci</button>
     </div>
   </aside>
 
@@ -1649,6 +1650,11 @@ canvas{max-height:220px}
             <span class="badge badge-green">■ Militare</span>
             <span class="badge badge-blue">■ Ginnastica</span>
             <button class="btn btn-red btn-sm" onclick="clearSchedule()" style="margin-left:auto">🗑 &nbsp;Svuota</button>
+          </div>
+          <div class="alert alert-info" style="margin-bottom:.85rem">
+            Ogni <strong>riga</strong> è l’orario di <strong>inizio</strong> di una lezione di <strong>45 minuti</strong>.
+            Mattina: prima pausa 5 min, poi pause 10 min tra lezioni; pausa pranzo <strong>13:40–14:10</strong>; ripresa <strong>14:20</strong>.
+            Pomeriggio: pause <strong>5 min</strong> tra lezioni.
           </div>
           <div style="overflow-x:auto"><div class="schedule-grid" id="scheduleGrid"></div></div>
         </div>
