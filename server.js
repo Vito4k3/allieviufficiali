@@ -13,6 +13,7 @@ const cookieParser = require('cookie-parser');
 const path         = require('path');
 
 const app = express();
+app.disable('x-powered-by');
 
 // ── CONFIG ────────────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET || 'accademia_modena_jwt_secret_2024_CAMBIA_IN_PROD';
@@ -755,7 +756,7 @@ app.get('/api/lists/:id', auth, async (req, res) => {
     const [signups] = await c.execute(`
       SELECT s.*, u.username, u.full_name, u.nome, u.cognome, u.military_rank
       FROM list_signups s JOIN users u ON s.user_id=u.id
-      WHERE s.list_id=? ORDER BY s.signed_up_at ASC
+      WHERE s.list_id=? ORDER BY s.created_at ASC
     `, [req.params.id]);
     // Carica i parenti parlatorio per ogni iscritto
     const [allRelatives] = await c.execute(
