@@ -423,8 +423,8 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
    AUTH
    ════════════════════════════════════════════════════ */
 #auth{
-  min-height:100vh;display:flex;align-items:center;justify-content:center;
-  padding:2rem;background:var(--bg);position:relative;overflow:hidden;
+  min-height:100vh;display:flex;align-items:flex-start;justify-content:center;
+  padding:1.25rem 1rem 2rem;background:var(--bg);position:relative;overflow-x:hidden;overflow-y:auto;
 }
 #auth::before{
   content:'';position:absolute;inset:0;pointer-events:none;
@@ -436,11 +436,16 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
   background:var(--surface);
   border:1px solid var(--border-gold);
   border-radius:var(--r2);
-  padding:2.6rem 2.6rem;
-  width:100%;max-width:500px;
+  padding:2.2rem 1.85rem;
+  width:100%;max-width:min(100%,520px);
   box-shadow:var(--sh-xl),0 0 60px var(--gold-a10);
   animation:fadeUp .4s cubic-bezier(.22,.61,.36,1);
-  position:relative;overflow:hidden;
+  position:relative;
+  overflow-x:hidden;
+  overflow-y:auto;
+  max-height:min(calc(100vh - 2.5rem),880px);
+  -webkit-overflow-scrolling:touch;
+  margin:1rem 0;
 }
 /* Top accent line */
 .auth-box::before{
@@ -484,12 +489,13 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
 .auth-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
 .auth-tab:hover:not(.active){color:var(--text2)}
 
-.form-group{display:flex;flex-direction:column;gap:.28rem;margin-bottom:.85rem}
+.form-group{display:flex;flex-direction:column;gap:.28rem;margin-bottom:.85rem;min-width:0}
 .form-group label{font-family:var(--font-m);font-size:.54rem;letter-spacing:.2em;color:var(--text3);text-transform:uppercase}
 .form-group input,.form-group select,.form-group textarea{
   background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
   padding:.6rem .88rem;color:var(--text);
   font-family:var(--font-m);font-size:.78rem;outline:none;transition:border-color .2s,box-shadow .2s;
+  width:100%;max-width:100%;min-width:0;box-sizing:border-box;
 }
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{
   border-color:var(--border-gold);box-shadow:0 0 0 3px var(--gold-a10);
@@ -498,8 +504,8 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
 .form-group input::placeholder,.form-group textarea::placeholder{color:var(--text4)}
 .form-group select option{background:var(--surface2);color:var(--text)}
 .form-group textarea{resize:vertical;min-height:80px;font-family:var(--font-b);font-size:.95rem}
-.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
-.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem}
+.form-row-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}
+.form-row-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem}
 
 .auth-back{font-family:var(--font-m);font-size:.6rem;color:var(--text3);text-align:center;margin-top:1.2rem;cursor:pointer;letter-spacing:.1em}
 .auth-back:hover{color:var(--gold)}
@@ -1055,7 +1061,7 @@ canvas{max-height:220px}
   .form-row-2,.form-row-3{grid-template-columns:1fr}
   .page{padding:1.2rem}
   .hero-title{font-size:clamp(2.2rem,8vw,3.2rem)}
-  .auth-box{padding:1.8rem}
+  .auth-box{padding:1.6rem 1.25rem;max-height:calc(100vh - 1.5rem)}
   .profile-hero{flex-direction:column;text-align:center;gap:1rem}
 }
 /* ════════════════════════════════════════════════════
@@ -1452,8 +1458,11 @@ canvas{max-height:220px}
           <div class="form-group"><label>Data *</label><input type="date" id="newListDate"></div>
         </div>
         <div id="newListCustomSection" class="hidden" style="background:var(--surface2);border:1px solid var(--border-gold);border-radius:var(--r);padding:.8rem;margin-bottom:.7rem">
-          <div class="form-group" style="margin-bottom:.5rem"><label>Nome Lista *</label><input type="text" id="newListCustomName" placeholder="es. Lista Destinazioni Weekend"></div>
-          <div class="form-group"><label>Campo da compilare (opzionale)</label><input type="text" id="newListCustomLabel" placeholder="es. Città di destinazione…"></div>
+          <div class="form-group" style="margin-bottom:.5rem"><label>Nome Lista *</label><input type="text" id="newListCustomName" placeholder="es. Registro insufficienze"></div>
+          <div class="form-group"><label>Campi da compilare (uno per riga) *</label>
+            <textarea id="newListCustomFields" rows="5" placeholder="Ogni riga è un campo che ogni iscritto compilerà, ad esempio:&#10;Matematica&#10;Fisica&#10;Diritto"></textarea>
+          </div>
+          <div style="font-family:var(--font-m);font-size:.58rem;color:var(--text3);margin-top:-.4rem;margin-bottom:.2rem">Puoi indicare tutte le insufficienze o altre voci: ogni iscritto vedrà un campo per riga.</div>
         </div>
         <div class="form-group" style="margin-bottom:.7rem"><label>Note aggiuntive</label><input type="text" id="newListNotes" placeholder="Opzionale…"></div>
         <button class="btn btn-gold" onclick="createList()">✓ &nbsp;Crea Lista</button>
@@ -1742,13 +1751,10 @@ canvas{max-height:220px}
 </div>
 <!-- LISTA PERSONALIZZATA MODAL -->
 <div class="modal-overlay" id="customSignupModal">
-  <div class="modal">
-    <div class="modal-title">🎯 Iscrizione Lista</div>
-    <div class="alert alert-info" style="margin-bottom:.8rem">Compila il campo richiesto dall'organizzatore.</div>
-    <div class="form-group" style="margin-bottom:.8rem">
-      <label id="customSignupLabel">Campo</label>
-      <input type="text" id="customSignupValue" placeholder="Inserisci il valore…">
-    </div>
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title" id="customSignupTitle">🎯 Iscrizione Lista</div>
+    <div id="customSignupIntro" class="alert alert-info" style="margin-bottom:.8rem">Compila i campi richiesti.</div>
+    <div id="customSignupFieldsHost"></div>
     <div class="modal-footer"><button class="btn" onclick="closeModal('customSignupModal')">Annulla</button><button class="btn btn-gold" onclick="confirmCustomSignup()">✓ &nbsp;Iscriviti</button></div>
   </div>
 </div>
