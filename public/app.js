@@ -28,6 +28,31 @@ const LIST_LABELS = {
   messa:           'Lista Messa',
   parlatorio:      'Lista Parlatorio'
 };
+
+function parseListCustomFieldLabels(l) {
+  if (!l || l.list_type !== 'custom') return [];
+  const raw = l.custom_fields_json;
+  if (raw == null || raw === '') return [];
+  try {
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return Array.isArray(p) ? p.map(x => String(x || '').trim()).filter(Boolean) : [];
+  } catch (e) { return []; }
+}
+
+function parseCustomSignupNote(note) {
+  if (note == null || typeof note !== 'string') return null;
+  const t = note.trim();
+  if (!t.startsWith('{')) return null;
+  try {
+    const o = JSON.parse(t);
+    if (o && typeof o === 'object' && !Array.isArray(o)) return o;
+  } catch (e) {}
+  return null;
+}
+
+function csvEscCell(s) {
+  return `"${String(s ?? '').replace(/"/g, '""')}"`;
+}
 const ROLE_LABELS = {
   'none':               'Allievo',
   'allievo_servizio':   'Allievo di Servizio',
@@ -113,8 +138,9 @@ async function api(method, path, body){
 // ── NAVIGATION ─────────────────────────────────────────────────────
 function showLanding(){ _s('landing');_h('auth');_h('app') }
 function showAuth(tab='login'){ _h('landing');_s('auth');_h('app'); switchAuthTab(tab) }
-function showApp(){
+async function showApp(){
   _h('landing');_h('auth');_s('app');
+  await refreshCurrentUser();
   applyPermissions();
   loadBacheca();
   startBachecaPolling();
@@ -235,7 +261,7 @@ async function doLogin(){
   try {
     const data=await api('POST','/api/auth/login',{username,password});
     token=data.token; localStorage.setItem('jwt',token); currentUser=data.user;
-    showApp(); toast('Benvenuto, '+(currentUser.full_name||currentUser.username));
+    await showApp(); toast('Benvenuto, '+(currentUser.full_name||currentUser.username));
   } catch(e){ showAuthError(e.message) }
 }
 async function doRegister(){
@@ -263,7 +289,7 @@ async function tryAutoLogin(){
     const data=await api('GET','/api/auth/me');
     currentUser=data;
     if(data.token){ token=data.token; localStorage.setItem('jwt',token); }
-    showApp();
+    await showApp();
   } catch { token='';localStorage.removeItem('jwt');showLanding() }
 }
 // ── PROFILO ────────────────────────────────────────────────────────
@@ -357,12 +383,14 @@ function startComPolling(){
     if(document.getElementById('page-comunicazioni').classList.contains('active') && currentComTab==='chat'){
       try {
         const msgs = await api('GET','/api/comunicazioni/chat');
-        const prevCount = comChatMessages.length;
+        const prevLast = comChatMessages.length ? (comChatMessages[comChatMessages.length-1].created_at||'') : '';
+        const newLast = msgs.length ? (msgs[msgs.length-1].created_at||'') : '';
+        const changed = comChatMessages.length !== msgs.length || prevLast !== newLast;
         comChatMessages = msgs;
-        renderComChat(msgs, prevCount < msgs.length);
+        renderComChat(msgs, changed);
       } catch {}
     }
-  }, 15000);
+  }, 3500);
 }
 function stopComPolling(){ if(comChatInterval){ clearInterval(comChatInterval); comChatInterval=null } }
  
@@ -599,6 +627,8 @@ function toggleAdminListPanel(){
   if(!p.classList.contains('hidden')){
     document.getElementById('newListType').value = currentListTab;
     document.getElementById('newListDate').value = today();
+    const ta = document.getElementById('newListCustomFields');
+    if(ta) ta.value = '';
     updateNewListTypeUI();
   }
 }
@@ -614,15 +644,18 @@ async function createList(){
   const list_date          = document.getElementById('newListDate').value;
   const notes              = document.getElementById('newListNotes').value.trim();
   const custom_name        = document.getElementById('newListCustomName')?.value.trim()  || '';
-  const custom_field_label = document.getElementById('newListCustomLabel')?.value.trim() || '';
+  const custom_fields      = (document.getElementById('newListCustomFields')?.value || '')
+    .split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   if(!list_date){ toast('Seleziona una data','err'); return }
   if(list_type==='custom' && !custom_name){ toast('Inserisci il nome della lista','err'); return }
+  if(list_type==='custom' && !custom_fields.length){ toast('Indica almeno un campo (una riga nel riquadro campi)','err'); return }
   try {
-    await api('POST','/api/lists',{id:uid(),list_type,list_date,notes,custom_name,custom_field_label});
+    await api('POST','/api/lists',{id:uid(),list_type,list_date,notes,custom_name,custom_fields});
     document.getElementById('list-admin-panel').classList.add('hidden');
     document.getElementById('newListNotes').value = '';
     if(document.getElementById('newListCustomName')) document.getElementById('newListCustomName').value = '';
-    if(document.getElementById('newListCustomLabel')) document.getElementById('newListCustomLabel').value = '';
+    const ta = document.getElementById('newListCustomFields');
+    if(ta) ta.value = '';
     toast('Lista creata');
     await loadListe();
   } catch(e){ toast(e.message,'err') }
@@ -677,6 +710,8 @@ function renderListCard(l, isAdmin){
   const signups      = l.signups || [];
   const mySignup     = signups.find(s => s.user_id === currentUser?.id);
   const isSignedUp   = !!mySignup;
+  const customLabels = parseListCustomFieldLabels(l);
+  const fieldsHint   = customLabels.length ? customLabels.join(' · ') : '';
 
   return `<div class="list-card">
     <div class="list-card-header" onclick="toggleListCard('lbody-${l.id}')">
@@ -684,7 +719,7 @@ function renderListCard(l, isAdmin){
         <div style="font-family:var(--font-display);font-size:.95rem;color:var(--text);letter-spacing:.06em">${escHtml(title)}</div>
         <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--text2);margin-top:.25rem">
           📅 ${fmtDate(l.list_date)}${l.notes?` &nbsp;·&nbsp; <span style="color:var(--gold-hi,#e8c96a)">${escHtml(l.notes)}</span>`:''}
-          ${isCustom&&l.custom_field_label?` &nbsp;·&nbsp; Campo: ${escHtml(l.custom_field_label)}`:''}
+          ${isCustom&&fieldsHint?` &nbsp;·&nbsp; Campi: ${escHtml(fieldsHint)}`:''}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:.8rem">
@@ -697,7 +732,7 @@ function renderListCard(l, isAdmin){
       <div style="display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap">
         ${renderSignupButton(l, isSignedUp, mySignup, isAdmin)}
       </div>
-      ${isCustom&&l.custom_field_label?`<div class="alert alert-info" style="margin-bottom:.8rem">✏ Ogni allievo inserisce: <strong>${escHtml(l.custom_field_label)}</strong></div>`:''}
+      ${isCustom&&customLabels.length?`<div class="alert alert-info" style="margin-bottom:.8rem">✏ Ogni allievo compila: <strong>${escHtml(customLabels.join(', '))}</strong></div>`:''}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;flex-wrap:wrap;gap:.5rem">
         <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text3);letter-spacing:.12em;text-transform:uppercase">Iscritti (${l.signup_count})</div>
         ${l.signup_count>0?`<button class="btn btn-sm btn-green" onclick="event.stopPropagation();downloadListExcel('${l.id}')">⬇ Excel</button>`:''}
@@ -764,20 +799,32 @@ function downloadListExcel(listId){
   );
   const isParlatorio = l.list_type === 'parlatorio';
   const isMessa      = l.list_type === 'messa';
+  const isCustom     = l.list_type === 'custom';
+  const customLabels = parseListCustomFieldLabels(l);
   let csv = '\uFEFF';
   if(isParlatorio)      csv += 'N°;Nominativo;Parenti\r\n';
   else if(isMessa)      csv += 'N°;Nominativo;Parente\r\n';
+  else if(isCustom && customLabels.length){
+    csv += 'N°;Nominativo;' + customLabels.map(lb => lb.replace(/;/g, ',')).join(';') + '\r\n';
+  } else if(isCustom)   csv += 'N°;Nominativo;Nota\r\n';
   else                  csv += 'N°;Nominativo\r\n';
   sorted.forEach((s,i) => {
     const nome = formatNameForList(s);
     if(isParlatorio){
       const rels = (s.relatives||[]).map(r=>r.relative_name+(r.relative_relation?' ('+r.relative_relation+')':'')).join(' / ');
-      csv += `${i+1};"${nome}";"${rels}"\r\n`;
+      csv += `${i+1};${csvEscCell(nome)};${csvEscCell(rels)}\r\n`;
     } else if(isMessa){
       const parente = s.relative_name ? s.relative_name+(s.relative_relation?' ('+s.relative_relation+')':'') : '';
-      csv += `${i+1};"${nome}";"${parente}"\r\n`;
+      csv += `${i+1};${csvEscCell(nome)};${csvEscCell(parente)}\r\n`;
+    } else if(isCustom && customLabels.length){
+      const obj = parseCustomSignupNote(s.note) || {};
+      const cols = customLabels.map(lb => csvEscCell(obj[lb] != null ? obj[lb] : ''));
+      csv += `${i+1};${csvEscCell(nome)};${cols.join(';')}\r\n`;
+    } else if(isCustom){
+      const plain = parseCustomSignupNote(s.note) ? '' : (s.note || '');
+      csv += `${i+1};${csvEscCell(nome)};${csvEscCell(plain)}\r\n`;
     } else {
-      csv += `${i+1};"${nome}"\r\n`;
+      csv += `${i+1};${csvEscCell(nome)}\r\n`;
     }
   });
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
@@ -801,8 +848,16 @@ function renderSignupRows(l, isAdmin){
 
   return signups.map((s,i) => {
     let detail = '';
-    if(isCustom && s.note)
-      detail = `<span style="color:var(--gold)">→ ${escHtml(s.note)}</span>`;
+    if(isCustom && s.note){
+      const parsed = parseCustomSignupNote(s.note);
+      if(parsed){
+        detail = Object.keys(parsed).map(k =>
+          `<div style="margin-left:.25rem;color:var(--text2);font-size:.72rem"><span style="color:var(--gold)">${escHtml(k)}:</span> ${escHtml(parsed[k])}</div>`
+        ).join('');
+      } else {
+        detail = `<span style="color:var(--gold)">→ ${escHtml(s.note)}</span>`;
+      }
+    }
     if(isMessa && s.relative_name)
       detail = `<span style="color:var(--text2)">👥 ${escHtml(s.relative_name)}${s.relative_relation?' ('+escHtml(s.relative_relation)+')':''}</span>`;
     if(isParlatorio){
@@ -916,20 +971,56 @@ async function confirmMessaSignup(){
   } catch(e){ toast(e.message,'err') }
 }
 
-// ── LISTA PERSONALIZZATA (iscrizione con campo custom) ──
-let _customSignupListId = '', _customSignupLabel = '';
+// ── LISTA PERSONALIZZATA (iscrizione con campi multipli) ──
+let _customSignupListId = '';
+
 function openCustomSignupModal(listId){
   _customSignupListId = listId;
   const list = allLists.find(l => l.id === listId);
-  _customSignupLabel  = list?.custom_field_label || '';
-  document.getElementById('customSignupLabel').textContent = _customSignupLabel || 'Nota / Info';
-  document.getElementById('customSignupValue').value = '';
+  const labels = parseListCustomFieldLabels(list);
+  const titleEl = document.getElementById('customSignupTitle');
+  const introEl = document.getElementById('customSignupIntro');
+  const host = document.getElementById('customSignupFieldsHost');
+  if(titleEl) titleEl.textContent = '🎯 Iscrizione — ' + (list?.custom_name || 'Lista');
+  if(introEl){
+    introEl.classList.toggle('hidden', false);
+    introEl.textContent = labels.length
+      ? 'Compila tutti i campi richiesti dall\'organizzatore.'
+      : 'Aggiungi una nota opzionale (lista senza campi strutturati).';
+  }
+  if(!host) return;
+  if(labels.length){
+    host.innerHTML = labels.map((lab, idx) => `
+      <div class="form-group" style="margin-bottom:.65rem">
+        <label>${escHtml(lab)} *</label>
+        <input type="text" id="customFld_${idx}" placeholder="Inserisci…" autocomplete="off">
+      </div>`).join('');
+  } else {
+    host.innerHTML = `
+      <div class="form-group" style="margin-bottom:.8rem">
+        <label>Nota (opzionale)</label>
+        <textarea id="customSignupValueFree" rows="3" placeholder="Testo libero…"></textarea>
+      </div>`;
+  }
   openModal('customSignupModal');
 }
 async function confirmCustomSignup(){
-  const note = document.getElementById('customSignupValue').value.trim();
+  const list = allLists.find(l => l.id === _customSignupListId);
+  const labels = parseListCustomFieldLabels(list);
   try {
-    await api('POST','/api/lists/'+_customSignupListId+'/signup',{signup_id:uid(), note});
+    if(labels.length){
+      const custom_values = {};
+      for(let i = 0; i < labels.length; i++){
+        const el = document.getElementById('customFld_'+i);
+        const v = el ? el.value.trim() : '';
+        if(!v){ toast('Compila: '+labels[i],'err'); return; }
+        custom_values[labels[i]] = v;
+      }
+      await api('POST','/api/lists/'+_customSignupListId+'/signup',{signup_id:uid(), custom_values});
+    } else {
+      const note = document.getElementById('customSignupValueFree')?.value.trim() || '';
+      await api('POST','/api/lists/'+_customSignupListId+'/signup',{signup_id:uid(), note: note || undefined});
+    }
     closeModal('customSignupModal');
     toast('Iscritto!');
     openListId = _customSignupListId;
@@ -1758,6 +1849,12 @@ async function deleteCalEvent(id){
 }
 
 // ── INIT ───────────────────────────────────────────────────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !token) return;
+  const pg = document.getElementById('page-comunicazioni');
+  if (!pg || !pg.classList.contains('active') || currentComTab !== 'chat') return;
+  loadComChat();
+});
 window.addEventListener('DOMContentLoaded',()=>{
   // Inizializza etichetta mese calendario
   const lbl = document.getElementById('calMonthLabel');
