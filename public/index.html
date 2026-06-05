@@ -1347,14 +1347,14 @@ canvas{max-height:220px}
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link" onclick="showPage('bacheca',this);closeDrawer()"><span class="sb-icon">📢</span>Bacheca Annunci</a>
-        <a class="sb-link" onclick="showPage('comunicazioni',this);closeDrawer()"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
-        <a class="sb-link" onclick="showPage('calendario',this);closeDrawer()"><span class="sb-icon">📅</span>Calendario</a>
-        <a class="sb-link" onclick="showPage('liste',this);closeDrawer()"><span class="sb-icon">📋</span>Liste</a>
       </nav>
-      <div class="sb-section">Personale</div>
-      <nav>
-        <a class="sb-link" onclick="showPage('finanze',this);closeDrawer()"><span class="sb-icon">💰</span>Gestione Finanze</a>
+      <div class="sb-section" id="drawer-section-compagnia" style="display:none">2 Compagnia</div>
+      <nav id="drawer-nav-compagnia" style="display:none">
+        <a class="sb-link" onclick="showPage('comunicazioni',this);closeDrawer()"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
         <a class="sb-link" onclick="showPage('voti',this);closeDrawer()"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
+        <a class="sb-link" onclick="showPage('liste',this);closeDrawer()"><span class="sb-icon">📋</span>Liste</a>
+        <a class="sb-link" onclick="showPage('calendario',this);closeDrawer()"><span class="sb-icon">📅</span>Calendario</a>
+        <a class="sb-link" onclick="showPage('finanze',this);closeDrawer()"><span class="sb-icon">💰</span>Gestione Finanze</a>
       </nav>
       <div class="sb-section" id="drawer-section-admin" style="display:none">Amministrazione</div>
       <nav id="drawer-nav-admin" style="display:none">
@@ -1394,14 +1394,14 @@ canvas{max-height:220px}
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link active" onclick="showPage('bacheca',this)"><span class="sb-icon">📢</span>Bacheca Annunci</a>
-        <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
-        <a class="sb-link" onclick="showPage('calendario',this)"><span class="sb-icon">📅</span>Calendario</a>
-        <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
       </nav>
-      <div class="sb-section">Personale</div>
-      <nav>
-        <a class="sb-link" onclick="showPage('finanze',this)"><span class="sb-icon">💰</span>Gestione Finanze</a>
+      <div class="sb-section" id="sb-section-compagnia" style="display:none">2 Compagnia</div>
+      <nav id="sb-nav-compagnia" style="display:none">
+        <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
         <a class="sb-link" onclick="showPage('voti',this)"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
+        <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
+        <a class="sb-link" onclick="showPage('calendario',this)"><span class="sb-icon">📅</span>Calendario</a>
+        <a class="sb-link" onclick="showPage('finanze',this)"><span class="sb-icon">💰</span>Gestione Finanze</a>
       </nav>
       <div class="sb-section" id="sb-section-admin" style="display:none">Amministrazione</div>
       <nav id="sb-nav-admin" style="display:none">
@@ -1445,7 +1445,11 @@ canvas{max-height:220px}
           <div class="form-group"><label>Cognome * <span style="color:var(--gold);font-size:.55rem">(se composto es. "Di Iorio", scrivilo per intero)</span></label><input type="text" id="prof-cognome" placeholder="es. Rossi · Di Iorio · Cuocci Martorano"></div>
         </div>
         <div class="grid-2">
-          <div class="form-group"><label>Grado Militare</label><input type="text" id="prof-rank" placeholder="es. Aspirante, Sottotenente…"></div>
+          <div class="form-group">
+            <label>Grado Militare</label>
+            <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:.6rem .88rem;font-family:var(--font-m);font-size:.78rem;color:var(--text2)" id="prof-rank-display">AU</div>
+            <div style="font-family:var(--font-m);font-size:.52rem;color:var(--text3);margin-top:.2rem">Assegnato automaticamente — non modificabile dall'utente</div>
+          </div>
           <div class="form-group"><label>Reparto / Plotone</label><input type="text" id="prof-platoon" placeholder="es. 3° Plotone Alpha"></div>
         </div>
         <div class="form-group"><label>Anno di Corso</label>
@@ -1534,10 +1538,10 @@ canvas{max-height:220px}
         </div>
         <div id="newListCustomSection" class="hidden" style="background:var(--surface2);border:1px solid var(--border-gold);border-radius:var(--r);padding:.8rem;margin-bottom:.7rem">
           <div class="form-group" style="margin-bottom:.5rem"><label>Nome Lista *</label><input type="text" id="newListCustomName" placeholder="es. Registro insufficienze"></div>
-          <div class="form-group"><label>Campi da compilare (uno per riga) *</label>
-            <textarea id="newListCustomFields" rows="5" placeholder="Ogni riga è un campo che ogni iscritto compilerà, ad esempio:&#10;Matematica&#10;Fisica&#10;Diritto"></textarea>
+          <div class="form-group"><label>Campi da compilare (uno per riga, opzionale)</label>
+            <textarea id="newListCustomFields" rows="5" placeholder="Opzionale — ogni riga è un campo che ogni iscritto compilerà, ad esempio:&#10;Matematica&#10;Fisica&#10;Diritto"></textarea>
           </div>
-          <div style="font-family:var(--font-m);font-size:.58rem;color:var(--text3);margin-top:-.4rem;margin-bottom:.2rem">Puoi indicare tutte le insufficienze o altre voci: ogni iscritto vedrà un campo per riga.</div>
+          <div style="font-family:var(--font-m);font-size:.58rem;color:var(--text3);margin-top:-.4rem;margin-bottom:.2rem">Se lasci vuoto, gli iscritti potranno aggiungere una nota libera opzionale.</div>
         </div>
         <div class="form-group" style="margin-bottom:.7rem"><label>Note aggiuntive</label><input type="text" id="newListNotes" placeholder="Opzionale…"></div>
         <button class="btn btn-gold" onclick="createList()">✓ &nbsp;Crea Lista</button>
@@ -1740,7 +1744,7 @@ canvas{max-height:220px}
         <div class="card-header"><div class="card-title">Utenti Registrati</div><button class="btn btn-gold" onclick="loadAdminUsers()">↻ &nbsp;Aggiorna</button></div>
         <div style="overflow-x:auto">
           <table class="data-table">
-            <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Ruolo Militare</th><th>Registrato</th><th>Finanze</th><th>Voti</th><th>Admin</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Ruolo Militare</th><th>Registrato</th><th>2 Comp.</th><th>Finanze</th><th>Voti</th><th>Admin</th><th></th></tr></thead>
             <tbody id="adminUserBody"></tbody>
           </table>
         </div>
@@ -1961,17 +1965,20 @@ function syncDrawer(){
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('sbUserName');
   if(el)new MutationObserver(syncDrawer).observe(el,{childList:true,characterData:true,subtree:true});
-  /* Sync admin section visibility to drawer */
-  const adminSection=document.getElementById('sb-section-admin');
-  const adminNav=document.getElementById('sb-nav-admin');
-  if(adminSection&&adminNav){
+  /* Sync section visibility to drawer */
+  function syncSectionToDrawer(sbSectionId, sbNavId, drawerSectionId, drawerNavId){
+    const sbSec=document.getElementById(sbSectionId);
+    const sbNav=document.getElementById(sbNavId);
+    if(!sbSec||!sbNav) return;
     new MutationObserver(()=>{
-      const ds=document.getElementById('drawer-section-admin');
-      const dn=document.getElementById('drawer-nav-admin');
-      if(ds)ds.style.display=adminSection.style.display;
-      if(dn)dn.style.display=adminNav.style.display;
-    }).observe(adminSection,{attributes:true,attributeFilter:['style']});
+      const ds=document.getElementById(drawerSectionId);
+      const dn=document.getElementById(drawerNavId);
+      if(ds)ds.style.display=sbSec.style.display;
+      if(dn)dn.style.display=sbNav.style.display;
+    }).observe(sbSec,{attributes:true,attributeFilter:['style']});
   }
+  syncSectionToDrawer('sb-section-admin','sb-nav-admin','drawer-section-admin','drawer-nav-admin');
+  syncSectionToDrawer('sb-section-compagnia','sb-nav-compagnia','drawer-section-compagnia','drawer-nav-compagnia');
 });
 </script>
 <script src="/app.js"></script>
