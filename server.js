@@ -151,6 +151,14 @@ async function initDB() {
       await c.execute("ALTER TABLE list_signups MODIFY COLUMN note TEXT NULL");
     } catch(e) { /* già TEXT o errore host */ }
 
+    // Permesso accesso sezione 2 Compagnia
+    try {
+      await c.execute("ALTER TABLE users ADD COLUMN can_access_2compagnia TINYINT(1) NOT NULL DEFAULT 0");
+    } catch(e) { /* già presente */ }
+
+    // Grado militare: AU come default per chi non ce l'ha
+    await c.execute("UPDATE users SET military_rank = 'AU' WHERE military_rank IS NULL OR TRIM(military_rank) = ''");
+
     // Tabella parenti parlatorio (multi-parente per iscrizione)
     await c.execute(`
       CREATE TABLE IF NOT EXISTS list_relatives (
@@ -210,6 +218,11 @@ function requireGrades(req, res, next) {
 function requireAdmin(req, res, next) {
   if (req.user.is_admin) return next();
   return res.status(403).json({ error: 'Solo gli amministratori possono eseguire questa operazione' });
+}
+
+function requireCompagnia(req, res, next) {
+  if (req.user.is_admin || req.user.can_access_2compagnia) return next();
+  return res.status(403).json({ error: 'Accesso alla sezione 2 Compagnia non autorizzato' });
 }
 
 const ROLES_WITH_COM_WRITE = ['allievo_servizio', 'capo_compagnia', 'vice_capo_compagnia', 'tenente'];
@@ -277,10 +290,11 @@ app.post('/api/auth/login', async (req, res) => {
 
     const payload = {
       id: user.id, username: user.username, full_name: user.full_name,
-      military_rank: user.military_rank,
+      military_rank: user.military_rank || 'AU',
       role: user.role || 'none',
-      can_access_finance: !!Number(user.can_access_finance),
-      can_access_grades:  !!Number(user.can_access_grades),
+      can_access_finance:     !!Number(user.can_access_finance),
+      can_access_grades:      !!Number(user.can_access_grades),
+      can_access_2compagnia:  !!Number(user.can_access_2compagnia),
       is_admin: !!Number(user.is_admin)
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
@@ -293,24 +307,26 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,nome,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_grades,is_admin FROM users WHERE id=?',
+      'SELECT id,username,email,full_name,nome,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_grades,can_access_2compagnia,is_admin FROM users WHERE id=?',
       [req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
     const u = rows[0];
-    u.can_access_finance = !!Number(u.can_access_finance);
-    u.can_access_grades  = !!Number(u.can_access_grades);
-    u.is_admin           = !!Number(u.is_admin);
-    u.role               = u.role || 'none';
-    // Riemetti il JWT con i permessi aggiornati dal DB (altrimenti restano quelli del login)
+    u.can_access_finance    = !!Number(u.can_access_finance);
+    u.can_access_grades     = !!Number(u.can_access_grades);
+    u.can_access_2compagnia = !!Number(u.can_access_2compagnia);
+    u.is_admin              = !!Number(u.is_admin);
+    u.role                  = u.role || 'none';
+    u.military_rank         = u.military_rank || 'AU';
     const payload = {
       id: u.id,
       username: u.username,
       full_name: u.full_name,
       military_rank: u.military_rank,
       role: u.role,
-      can_access_finance: u.can_access_finance,
-      can_access_grades: u.can_access_grades,
+      can_access_finance:    u.can_access_finance,
+      can_access_grades:     u.can_access_grades,
+      can_access_2compagnia: u.can_access_2compagnia,
       is_admin: u.is_admin
     };
     const newToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
@@ -321,15 +337,16 @@ app.get('/api/auth/me', auth, async (req, res) => {
 
 // ── PROFILO ───────────────────────────────────────────────────
 app.put('/api/profile', auth, async (req, res) => {
-  const { nome, cognome, military_rank, platoon, academic_year } = req.body;
+  const { nome, cognome, platoon, academic_year } = req.body;
   if (!nome?.trim() || !cognome?.trim())
     return res.status(400).json({ error: 'Nome e cognome obbligatori' });
   const full_name = `${nome.trim()} ${cognome.trim()}`;
   try {
     const c = await db();
+    // military_rank non è modificabile dall'utente — rimane quello assegnato
     await c.execute(
-      'UPDATE users SET nome=?, cognome=?, full_name=?, military_rank=?, platoon=?, academic_year=? WHERE id=?',
-      [nome.trim(), cognome.trim(), full_name, military_rank||'', platoon||'', academic_year||'1° Anno', req.user.id]
+      'UPDATE users SET nome=?, cognome=?, full_name=?, platoon=?, academic_year=? WHERE id=?',
+      [nome.trim(), cognome.trim(), full_name, platoon||'', academic_year||'1° Anno', req.user.id]
     );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -376,7 +393,7 @@ app.delete('/api/announcements/:id', auth, async (req, res) => {
 });
 
 // ── COMUNICAZIONI: CHAT ───────────────────────────────────────
-app.get('/api/comunicazioni/chat', auth, async (req, res) => {
+app.get('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(`
@@ -390,7 +407,7 @@ app.get('/api/comunicazioni/chat', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/comunicazioni/chat', auth, async (req, res) => {
+app.post('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => {
   if (!canWriteComunicazioni(req.user))
     return res.status(403).json({ error: 'Non hai i permessi per scrivere in Comunicazioni' });
   const { id, content } = req.body;
@@ -403,7 +420,7 @@ app.post('/api/comunicazioni/chat', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/comunicazioni/chat/:id', auth, async (req, res) => {
+app.delete('/api/comunicazioni/chat/:id', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute('SELECT user_id FROM comunicazioni_chat WHERE id=?', [req.params.id]);
@@ -416,7 +433,7 @@ app.delete('/api/comunicazioni/chat/:id', auth, async (req, res) => {
 });
 
 // ── COMUNICAZIONI: COMUNICATI UFFICIALI ───────────────────────
-app.get('/api/comunicazioni/posts', auth, async (req, res) => {
+app.get('/api/comunicazioni/posts', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(`
@@ -430,7 +447,7 @@ app.get('/api/comunicazioni/posts', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/comunicazioni/posts/:id/file', auth, async (req, res) => {
+app.get('/api/comunicazioni/posts/:id/file', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
@@ -443,7 +460,7 @@ app.get('/api/comunicazioni/posts/:id/file', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/comunicazioni/posts', auth, async (req, res) => {
+app.post('/api/comunicazioni/posts', auth, requireCompagnia, async (req, res) => {
   if (!canWriteComunicazioni(req.user))
     return res.status(403).json({ error: 'Non hai i permessi per pubblicare comunicati' });
   const { id, title, content, file_name, file_data, file_type } = req.body;
@@ -459,7 +476,7 @@ app.post('/api/comunicazioni/posts', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/comunicazioni/posts/:id', auth, async (req, res) => {
+app.delete('/api/comunicazioni/posts/:id', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute('SELECT user_id FROM comunicazioni_posts WHERE id=?', [req.params.id]);
@@ -472,7 +489,7 @@ app.delete('/api/comunicazioni/posts/:id', auth, async (req, res) => {
 });
 
 // ── FINANZE ───────────────────────────────────────────────────
-app.get('/api/finance', auth, requireFinance, async (req, res) => {
+app.get('/api/finance', auth, requireCompagnia, requireFinance, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
@@ -483,7 +500,7 @@ app.get('/api/finance', auth, requireFinance, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/finance', auth, requireFinance, async (req, res) => {
+app.post('/api/finance', auth, requireCompagnia, requireFinance, async (req, res) => {
   const { id, type, desc, amount, date, cat, note } = req.body;
   if (!id || !type || !desc || !amount || !date)
     return res.status(400).json({ error: 'Dati transazione incompleti' });
@@ -497,7 +514,7 @@ app.post('/api/finance', auth, requireFinance, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/finance/:id', auth, requireFinance, async (req, res) => {
+app.put('/api/finance/:id', auth, requireCompagnia, requireFinance, async (req, res) => {
   const { type, desc, amount, date, cat, note } = req.body;
   try {
     const c = await db();
@@ -509,7 +526,7 @@ app.put('/api/finance/:id', auth, requireFinance, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/finance/:id', auth, requireFinance, async (req, res) => {
+app.delete('/api/finance/:id', auth, requireCompagnia, requireFinance, async (req, res) => {
   try {
     const c = await db();
     await c.execute('DELETE FROM finance_transactions WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
@@ -518,7 +535,7 @@ app.delete('/api/finance/:id', auth, requireFinance, async (req, res) => {
 });
 
 // ── VOTI ──────────────────────────────────────────────────────
-app.get('/api/grades/all', auth, requireGrades, async (req, res) => {
+app.get('/api/grades/all', auth, requireCompagnia, requireGrades, async (req, res) => {
   try {
     const c  = await db();
     const id = req.user.id;
@@ -701,7 +718,7 @@ app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
 });
 
 // ── LISTE ─────────────────────────────────────────────────────
-app.get('/api/lists', auth, async (req, res) => {
+app.get('/api/lists', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [lists] = await c.execute(`
@@ -713,7 +730,7 @@ app.get('/api/lists', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/lists', auth, async (req, res) => {
+app.post('/api/lists', auth, requireCompagnia, async (req, res) => {
   const { id, list_type, list_date, notes, custom_name, custom_field_label, custom_fields } = req.body;
   if (!list_date) return res.status(400).json({ error: 'Data obbligatoria' });
   let customNameDb = null;
@@ -748,7 +765,7 @@ app.delete('/api/lists/:id', auth, requireAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/lists/:id', auth, async (req, res) => {
+app.get('/api/lists/:id', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [lists] = await c.execute('SELECT * FROM lists WHERE id=?', [req.params.id]);
@@ -756,7 +773,7 @@ app.get('/api/lists/:id', auth, async (req, res) => {
     const [signups] = await c.execute(`
       SELECT s.*, u.username, u.full_name, u.nome, u.cognome, u.military_rank
       FROM list_signups s JOIN users u ON s.user_id=u.id
-      WHERE s.list_id=? ORDER BY s.signed_up_at ASC
+      WHERE s.list_id=? ORDER BY s.created_at ASC
     `, [req.params.id]);
     // Carica i parenti parlatorio per ogni iscritto
     const [allRelatives] = await c.execute(
@@ -766,13 +783,13 @@ app.get('/api/lists/:id', auth, async (req, res) => {
     // Associa i parenti all'iscritto corrispondente
     const signupsWithRelatives = signups.map(s => ({
       ...s,
-      relatives: allRelatives.filter(r => r.user_id === s.user_id)
+      relatives: allRelatives.filter(r => Number(r.user_id) === Number(s.user_id))
     }));
     res.json({ ...lists[0], signups: signupsWithRelatives });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/lists/:id/signup', auth, async (req, res) => {
+app.post('/api/lists/:id/signup', auth, requireCompagnia, async (req, res) => {
   const { signup_id, relative_name, relative_relation, relative_id_card, note, custom_values } = req.body;
   try {
     const c = await db();
@@ -814,7 +831,7 @@ app.post('/api/lists/:id/signup', auth, async (req, res) => {
   }
 });
 
-app.delete('/api/lists/:id/signup', auth, async (req, res) => {
+app.delete('/api/lists/:id/signup', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
@@ -833,7 +850,7 @@ app.delete('/api/lists/:listId/signup/:userId', auth, requireAdmin, async (req, 
 });
 
 // ── PARENTI PARLATORIO ────────────────────────────────────────────
-app.post('/api/lists/:id/relatives', auth, async (req, res) => {
+app.post('/api/lists/:id/relatives', auth, requireCompagnia, async (req, res) => {
   const { id, relative_name, relative_relation, relative_id_card } = req.body;
   if (!relative_name?.trim()) return res.status(400).json({ error: 'Nome parente obbligatorio' });
   try {
@@ -846,7 +863,7 @@ app.post('/api/lists/:id/relatives', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/lists/:id/relatives/:relId', auth, async (req, res) => {
+app.delete('/api/lists/:id/relatives/:relId', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     await c.execute('DELETE FROM list_relatives WHERE id=? AND user_id=?', [req.params.relId, req.user.id]);
@@ -855,7 +872,7 @@ app.delete('/api/lists/:id/relatives/:relId', auth, async (req, res) => {
 });
 
 // ── CALENDARIO ────────────────────────────────────────────────
-app.get('/api/calendar', auth, async (req, res) => {
+app.get('/api/calendar', auth, requireCompagnia, async (req, res) => {
   const { month, year } = req.query;
   try {
     const c = await db();
@@ -874,7 +891,7 @@ app.get('/api/calendar', auth, async (req, res) => {
   } catch(e){ res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/calendar', auth, async (req, res) => {
+app.post('/api/calendar', auth, requireCompagnia, async (req, res) => {
   const { id, title, event_date, event_time, description, color } = req.body;
   if(!title?.trim() || !event_date) return res.status(400).json({ error: 'Titolo e data obbligatori' });
   try {
@@ -887,7 +904,7 @@ app.post('/api/calendar', auth, async (req, res) => {
   } catch(e){ res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/calendar/:id', auth, async (req, res) => {
+app.delete('/api/calendar/:id', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute('SELECT user_id FROM calendar_events WHERE id=?', [req.params.id]);
@@ -904,25 +921,27 @@ app.get('/api/admin/users', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,nome,cognome,military_rank,role,can_access_finance,can_access_grades,is_admin,created_at FROM users ORDER BY id DESC'
+      'SELECT id,username,email,full_name,nome,cognome,military_rank,role,can_access_finance,can_access_grades,can_access_2compagnia,is_admin,created_at FROM users ORDER BY id DESC'
     );
     rows.forEach(u => {
-      u.can_access_finance = !!u.can_access_finance;
-      u.can_access_grades  = !!u.can_access_grades;
-      u.is_admin           = !!u.is_admin;
-      u.role               = u.role || 'none';
+      u.can_access_finance    = !!u.can_access_finance;
+      u.can_access_grades     = !!u.can_access_grades;
+      u.can_access_2compagnia = !!u.can_access_2compagnia;
+      u.is_admin              = !!u.is_admin;
+      u.role                  = u.role || 'none';
+      u.military_rank         = u.military_rank || 'AU';
     });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.put('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
-  const { can_access_finance, can_access_grades, is_admin, role } = req.body;
+  const { can_access_finance, can_access_grades, can_access_2compagnia, is_admin, role } = req.body;
   try {
     const c = await db();
     await c.execute(
-      'UPDATE users SET can_access_finance=?,can_access_grades=?,is_admin=?,role=? WHERE id=?',
-      [can_access_finance ? 1 : 0, can_access_grades ? 1 : 0, is_admin ? 1 : 0, role || 'none', req.params.id]
+      'UPDATE users SET can_access_finance=?,can_access_grades=?,can_access_2compagnia=?,is_admin=?,role=? WHERE id=?',
+      [can_access_finance ? 1 : 0, can_access_grades ? 1 : 0, can_access_2compagnia ? 1 : 0, is_admin ? 1 : 0, role || 'none', req.params.id]
     );
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
