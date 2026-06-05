@@ -210,7 +210,14 @@ function stopChatBadgePolling(){
 }
 // ─────────────────────────────────────────────────────────────────
 
+const COMPAGNIA_PAGES = ['comunicazioni','liste','calendario','voti','finanze'];
+
 async function showPage(id, link){
+  // Blocco accesso sezione 2 Compagnia per utenti non autorizzati
+  if(COMPAGNIA_PAGES.includes(id) && !currentUser?.is_admin && !currentUser?.can_access_2compagnia){
+    toast('Non hai i permessi per accedere a questa sezione','err');
+    return;
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
@@ -249,12 +256,17 @@ async function refreshCurrentUser(){
 function applyPermissions(){
   if(!currentUser) return;
   const isAdmin = !!currentUser.is_admin;
-  document.getElementById('sb-section-admin').style.display = isAdmin ? '' : 'none';
-  document.getElementById('sb-nav-admin').style.display     = isAdmin ? '' : 'none';
+  const has2Comp = isAdmin || !!currentUser.can_access_2compagnia;
+
+  document.getElementById('sb-section-admin').style.display    = isAdmin  ? '' : 'none';
+  document.getElementById('sb-nav-admin').style.display        = isAdmin  ? '' : 'none';
+  document.getElementById('sb-section-compagnia').style.display = has2Comp ? '' : 'none';
+  document.getElementById('sb-nav-compagnia').style.display     = has2Comp ? '' : 'none';
+
   const btnNew = document.getElementById('btnNewList');
   if(btnNew) btnNew.classList.remove('hidden');
   document.getElementById('sbUserName').textContent = currentUser.full_name||currentUser.username;
-  document.getElementById('sbUserRank').textContent = currentUser.military_rank||'Allievo Ufficiale';
+  document.getElementById('sbUserRank').textContent = currentUser.military_rank||'AU';
   const rbEl = document.getElementById('sbUserRole');
   if(rbEl) rbEl.innerHTML = roleBadge(currentUser.role, isAdmin);
 }
@@ -316,7 +328,7 @@ async function loadProfile(){
     '<span class="role-badge role-none">Allievo</span>';
   document.getElementById('prof-nome').value     = currentUser.nome||'';
   document.getElementById('prof-cognome').value  = currentUser.cognome||'';
-  document.getElementById('prof-rank').value     = currentUser.military_rank||'';
+  document.getElementById('prof-rank-display').textContent = currentUser.military_rank||'AU';
   document.getElementById('prof-platoon').value  = currentUser.platoon||'';
   document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
   document.getElementById('prof-perm-finance').textContent = currentUser.can_access_finance ? '✓ Abilitato' : '✗ Non abilitato';
@@ -330,14 +342,13 @@ async function loadProfile(){
 async function saveProfile(){
   const nome          = document.getElementById('prof-nome').value.trim();
   const cognome       = document.getElementById('prof-cognome').value.trim();
-  const military_rank = document.getElementById('prof-rank').value.trim();
   const platoon       = document.getElementById('prof-platoon').value.trim();
   const academic_year = document.getElementById('prof-year').value;
   if(!nome || !cognome){ toast('Nome e cognome obbligatori','err'); return; }
   try {
-    await api('PUT','/api/profile',{nome,cognome,military_rank,platoon,academic_year});
+    await api('PUT','/api/profile',{nome,cognome,platoon,academic_year});
     const full_name = `${nome} ${cognome}`;
-    Object.assign(currentUser, {nome,cognome,full_name,military_rank,platoon,academic_year});
+    Object.assign(currentUser, {nome,cognome,full_name,platoon,academic_year});
     applyPermissions();
     toast('Profilo aggiornato');
   } catch(e){ toast(e.message,'err') }
@@ -662,7 +673,6 @@ async function createList(){
     .split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   if(!list_date){ toast('Seleziona una data','err'); return }
   if(list_type==='custom' && !custom_name){ toast('Inserisci il nome della lista','err'); return }
-  if(list_type==='custom' && !custom_fields.length){ toast('Indica almeno un campo (una riga nel riquadro campi)','err'); return }
   try {
     await api('POST','/api/lists',{id:uid(),list_type,list_date,notes,custom_name,custom_fields});
     document.getElementById('list-admin-panel').classList.add('hidden');
@@ -877,9 +887,10 @@ function renderSignupRows(l, isAdmin){
     if(isParlatorio){
       const rels = s.relatives || [];
       if(rels.length){
-        detail = rels.map(r =>
-          `<div style="margin-left:1.5rem;color:var(--text2);font-size:.68rem">↳ ${escHtml(r.relative_name)} (${escHtml(r.relative_relation||'—')})${r.relative_id_card?' · CI: '+escHtml(r.relative_id_card):''}</div>`
-        ).join('');
+        detail = `<div style="flex:0 0 100%;display:flex;flex-direction:column;gap:.15rem;padding:.25rem 0 .1rem 1.2rem">` +
+          rels.map(r =>
+            `<div style="color:var(--text2);font-size:.68rem">↳ <strong>${escHtml(r.relative_name)}</strong> (${escHtml(r.relative_relation||'—')})${r.relative_id_card?' &nbsp;·&nbsp; CI: <span style="color:var(--gold);font-family:var(--font-m)">' + escHtml(r.relative_id_card) + '</span>':''}</div>`
+          ).join('') + `</div>`;
       }
     }
 
@@ -1702,6 +1713,7 @@ async function loadAdminUsers(){
           </select>
         </td>
         <td style="color:var(--text3);font-size:.65rem">${fmtDate(u.created_at?.slice(0,10))}</td>
+        <td><span class="perm-toggle ${u.can_access_2compagnia?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'compagnia',${!u.can_access_2compagnia})">${u.can_access_2compagnia?'✓ Sì':'✗ No'}</span></td>
         <td><span class="perm-toggle ${u.can_access_finance?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'finance',${!u.can_access_finance})">${u.can_access_finance?'✓ Sì':'✗ No'}</span></td>
         <td><span class="perm-toggle ${u.can_access_grades?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'grades',${!u.can_access_grades})">${u.can_access_grades?'✓ Sì':'✗ No'}</span></td>
         <td><span class="perm-toggle ${u.is_admin?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'admin',${!u.is_admin})">${u.is_admin?'✓ Admin':'✗ No'}</span></td>
@@ -1715,9 +1727,10 @@ async function setUserRole(id, role){
     const u = users.find(x=>x.id===id);
     if(!u) return;
     await api('PUT','/api/admin/users/'+id,{
-      can_access_finance: u.can_access_finance,
-      can_access_grades:  u.can_access_grades,
-      is_admin:           u.is_admin,
+      can_access_finance:    u.can_access_finance,
+      can_access_grades:     u.can_access_grades,
+      can_access_2compagnia: u.can_access_2compagnia,
+      is_admin:              u.is_admin,
       role
     });
     toast('Ruolo aggiornato');
@@ -1728,9 +1741,10 @@ async function togglePerm(id,field,val){
     const users=await api('GET','/api/admin/users');
     const u=users.find(x=>x.id===id);if(!u) return;
     const upd={
-      can_access_finance: field==='finance'?val:u.can_access_finance,
-      can_access_grades:  field==='grades' ?val:u.can_access_grades,
-      is_admin:           field==='admin'  ?val:u.is_admin,
+      can_access_finance:    field==='finance'   ?val:u.can_access_finance,
+      can_access_grades:     field==='grades'    ?val:u.can_access_grades,
+      can_access_2compagnia: field==='compagnia' ?val:u.can_access_2compagnia,
+      is_admin:              field==='admin'     ?val:u.is_admin,
       role: u.role
     };
     await api('PUT','/api/admin/users/'+id,upd);
