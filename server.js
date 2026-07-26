@@ -22,9 +22,9 @@ const PORT       = parseInt(process.env.PORT || '3000');
 const DB_CONFIG = {
   host             : process.env.DB_HOST || 'sql7.freesqldatabase.com',
   port             : parseInt(process.env.DB_PORT || '3306'),
-  user             : process.env.DB_USER || 'sql7824955',
-  password         : process.env.DB_PASS || '5Nfb39Cmdz',
-  database         : process.env.DB_NAME || 'sql7824955',
+  user             : process.env.DB_USER || 'sql7833889',
+  password         : process.env.DB_PASS || 'sUmDyLlzL7',
+  database         : process.env.DB_NAME || 'sql7833889',
   waitForConnections: true,
   connectionLimit  : 52,
   charset          : 'utf8mb4'
