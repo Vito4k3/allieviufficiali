@@ -957,6 +957,11 @@ app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── PAGINA INSTALLAZIONE APP ──────────────────────────────────
+app.get('/installa', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'installa.html'));
+});
+
 // ── FALLBACK SPA ──────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

@@ -6,6 +6,13 @@
 <meta name="description" content="Portale riservato Allievi Ufficiali: bacheca, comunicazioni, registro voti, finanze e liste.">
 <meta name="theme-color" content="#ece8df">
 <title>Portale Allievi Ufficiali</title>
+<!-- ── PWA: installabile come app su iPhone e Android ── -->
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Portale AU">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1982,5 +1989,63 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 </script>
 <script src="/app.js"></script>
+
+<!-- ═══ PWA: registrazione app + aggiornamenti obbligatori ═══ -->
+<div id="pwa-update-banner" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;background:#0b121c;border:1px solid rgba(212,175,88,.45);border-radius:14px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,.55);display:none;align-items:center;gap:12px;font-family:'Outfit',sans-serif;">
+  <div style="flex:1;min-width:0;">
+    <div style="color:#f0d78c;font-weight:600;font-size:.95rem;">Nuova versione disponibile</div>
+    <div style="color:#8fa3bd;font-size:.8rem;margin-top:2px;">Aggiorna l'app per continuare a usarla.</div>
+  </div>
+  <button id="pwa-update-btn" style="flex-shrink:0;background:linear-gradient(180deg,#f0d78c,#d4af58);color:#05080d;border:none;border-radius:10px;padding:10px 18px;font-weight:700;font-size:.9rem;cursor:pointer;font-family:'Outfit',sans-serif;">Aggiorna</button>
+</div>
+<script>
+(function(){
+  if (!('serviceWorker' in navigator)) return;
+
+  var banner = document.getElementById('pwa-update-banner');
+  var btn    = document.getElementById('pwa-update-btn');
+
+  function mostraBanner(worker){
+    banner.style.display = 'flex';
+    btn.onclick = function(){
+      btn.disabled = true;
+      btn.textContent = 'Aggiorno…';
+      worker.postMessage({ type: 'SKIP_WAITING' });
+    };
+  }
+
+  navigator.serviceWorker.register('/sw.js').then(function(reg){
+    // C'è già una versione nuova in attesa (es. app riaperta)
+    if (reg.waiting) mostraBanner(reg.waiting);
+
+    // Una versione nuova è stata trovata adesso
+    reg.addEventListener('updatefound', function(){
+      var nuovo = reg.installing;
+      if (!nuovo) return;
+      nuovo.addEventListener('statechange', function(){
+        if (nuovo.state === 'installed' && navigator.serviceWorker.controller) {
+          mostraBanner(nuovo);
+        }
+      });
+    });
+
+    // Controlla se ci sono aggiornamenti: subito, ogni 30 minuti
+    // e ogni volta che l'app viene riportata in primo piano
+    reg.update();
+    setInterval(function(){ reg.update(); }, 30 * 60 * 1000);
+    document.addEventListener('visibilitychange', function(){
+      if (document.visibilityState === 'visible') reg.update();
+    });
+  }).catch(function(){ /* SW non disponibile: il sito funziona comunque */ });
+
+  // Quando la nuova versione prende il controllo → ricarica l'app
+  var ricaricato = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if (ricaricato) return;
+    ricaricato = true;
+    location.reload();
+  });
+})();
+</script>
 </body>
 </html>

@@ -1,0 +1,33 @@
+{
+  "name": "Portale Allievi Ufficiali",
+  "short_name": "Portale AU",
+  "description": "Portale riservato Allievi Ufficiali: bacheca, comunicazioni, registro voti, finanze e liste.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05080d",
+  "theme_color": "#0b121c",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# Dipendenze: il server di hosting le reinstalla da solo con "npm install"
+node_modules/
+
+# File locali di Claude Code
+.claude/
+
+# File di sistema
+.DS_Store
+Thumbs.db
