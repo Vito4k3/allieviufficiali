@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="it" data-theme="light">
+<html lang="it" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Portale riservato Allievi Ufficiali: bacheca, comunicazioni, registro voti, finanze e liste.">
-<meta name="theme-color" content="#ece8df">
+<meta name="theme-color" content="#05080d">
 <title>Portale Allievi Ufficiali</title>
 <!-- ── PWA: installabile come app su iPhone e Android ── -->
 <link rel="manifest" href="/manifest.webmanifest">
@@ -1200,7 +1200,7 @@ canvas{max-height:220px}
 }
 [data-theme="light"] .hero-watermark{opacity:.055}
 .land-hero{position:relative}
-.land-hero>*{position:relative;z-index:1}
+.land-hero>*:not(.hero-watermark){position:relative;z-index:1}
 
 /* ── REVEAL ALLO SCORRIMENTO ── */
 .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.3,1)}
@@ -1209,12 +1209,48 @@ canvas{max-height:220px}
 
 /* ── FOOTER CON EMBLEMA ── */
 .land-footer-emblema{width:44px;height:44px;margin:0 auto 1rem;opacity:.5}
+.land-footer-motto{
+  font-family:var(--font-d);font-size:.72rem;color:var(--gold);
+  letter-spacing:.26em;text-transform:uppercase;margin:.5rem 0 .65rem;opacity:.85;
+}
+
+/* ── RIFINITURE ISTITUZIONALI v5 ── */
+/* Hero più compatto: titolo ben visibile senza scorrere */
+.land-hero{padding:4.2rem 2rem 3.6rem}
+.hero-eyebrow{margin-bottom:1.8rem}
+.hero-title{font-size:clamp(2.6rem,6.2vw,4.5rem)}
+.hero-watermark{top:1.6rem;opacity:.07}
+[data-theme="light"] .hero-watermark{opacity:.06}
+.hero-divider{opacity:.55;max-width:320px;margin-top:3rem}
+.hero-divider-sym{font-size:.78rem;letter-spacing:.42em;padding:0 .2rem;color:var(--gold)}
+
+/* Barra di navigazione: effetto vetro con filo dorato */
+.land-nav{
+  position:sticky;top:0;z-index:50;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  background:color-mix(in srgb, var(--bg) 72%, transparent);
+  border-bottom:1px solid var(--border-gold);
+}
+
+/* Schede funzionalità: bordo dorato al passaggio */
+.feat-card{transition:transform .35s cubic-bezier(.2,.7,.3,1),border-color .35s,box-shadow .35s}
+.feat-card:hover{transform:translateY(-5px);border-color:var(--border-gold);box-shadow:0 14px 40px rgba(0,0,0,.35),0 0 0 1px var(--gold-a18)}
+.feat-icon-wrap{border:1px solid var(--border-gold);background:var(--gold-a10)}
+
+/* Emblema nelle sidebar e nella barra mobile dell'app */
+.sb-emblem{font-size:0}
+.sb-emblem .emblema-svg{width:78%;height:78%;margin:11% auto}
+.mobile-logo{display:flex;align-items:center;gap:.5rem}
+.emblema-inline{width:22px;height:22px;flex-shrink:0}
+
+/* Fascia statistiche: numeri in oro */
+.stat-num{background:linear-gradient(135deg,var(--gold-hi),var(--gold) 60%,var(--gold-lo));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 </style>
 </head>
 <body>
 
 <!-- ═══ EMBLEMA ARALDICO (definizione riutilizzabile) ═══ -->
-<svg style="display:none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<svg width="0" height="0" style="position:absolute;overflow:hidden" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 <defs>
   <linearGradient id="au-oro" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#f0d78c"/>
@@ -1256,7 +1292,7 @@ canvas{max-height:220px}
   <svg class="splash-emblema"><use href="#emblema-au"/></svg>
   <div class="splash-titolo">Portale<br>Allievi Ufficiali</div>
   <div class="splash-linea"></div>
-  <div class="splash-sotto">Accesso Riservato</div>
+  <div class="splash-sotto">207° Corso · Accesso Riservato</div>
 </div>
 
 <!-- ════════════════════ LANDING ════════════════════ -->
@@ -1288,7 +1324,7 @@ canvas{max-height:220px}
 
   <div class="land-hero">
     <svg class="hero-watermark"><use href="#emblema-au"/></svg>
-    <div class="hero-eyebrow">✦ &nbsp;Sistema Integrato · Allievi Ufficiali&nbsp; ✦</div>
+    <div class="hero-eyebrow">✦ &nbsp;207° Corso · Allievi Ufficiali&nbsp; ✦</div>
     <h1 class="hero-title">
       Portale
       <span class="ht-accent">Allievi Ufficiali</span>
@@ -1300,7 +1336,7 @@ canvas{max-height:220px}
     </div>
     <div class="hero-divider">
       <div class="hero-divider-line"></div>
-      <span class="hero-divider-sym">— AU —</span>
+      <span class="hero-divider-sym">VNA&nbsp;ACIES</span>
       <div class="hero-divider-line"></div>
     </div>
   </div>
@@ -1374,6 +1410,7 @@ canvas{max-height:220px}
   <footer class="land-footer">
     <svg class="land-footer-emblema"><use href="#emblema-au"/></svg>
     <div class="land-footer-line1">Portale Allievi Ufficiali</div>
+    <div class="land-footer-motto">207° Corso · «Vna Acies»</div>
     <div class="land-footer-line2">Uso riservato · Trattamento dati secondo normativa vigente</div>
   </footer>
 </div>
@@ -1384,7 +1421,7 @@ canvas{max-height:220px}
     <div class="auth-emblem">
       <div class="auth-emblem-icon"><svg class="emblema-svg"><use href="#emblema-au"/></svg></div>
       <div class="auth-title">Portale AU</div>
-      <div class="auth-subtitle">Accesso Riservato · Allievi Ufficiali</div>
+      <div class="auth-subtitle">207° Corso · Accesso Riservato</div>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Accedi</button>
@@ -1420,7 +1457,7 @@ canvas{max-height:220px}
 
   <!-- MOBILE TOPBAR -->
   <div class="mobile-topbar">
-    <div class="mobile-logo">⚔ &nbsp;Portale AU</div>
+    <div class="mobile-logo"><svg class="emblema-svg emblema-inline"><use href="#emblema-au"/></svg>Portale AU</div>
     <div style="display:flex;align-items:center;gap:.5rem">
       <button class="theme-toggle" onclick="toggleTheme()" title="Cambia tema">
         <span class="icon-sun">☀</span><span class="icon-moon">☾</span>
@@ -1436,7 +1473,7 @@ canvas{max-height:220px}
     <!-- Stessi contenuti della sidebar desktop, clonati via JS -->
     <div class="sb-header">
       <div class="sb-header-main">
-        <div class="sb-emblem">⚔</div>
+        <div class="sb-emblem"><svg class="emblema-svg"><use href="#emblema-au"/></svg></div>
         <div>
           <div class="sb-title">Portale AU</div>
           <div class="sb-sub">Allievi Ufficiali</div>
@@ -1482,7 +1519,7 @@ canvas{max-height:220px}
   <aside>
     <div class="sb-header">
       <div class="sb-header-main">
-        <div class="sb-emblem">⚔</div>
+        <div class="sb-emblem"><svg class="emblema-svg"><use href="#emblema-au"/></svg></div>
         <div>
           <div class="sb-title">Portale AU</div>
           <div class="sb-sub">Allievi Ufficiali</div>
@@ -2040,7 +2077,7 @@ function toggleTheme(){
 }
 (function(){
   const s=localStorage.getItem('au-theme');
-  const t = s||'light';
+  const t = s||'dark';
   document.documentElement.setAttribute('data-theme', t);
   const meta=document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', t==='dark' ? '#05080d' : '#ece8df');
