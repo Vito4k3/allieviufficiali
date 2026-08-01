@@ -8,6 +8,7 @@
 <title>Portale Allievi Ufficiali</title>
 <!-- ── PWA: installabile come app su iPhone e Android ── -->
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════
    PORTALE AU — Design System v4 (presentazione istituzionale)
@@ -1153,8 +1154,110 @@ canvas{max-height:220px}
 .color-opt{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s}
 .color-opt.selected{border-color:var(--text);transform:scale(1.2)}
 </style>
+<style>
+/* ═══════════════════════════════════════════════════
+   PORTALE AU — v5: emblema araldico, splash, reveal
+   ═══════════════════════════════════════════════════ */
+
+/* ── SPLASH SCREEN ISTITUZIONALE ── */
+#splash{
+  position:fixed;inset:0;z-index:100000;
+  background:radial-gradient(ellipse at 50% 38%,#0e1826 0%,#05080d 70%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.4rem;
+  transition:opacity .6s ease, visibility .6s;
+}
+#splash.nascosto{opacity:0;visibility:hidden;pointer-events:none}
+.splash-emblema{width:120px;height:120px;animation:splashEmb 1.1s cubic-bezier(.2,.7,.3,1) both;filter:drop-shadow(0 0 28px rgba(212,175,88,.35))}
+.splash-titolo{
+  font-family:'Cinzel',serif;font-size:1.05rem;font-weight:600;letter-spacing:.34em;text-transform:uppercase;
+  color:#f0d78c;text-align:center;animation:splashTxt .9s .25s ease both;
+}
+.splash-sotto{
+  font-family:'JetBrains Mono',monospace;font-size:.55rem;letter-spacing:.42em;text-transform:uppercase;
+  color:#54687f;animation:splashTxt .9s .45s ease both;
+}
+.splash-linea{
+  width:150px;height:1px;background:linear-gradient(90deg,transparent,#d4af58,transparent);
+  animation:splashLinea 1s .35s ease both;
+}
+@keyframes splashEmb{from{opacity:0;transform:scale(.82) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes splashTxt{from{opacity:0;transform:translateY(6px);letter-spacing:.5em}to{opacity:1;transform:translateY(0)}}
+@keyframes splashLinea{from{width:0;opacity:0}to{width:150px;opacity:1}}
+@media (prefers-reduced-motion: reduce){
+  #splash *{animation:none!important}
+}
+
+/* ── EMBLEMA SVG ── */
+.emblema-svg{width:68%;height:68%;display:block}
+.land-emblem .emblema-svg,.auth-emblem-icon .emblema-svg{width:74%;height:74%}
+.auth-emblem-icon{font-size:0}
+
+/* ── FILIGRANA EMBLEMA DIETRO L'HERO ── */
+.hero-watermark{
+  position:absolute;left:50%;top:4.2rem;transform:translateX(-50%);
+  width:min(520px,86vw);height:min(520px,86vw);
+  opacity:.05;pointer-events:none;z-index:0;
+}
+[data-theme="light"] .hero-watermark{opacity:.055}
+.land-hero{position:relative}
+.land-hero>*{position:relative;z-index:1}
+
+/* ── REVEAL ALLO SCORRIMENTO ── */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.3,1)}
+.reveal.visibile{opacity:1;transform:none}
+@media (prefers-reduced-motion: reduce){.reveal{opacity:1;transform:none;transition:none}}
+
+/* ── FOOTER CON EMBLEMA ── */
+.land-footer-emblema{width:44px;height:44px;margin:0 auto 1rem;opacity:.5}
+</style>
 </head>
 <body>
+
+<!-- ═══ EMBLEMA ARALDICO (definizione riutilizzabile) ═══ -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<defs>
+  <linearGradient id="au-oro" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#f0d78c"/>
+    <stop offset=".55" stop-color="#d4af58"/>
+    <stop offset="1" stop-color="#96772f"/>
+  </linearGradient>
+  <path id="au-foglia" d="M0 0 Q 4.2 -3.4 5.2 -9.6 Q 0.4 -7.2 -1.6 -1.8 Z" fill="url(#au-oro)"/>
+</defs>
+<symbol id="emblema-au" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="47.5" fill="none" stroke="url(#au-oro)" stroke-width="1.8"/>
+  <circle cx="50" cy="50" r="43.8" fill="none" stroke="url(#au-oro)" stroke-width=".55" opacity=".5"/>
+  <g>
+<use href="#au-foglia" transform="translate(45.31,88.23) rotate(213.0) scale(1.00)"/>
+<use href="#au-foglia" transform="translate(35.72,86.15) rotate(228.0) scale(0.97)"/>
+<use href="#au-foglia" transform="translate(27.20,81.30) rotate(243.0) scale(0.94)"/>
+<use href="#au-foglia" transform="translate(20.55,74.15) rotate(258.0) scale(0.91)"/>
+<use href="#au-foglia" transform="translate(16.36,65.34) rotate(273.0) scale(0.88)"/>
+<use href="#au-foglia" transform="translate(14.96,55.68) rotate(288.0) scale(0.85)"/>
+<use href="#au-foglia" transform="translate(16.44,46.03) rotate(303.0) scale(0.82)"/>
+<use href="#au-foglia" transform="translate(20.66,37.22) rotate(318.0) scale(0.79)"/>
+  </g>
+  <g transform="translate(100,0) scale(-1,1)">
+<use href="#au-foglia" transform="translate(45.31,88.23) rotate(213.0) scale(1.00)"/>
+<use href="#au-foglia" transform="translate(35.72,86.15) rotate(228.0) scale(0.97)"/>
+<use href="#au-foglia" transform="translate(27.20,81.30) rotate(243.0) scale(0.94)"/>
+<use href="#au-foglia" transform="translate(20.55,74.15) rotate(258.0) scale(0.91)"/>
+<use href="#au-foglia" transform="translate(16.36,65.34) rotate(273.0) scale(0.88)"/>
+<use href="#au-foglia" transform="translate(14.96,55.68) rotate(288.0) scale(0.85)"/>
+<use href="#au-foglia" transform="translate(16.44,46.03) rotate(303.0) scale(0.82)"/>
+<use href="#au-foglia" transform="translate(20.66,37.22) rotate(318.0) scale(0.79)"/>
+  </g>
+  <path d="M46 87.5 L54 87.5 L52.6 90.5 L47.4 90.5 Z" fill="url(#au-oro)"/>
+  <polygon points="50.00,30.00 55.05,44.05 69.97,44.51 58.13,53.60 62.34,67.92 50.00,59.52 37.66,67.92 41.87,53.60 30.03,44.51 44.95,44.05" fill="url(#au-oro)"/>
+</symbol>
+</svg>
+
+<!-- ═══ SPLASH SCREEN ═══ -->
+<div id="splash">
+  <svg class="splash-emblema"><use href="#emblema-au"/></svg>
+  <div class="splash-titolo">Portale<br>Allievi Ufficiali</div>
+  <div class="splash-linea"></div>
+  <div class="splash-sotto">Accesso Riservato</div>
+</div>
 
 <!-- ════════════════════ LANDING ════════════════════ -->
 <div id="landing">
@@ -1164,7 +1267,7 @@ canvas{max-height:220px}
 
   <nav class="land-nav">
     <div class="land-logo">
-      <div class="land-emblem">⚔</div>
+      <div class="land-emblem"><svg class="emblema-svg"><use href="#emblema-au"/></svg></div>
       <div>
         <div class="land-logo-text">Portale AU</div>
         <div class="land-logo-sub">Allievi Ufficiali</div>
@@ -1184,8 +1287,8 @@ canvas{max-height:220px}
   </nav>
 
   <div class="land-hero">
-    <p class="hero-kicker">Sistema integrato</p>
-    <div class="hero-eyebrow">Sistema integrato · Allievi Ufficiali</div>
+    <svg class="hero-watermark"><use href="#emblema-au"/></svg>
+    <div class="hero-eyebrow">✦ &nbsp;Sistema Integrato · Allievi Ufficiali&nbsp; ✦</div>
     <h1 class="hero-title">
       Portale
       <span class="ht-accent">Allievi Ufficiali</span>
@@ -1204,10 +1307,10 @@ canvas{max-height:220px}
 
   <div class="land-stats-wrap">
     <div class="land-stats">
-      <div class="stat-strip-item"><div class="stat-num">2</div><div class="stat-lbl">Medie Separate</div></div>
-      <div class="stat-strip-item"><div class="stat-num">∞</div><div class="stat-lbl">Transazioni</div></div>
-      <div class="stat-strip-item"><div class="stat-num">6</div><div class="stat-lbl">Tipi di Liste</div></div>
-      <div class="stat-strip-item"><div class="stat-num">DB</div><div class="stat-lbl">Dati su Server</div></div>
+      <div class="stat-strip-item"><div class="stat-num">6</div><div class="stat-lbl">Moduli Integrati</div></div>
+      <div class="stat-strip-item"><div class="stat-num">24/7</div><div class="stat-lbl">Sempre Operativo</div></div>
+      <div class="stat-strip-item"><div class="stat-num">100%</div><div class="stat-lbl">Digitale e Riservato</div></div>
+      <div class="stat-strip-item"><div class="stat-num">1</div><div class="stat-lbl">Unica Piattaforma</div></div>
     </div>
   </div>
 
@@ -1215,32 +1318,32 @@ canvas{max-height:220px}
     <div class="land-features-title">Funzionalità</div>
     <div class="land-features-sub">Tutto ciò di cui hai bisogno, in un'unica piattaforma</div>
     <div class="land-features">
-      <div class="feat-card">
+      <div class="feat-card reveal">
         <div class="feat-icon-wrap">📢</div>
         <div class="feat-title">Bacheca annunci</div>
         <div class="feat-desc">Comunicazioni di reparto visibili a tutti gli utenti registrati, con aggiornamento periodico automatico.</div>
       </div>
-      <div class="feat-card">
+      <div class="feat-card reveal">
         <div class="feat-icon-wrap">💬</div>
         <div class="feat-title">Comunicazioni</div>
         <div class="feat-desc">Canale chat ufficiale e pubblicazione di comunicati con allegati. Scrittura riservata ai ruoli autorizzati.</div>
       </div>
-      <div class="feat-card">
+      <div class="feat-card reveal">
         <div class="feat-icon-wrap">🎓</div>
         <div class="feat-title">Registro voti</div>
         <div class="feat-desc">Università, accertamenti militari e ginnastica con medie distinte e sintesi per la graduatoria.</div>
       </div>
-      <div class="feat-card">
+      <div class="feat-card reveal">
         <div class="feat-icon-wrap">📋</div>
         <div class="feat-title">Liste</div>
         <div class="feat-desc">Liberi uscenti, messa, parlatorio e liste personalizzate con campi configurabili ed export tabellare.</div>
       </div>
-      <div class="feat-card">
+      <div class="feat-card reveal">
         <div class="feat-icon-wrap">💰</div>
         <div class="feat-title">Finanze</div>
         <div class="feat-desc">Rilevazione entrate, uscite, investimenti e ricavi con indicatori e grafici mensili.</div>
       </div>
-      <div class="feat-card">
+      <div class="feat-card reveal">
         <div class="feat-icon-wrap">🔐</div>
         <div class="feat-title">Governance</div>
         <div class="feat-desc">Amministratori che gestiscono ruoli e permessi con effetto immediato sulle funzioni sensibili.</div>
@@ -1250,25 +1353,26 @@ canvas{max-height:220px}
 
   <div class="land-steps-wrap">
     <div class="land-steps-title">Come Funziona</div>
-    <div class="step">
+    <div class="step reveal">
       <div class="step-num">I</div>
       <div class="step-body"><h3>Registrati</h3><p>Crea il tuo account con username ed email. Un amministratore abiliterà le sezioni riservate.</p></div>
     </div>
-    <div class="step">
+    <div class="step reveal">
       <div class="step-num">II</div>
       <div class="step-body"><h3>Accedi</h3><p>Login con username ed email. Bacheca e liste subito disponibili, voti e finanze se abilitato.</p></div>
     </div>
-    <div class="step">
+    <div class="step reveal">
       <div class="step-num">III</div>
       <div class="step-body"><h3>Usa il Portale</h3><p>Inserisci voti, transazioni, iscriviti alle liste, pubblica annunci e usa la chat ufficiale.</p></div>
     </div>
-    <div class="step">
+    <div class="step reveal">
       <div class="step-num">IV</div>
       <div class="step-body"><h3>Analizza</h3><p>Visualizza graduatoria, medie separate, grafici finanziari e penalità calcolate automaticamente.</p></div>
     </div>
   </div>
 
   <footer class="land-footer">
+    <svg class="land-footer-emblema"><use href="#emblema-au"/></svg>
     <div class="land-footer-line1">Portale Allievi Ufficiali</div>
     <div class="land-footer-line2">Uso riservato · Trattamento dati secondo normativa vigente</div>
   </footer>
@@ -1278,7 +1382,7 @@ canvas{max-height:220px}
 <div id="auth" class="hidden">
   <div class="auth-box">
     <div class="auth-emblem">
-      <div class="auth-emblem-icon">⚔</div>
+      <div class="auth-emblem-icon"><svg class="emblema-svg"><use href="#emblema-au"/></svg></div>
       <div class="auth-title">Portale AU</div>
       <div class="auth-subtitle">Accesso Riservato · Allievi Ufficiali</div>
     </div>
@@ -1989,6 +2093,41 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 </script>
 <script src="/app.js"></script>
+
+<!-- ═══ Splash screen + animazioni reveal ═══ -->
+<script>
+(function(){
+  // Splash: visibile per un tempo minimo, poi dissolvenza
+  var inizio = Date.now();
+  window.addEventListener('load', function(){
+    var attesa = Math.max(0, 1150 - (Date.now() - inizio));
+    setTimeout(function(){
+      var s = document.getElementById('splash');
+      if (s) s.classList.add('nascosto');
+    }, attesa);
+  });
+  // Sicurezza: non oltre 2.5s in ogni caso
+  setTimeout(function(){
+    var s = document.getElementById('splash');
+    if (s) s.classList.add('nascosto');
+  }, 2500);
+
+  // Comparsa progressiva di card e passi allo scorrimento
+  if ('IntersectionObserver' in window) {
+    var oss = new IntersectionObserver(function(voci){
+      voci.forEach(function(v){
+        if (v.isIntersecting) {
+          v.target.classList.add('visibile');
+          oss.unobserve(v.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach(function(el){ oss.observe(el); });
+  } else {
+    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('visibile'); });
+  }
+})();
+</script>
 
 <!-- ═══ PWA: registrazione app + aggiornamenti obbligatori ═══ -->
 <div id="pwa-update-banner" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;background:#0b121c;border:1px solid rgba(212,175,88,.45);border-radius:14px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,.55);display:none;align-items:center;gap:12px;font-family:'Outfit',sans-serif;">

@@ -5,6 +5,7 @@
 'use strict';
 
 const express      = require('express');
+const compression  = require('compression');
 const mysql        = require('mysql2/promise');
 const bcrypt       = require('bcrypt');
 const jwt          = require('jsonwebtoken');
@@ -14,6 +15,13 @@ const path         = require('path');
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1); // dietro il proxy dell'hosting (per HTTPS e IP reali)
+
+// Errori interni: log completo sul server, messaggio generico al client
+function errServer(res, e) {
+  console.error('[ERRORE SERVER]', e.message);
+  res.status(500).json({ error: 'Errore interno del server. Riprova più tardi.' });
+}
 
 // ── CONFIG ────────────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET || 'portale_au_jwt_secret_CAMBIA_IN_PROD';
@@ -31,10 +39,64 @@ const DB_CONFIG = {
 };
 
 // ── MIDDLEWARE ────────────────────────────────────────────────
+app.use(compression()); // risposte compresse: pagine più veloci
 app.use(cors({ origin: true, credentials: true }));
+
+// Header di sicurezza su ogni risposta
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (req.secure) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    const nome = path.basename(filePath);
+    if (nome === 'sw.js' || nome === 'manifest.webmanifest') {
+      // il service worker deve essere sempre ricontrollato (aggiornamenti app)
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (filePath.includes('icons')) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+    }
+  }
+}));
+
+// ── ANTI BRUTE-FORCE ──────────────────────────────────────────
+// Limita i tentativi per IP sulle rotte sensibili (login/registrazione)
+const tentativi = new Map(); // ip → { n, primoTs }
+function limitaTentativi(max, finestraMs) {
+  return (req, res, next) => {
+    const ora = Date.now();
+    const rec = tentativi.get(req.ip);
+    if (!rec || ora - rec.primoTs > finestraMs) {
+      tentativi.set(req.ip, { n: 1, primoTs: ora });
+      return next();
+    }
+    rec.n++;
+    if (rec.n > max) {
+      const attesa = Math.ceil((rec.primoTs + finestraMs - ora) / 60000);
+      return res.status(429).json({ error: `Troppi tentativi. Riprova tra ${attesa} minut${attesa === 1 ? 'o' : 'i'}.` });
+    }
+    next();
+  };
+}
+// pulizia periodica della mappa
+setInterval(() => {
+  const ora = Date.now();
+  for (const [ip, rec] of tentativi) if (ora - rec.primoTs > 30 * 60 * 1000) tentativi.delete(ip);
+}, 10 * 60 * 1000).unref();
+
+// Opzioni cookie di sessione: non leggibile da JS, solo stesso sito, HTTPS in produzione
+function cookieSessione(req) {
+  return { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 7 * 86400 * 1000 };
+}
 
 // ── DB POOL ───────────────────────────────────────────────────
 let pool;
@@ -232,7 +294,7 @@ function canWriteComunicazioni(user) {
 }
 
 // ── SETUP ─────────────────────────────────────────────────────
-app.post('/api/setup', async (req, res) => {
+app.post('/api/setup', limitaTentativi(5, 15 * 60 * 1000), async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute('SELECT COUNT(*) AS n FROM users');
@@ -245,11 +307,11 @@ app.post('/api/setup', async (req, res) => {
       [username, email, hash, full_name || username]
     );
     res.json({ ok: true, message: 'Amministratore creato con successo' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 // ── AUTH ──────────────────────────────────────────────────────
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', limitaTentativi(10, 15 * 60 * 1000), async (req, res) => {
   const { username, email, password, nome, cognome } = req.body;
   if (!username || !email || !password)
     return res.status(400).json({ error: 'Username, email e password sono obbligatori' });
@@ -269,11 +331,11 @@ app.post('/api/auth/register', async (req, res) => {
   } catch (e) {
     if (e.code === 'ER_DUP_ENTRY')
       return res.status(400).json({ error: 'Username o email già registrati' });
-    res.status(500).json({ error: e.message });
+    errServer(res, e);
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', limitaTentativi(15, 15 * 60 * 1000), async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password)
     return res.status(400).json({ error: 'Credenziali mancanti' });
@@ -298,9 +360,14 @@ app.post('/api/auth/login', async (req, res) => {
       is_admin: !!Number(user.is_admin)
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('token', token, { httpOnly: true, maxAge: 7 * 86400 * 1000 });
+    res.cookie('token', token, cookieSessione(req));
     res.json({ token, user: payload });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('token');
+  res.json({ ok: true });
 });
 
 app.get('/api/auth/me', auth, async (req, res) => {
@@ -330,9 +397,9 @@ app.get('/api/auth/me', auth, async (req, res) => {
       is_admin: u.is_admin
     };
     const newToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('token', newToken, { httpOnly: true, maxAge: 7 * 86400 * 1000 });
+    res.cookie('token', newToken, cookieSessione(req));
     res.json({ ...u, token: newToken });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 // ── PROFILO ───────────────────────────────────────────────────
@@ -349,7 +416,7 @@ app.put('/api/profile', auth, async (req, res) => {
       [nome.trim(), cognome.trim(), full_name, platoon||'', academic_year||'1° Anno', req.user.id]
     );
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 // ── ANNUNCI ───────────────────────────────────────────────────
@@ -364,7 +431,7 @@ app.get('/api/announcements', auth, async (req, res) => {
       ORDER BY a.created_at DESC LIMIT 100
     `);
     res.json(rows);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/announcements', auth, async (req, res) => {
@@ -377,7 +444,7 @@ app.post('/api/announcements', auth, async (req, res) => {
       [req.user.id, content.trim()]
     );
     res.json({ ok: true, id: result.insertId });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.delete('/api/announcements/:id', auth, async (req, res) => {
@@ -389,7 +456,7 @@ app.delete('/api/announcements/:id', auth, async (req, res) => {
       return res.status(403).json({ error: 'Non puoi eliminare questo annuncio' });
     await c.execute('DELETE FROM announcements WHERE id=?', [req.params.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 // ── COMUNICAZIONI: CHAT ───────────────────────────────────────
@@ -404,7 +471,7 @@ app.get('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => {
       ORDER BY m.created_at ASC LIMIT 300
     `);
     res.json(rows);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.post('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => {
@@ -417,7 +484,7 @@ app.post('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => 
     await c.execute('INSERT INTO comunicazioni_chat (id,user_id,content) VALUES (?,?,?)',
       [id, req.user.id, content.trim()]);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.delete('/api/comunicazioni/chat/:id', auth, requireCompagnia, async (req, res) => {
@@ -429,7 +496,7 @@ app.delete('/api/comunicazioni/chat/:id', auth, requireCompagnia, async (req, re
       return res.status(403).json({ error: 'Non puoi eliminare questo messaggio' });
     await c.execute('DELETE FROM comunicazioni_chat WHERE id=?', [req.params.id]);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 // ── COMUNICAZIONI: COMUNICATI UFFICIALI ───────────────────────
@@ -444,7 +511,7 @@ app.get('/api/comunicazioni/posts', auth, requireCompagnia, async (req, res) => 
       ORDER BY p.created_at DESC LIMIT 50
     `);
     res.json(rows);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.get('/api/comunicazioni/posts/:id/file', auth, requireCompagnia, async (req, res) => {
@@ -457,7 +524,7 @@ app.get('/api/comunicazioni/posts/:id/file', auth, requireCompagnia, async (req,
     if (!rows.length || !rows[0].file_data)
       return res.status(404).json({ error: 'File non trovato' });
     res.json({ file_name: rows[0].file_name, file_data: rows[0].file_data, file_type: rows[0].file_type });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.post('/api/comunicazioni/posts', auth, requireCompagnia, async (req, res) => {
@@ -473,7 +540,7 @@ app.post('/api/comunicazioni/posts', auth, requireCompagnia, async (req, res) =>
       [id, req.user.id, title || '', content || '', file_name || null, file_data || null, file_type || null]
     );
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.delete('/api/comunicazioni/posts/:id', auth, requireCompagnia, async (req, res) => {
@@ -485,7 +552,7 @@ app.delete('/api/comunicazioni/posts/:id', auth, requireCompagnia, async (req, r
       return res.status(403).json({ error: 'Non puoi eliminare questo comunicato' });
     await c.execute('DELETE FROM comunicazioni_posts WHERE id=?', [req.params.id]);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 // ── FINANZE ───────────────────────────────────────────────────
@@ -497,7 +564,7 @@ app.get('/api/finance', auth, requireCompagnia, requireFinance, async (req, res)
       [req.user.id]
     );
     res.json(rows);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/finance', auth, requireCompagnia, requireFinance, async (req, res) => {
@@ -511,7 +578,7 @@ app.post('/api/finance', auth, requireCompagnia, requireFinance, async (req, res
       [id, req.user.id, type, desc, amount, date, cat || '', note || '']
     );
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.put('/api/finance/:id', auth, requireCompagnia, requireFinance, async (req, res) => {
@@ -523,7 +590,7 @@ app.put('/api/finance/:id', auth, requireCompagnia, requireFinance, async (req, 
       [type, desc, amount, date, cat || '', note || '', req.params.id, req.user.id]
     );
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.delete('/api/finance/:id', auth, requireCompagnia, requireFinance, async (req, res) => {
@@ -531,7 +598,7 @@ app.delete('/api/finance/:id', auth, requireCompagnia, requireFinance, async (re
     const c = await db();
     await c.execute('DELETE FROM finance_transactions WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 // ── VOTI ──────────────────────────────────────────────────────
@@ -572,7 +639,7 @@ app.get('/api/grades/all', auth, requireCompagnia, requireGrades, async (req, re
       schedule: schedMap, notes,
       settings: { ...settings, pen_consegna_rate: parseFloat(settings.pen_consegna_rate) }
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/grades/subjects', auth, requireGrades, async (req, res) => {
@@ -582,7 +649,7 @@ app.post('/api/grades/subjects', auth, requireGrades, async (req, res) => {
     await c.execute('INSERT INTO subjects (id,user_id,type,name,credits) VALUES (?,?,?,?,?)',
       [id, req.user.id, type, name, credits || 1]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.put('/api/grades/subjects/:id', auth, requireGrades, async (req, res) => {
@@ -592,7 +659,7 @@ app.put('/api/grades/subjects/:id', auth, requireGrades, async (req, res) => {
     await c.execute('UPDATE subjects SET name=?,credits=? WHERE id=? AND user_id=?',
       [name, credits, req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.delete('/api/grades/subjects/:id', auth, requireGrades, async (req, res) => {
@@ -601,7 +668,7 @@ app.delete('/api/grades/subjects/:id', auth, requireGrades, async (req, res) => 
     await c.execute('DELETE FROM grades   WHERE subject_id=? AND user_id=?', [req.params.id, req.user.id]);
     await c.execute('DELETE FROM subjects WHERE id=?         AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/grades/grades', auth, requireGrades, async (req, res) => {
@@ -613,7 +680,7 @@ app.post('/api/grades/grades', auth, requireGrades, async (req, res) => {
       [id, subject_id, req.user.id, grade_type || 'exam', value, weight || 1, date || null, description || '']
     );
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.delete('/api/grades/grades/:id', auth, requireGrades, async (req, res) => {
@@ -621,7 +688,7 @@ app.delete('/api/grades/grades/:id', auth, requireGrades, async (req, res) => {
     const c = await db();
     await c.execute('DELETE FROM grades WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/grades/penalties', auth, requireGrades, async (req, res) => {
@@ -631,7 +698,7 @@ app.post('/api/grades/penalties', auth, requireGrades, async (req, res) => {
     await c.execute('INSERT INTO penalties (id,user_id,type,days,date,reason) VALUES (?,?,?,?,?,?)',
       [id, req.user.id, type, days, date || null, reason || '']);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.delete('/api/grades/penalties/:id', auth, requireGrades, async (req, res) => {
@@ -639,7 +706,7 @@ app.delete('/api/grades/penalties/:id', auth, requireGrades, async (req, res) =>
     const c = await db();
     await c.execute('DELETE FROM penalties WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/grades/schedule/upsert', auth, requireGrades, async (req, res) => {
@@ -652,7 +719,7 @@ app.post('/api/grades/schedule/upsert', auth, requireGrades, async (req, res) =>
       ON DUPLICATE KEY UPDATE subject=VALUES(subject), room=VALUES(room), type=VALUES(type)
     `, [req.user.id, day_index, hour, subject, room || '', type]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/grades/schedule/delete', auth, requireGrades, async (req, res) => {
@@ -662,7 +729,7 @@ app.post('/api/grades/schedule/delete', auth, requireGrades, async (req, res) =>
     await c.execute('DELETE FROM schedule_entries WHERE user_id=? AND day_index=? AND hour=?',
       [req.user.id, day_index, hour]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/grades/schedule/clear', auth, requireGrades, async (req, res) => {
@@ -670,7 +737,7 @@ app.post('/api/grades/schedule/clear', auth, requireGrades, async (req, res) => 
     const c = await db();
     await c.execute('DELETE FROM schedule_entries WHERE user_id=?', [req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/grades/notes', auth, requireGrades, async (req, res) => {
@@ -680,7 +747,7 @@ app.post('/api/grades/notes', auth, requireGrades, async (req, res) => {
     await c.execute('INSERT INTO notes (id,user_id,title,body,pinned,note_date) VALUES (?,?,?,?,?,?)',
       [id, req.user.id, title || '', body, pinned ? 1 : 0, date || null]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.put('/api/grades/notes/:id', auth, requireGrades, async (req, res) => {
@@ -690,7 +757,7 @@ app.put('/api/grades/notes/:id', auth, requireGrades, async (req, res) => {
     await c.execute('UPDATE notes SET pinned=? WHERE id=? AND user_id=?',
       [pinned ? 1 : 0, req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.delete('/api/grades/notes/:id', auth, requireGrades, async (req, res) => {
@@ -698,7 +765,7 @@ app.delete('/api/grades/notes/:id', auth, requireGrades, async (req, res) => {
     const c = await db();
     await c.execute('DELETE FROM notes WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
@@ -714,7 +781,7 @@ app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
         pen_consegna_rate=VALUES(pen_consegna_rate)
     `, [req.user.id, weight_uni, weight_acad, weight_gym, weight_mil, pen_consegna_rate]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 // ── LISTE ─────────────────────────────────────────────────────
@@ -727,7 +794,7 @@ app.get('/api/lists', auth, requireCompagnia, async (req, res) => {
       GROUP BY l.id ORDER BY l.list_date DESC, l.created_at DESC
     `);
     res.json(lists);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.post('/api/lists', auth, requireCompagnia, async (req, res) => {
@@ -753,7 +820,7 @@ app.post('/api/lists', auth, requireCompagnia, async (req, res) => {
       [id, list_type, list_date, notes || '', req.user.id, customNameDb, fieldsJson]
     );
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.delete('/api/lists/:id', auth, requireAdmin, async (req, res) => {
@@ -762,7 +829,7 @@ app.delete('/api/lists/:id', auth, requireAdmin, async (req, res) => {
     await c.execute('DELETE FROM list_signups WHERE list_id=?', [req.params.id]);
     await c.execute('DELETE FROM lists WHERE id=?', [req.params.id]);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.get('/api/lists/:id', auth, requireCompagnia, async (req, res) => {
@@ -786,7 +853,7 @@ app.get('/api/lists/:id', auth, requireCompagnia, async (req, res) => {
       relatives: allRelatives.filter(r => Number(r.user_id) === Number(s.user_id))
     }));
     res.json({ ...lists[0], signups: signupsWithRelatives });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.post('/api/lists/:id/signup', auth, requireCompagnia, async (req, res) => {
@@ -827,7 +894,7 @@ app.post('/api/lists/:id/signup', auth, requireCompagnia, async (req, res) => {
     res.json({ ok: true });
   } catch(e) {
     if (e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Già iscritto a questa lista' });
-    res.status(500).json({ error: e.message });
+    errServer(res, e);
   }
 });
 
@@ -836,7 +903,7 @@ app.delete('/api/lists/:id/signup', auth, requireCompagnia, async (req, res) => 
     const c = await db();
     await c.execute('DELETE FROM list_signups WHERE list_id=? AND user_id=?', [req.params.id, req.user.id]);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.delete('/api/lists/:listId/signup/:userId', auth, requireAdmin, async (req, res) => {
@@ -846,7 +913,7 @@ app.delete('/api/lists/:listId/signup/:userId', auth, requireAdmin, async (req, 
     // Rimuove anche i parenti parlatorio
     await c.execute('DELETE FROM list_relatives WHERE list_id=? AND user_id=?', [req.params.listId, req.params.userId]);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 // ── PARENTI PARLATORIO ────────────────────────────────────────────
@@ -860,7 +927,7 @@ app.post('/api/lists/:id/relatives', auth, requireCompagnia, async (req, res) =>
       [id, req.params.id, req.user.id, relative_name.trim(), relative_relation || null, relative_id_card || null]
     );
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 app.delete('/api/lists/:id/relatives/:relId', auth, requireCompagnia, async (req, res) => {
@@ -868,7 +935,7 @@ app.delete('/api/lists/:id/relatives/:relId', auth, requireCompagnia, async (req
     const c = await db();
     await c.execute('DELETE FROM list_relatives WHERE id=? AND user_id=?', [req.params.relId, req.user.id]);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { errServer(res, e); }
 });
 
 // ── CALENDARIO ────────────────────────────────────────────────
@@ -888,7 +955,7 @@ app.get('/api/calendar', auth, requireCompagnia, async (req, res) => {
     query += ' ORDER BY e.event_date ASC, e.event_time ASC';
     const [rows] = await c.execute(query, params);
     res.json(rows);
-  } catch(e){ res.status(500).json({ error: e.message }); }
+  } catch(e){ errServer(res, e); }
 });
 
 app.post('/api/calendar', auth, requireCompagnia, async (req, res) => {
@@ -901,7 +968,7 @@ app.post('/api/calendar', auth, requireCompagnia, async (req, res) => {
       [id, req.user.id, title.trim(), event_date, event_time||null, description||null, color||'gold']
     );
     res.json({ ok: true });
-  } catch(e){ res.status(500).json({ error: e.message }); }
+  } catch(e){ errServer(res, e); }
 });
 
 app.delete('/api/calendar/:id', auth, requireCompagnia, async (req, res) => {
@@ -913,7 +980,7 @@ app.delete('/api/calendar/:id', auth, requireCompagnia, async (req, res) => {
       return res.status(403).json({ error: 'Non puoi eliminare questo evento' });
     await c.execute('DELETE FROM calendar_events WHERE id=?', [req.params.id]);
     res.json({ ok: true });
-  } catch(e){ res.status(500).json({ error: e.message }); }
+  } catch(e){ errServer(res, e); }
 });
 
 // ── ADMIN ─────────────────────────────────────────────────────
@@ -932,7 +999,7 @@ app.get('/api/admin/users', auth, requireAdmin, async (req, res) => {
       u.military_rank         = u.military_rank || 'AU';
     });
     res.json(rows);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.put('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
@@ -944,7 +1011,7 @@ app.put('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
       [can_access_finance ? 1 : 0, can_access_grades ? 1 : 0, can_access_2compagnia ? 1 : 0, is_admin ? 1 : 0, role || 'none', req.params.id]
     );
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
@@ -954,7 +1021,7 @@ app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
     const c = await db();
     await c.execute('DELETE FROM users WHERE id=?', [req.params.id]);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { errServer(res, e); }
 });
 
 // ── PAGINA INSTALLAZIONE APP ──────────────────────────────────
@@ -970,6 +1037,10 @@ app.get('*', (req, res) => {
 // ── START ─────────────────────────────────────────────────────
 app.listen(PORT, async () => {
   console.log(`\n⚔  Portale AU — Server avviato`);
+  if (JWT_SECRET === 'portale_au_jwt_secret_CAMBIA_IN_PROD')
+    console.warn('⚠  ATTENZIONE: JWT_SECRET di default. Imposta la variabile d\'ambiente JWT_SECRET in produzione!');
+  if (!process.env.DB_PASS)
+    console.warn('⚠  ATTENZIONE: credenziali database prese dal codice. Imposta DB_HOST/DB_USER/DB_PASS/DB_NAME come variabili d\'ambiente!');
   console.log(`   URL:  http://localhost:${PORT}`);
   console.log(`   DB:   ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}\n`);
   await initDB();

@@ -308,7 +308,7 @@ async function doRegister(){
   } catch(e){ showAuthError(e.message) }
 }
 function showAuthError(msg){ const el=document.getElementById('authError');el.textContent='⚠ '+msg;el.style.display='block' }
-async function doLogout(){ token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();stopChatBadgePolling();showLanding() }
+async function doLogout(){ try{ fetch('/api/auth/logout',{method:'POST',credentials:'include'}) }catch(e){} token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();stopChatBadgePolling();showLanding() }
 async function tryAutoLogin(){
   if(!token) return;
   try {
