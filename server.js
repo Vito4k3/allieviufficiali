@@ -26,6 +26,7 @@ function errServer(res, e) {
 // ── CONFIG ────────────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET || 'portale_au_jwt_secret_CAMBIA_IN_PROD';
 const PORT       = parseInt(process.env.PORT || '3000');
+const PKG_VERSION = require('./package.json').version;
 
 const DB_CONFIG = {
   host              : process.env.DB_HOST,
@@ -1030,6 +1031,21 @@ app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
     await c.execute('DELETE FROM users WHERE id=?', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { errServer(res, e); }
+});
+
+// ── VERSIONE / DIAGNOSTICA DEPLOY ─────────────────────────────
+// Endpoint pubblico, senza dati sensibili: dice quale commit sta girando
+// davvero in produzione. Serve a distinguere "il codice non funziona" da
+// "il codice nuovo non è mai stato deployato".
+// RENDER_GIT_COMMIT e RENDER_GIT_BRANCH sono impostate da Render in automatico.
+const AVVIO_SERVER = new Date().toISOString();
+app.get('/api/version', (req, res) => {
+  res.json({
+    versione: PKG_VERSION,
+    commit  : (process.env.RENDER_GIT_COMMIT || '').slice(0, 7) || 'sconosciuto',
+    branch  : process.env.RENDER_GIT_BRANCH || 'sconosciuto',
+    avviato : AVVIO_SERVER
+  });
 });
 
 // ── PAGINA INSTALLAZIONE APP ──────────────────────────────────
