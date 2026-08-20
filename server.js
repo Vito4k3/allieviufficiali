@@ -791,9 +791,15 @@ app.get('/api/lists', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [lists] = await c.execute(`
-      SELECT l.*, COUNT(s.id) AS signup_count
-      FROM lists l LEFT JOIN list_signups s ON l.id=s.list_id
-      GROUP BY l.id ORDER BY l.list_date DESC, l.created_at DESC
+      SELECT
+        l.*,
+        (
+          SELECT COUNT(*)
+          FROM list_signups s
+          WHERE s.list_id = l.id
+        ) AS signup_count
+      FROM lists l
+      ORDER BY l.list_date DESC, l.created_at DESC
     `);
     res.json(lists);
   } catch(e) { errServer(res, e); }
