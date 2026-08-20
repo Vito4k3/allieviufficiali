@@ -194,6 +194,7 @@ async function initDB() {
         relative_id_card VARCHAR(100),
         note VARCHAR(500),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        signed_up_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY unique_signup (list_id, user_id)
       )
     `);
@@ -202,6 +203,45 @@ async function initDB() {
     try {
       await c.execute("ALTER TABLE list_signups ADD COLUMN note VARCHAR(500)");
     } catch(e) { /* colonna già esistente */ }
+
+    // ── ALLINEAMENTO SCHEMA list_signups ────────────────────────
+    // GET /api/lists/:id ordina per signed_up_at, ma le tabelle create da
+    // initDB avevano solo created_at: su un database ricreato da zero
+    // (es. dopo una migrazione) la query fallirebbe con "Unknown column".
+    // Controlliamo le colonne davvero presenti e aggiungiamo solo il mancante.
+    try {
+      const [colonne] = await c.execute(`
+        SELECT COLUMN_NAME AS nome FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'list_signups'
+      `);
+      const nomi = colonne.map(r => r.nome);
+      if (nomi.length && !nomi.includes('signed_up_at')) {
+        await c.execute("ALTER TABLE list_signups ADD COLUMN signed_up_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP");
+        // Recupera l'ordine cronologico reale dalle iscrizioni già presenti
+        if (nomi.includes('created_at')) {
+          await c.execute("UPDATE list_signups SET signed_up_at = created_at");
+        }
+        console.log('   DB: aggiunta colonna list_signups.signed_up_at');
+      }
+    } catch(e) {
+      console.warn('   DB: controllo colonne list_signups non riuscito:', e.message);
+    }
+
+    // Vincolo anti doppia iscrizione: una migrazione può averlo perso.
+    // Il codice si affida a ER_DUP_ENTRY per dire "Già iscritto a questa lista".
+    try {
+      const [idx] = await c.execute(`
+        SELECT COUNT(*) AS n FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'list_signups'
+          AND INDEX_NAME = 'unique_signup'
+      `);
+      if (Number(idx[0].n) === 0) {
+        await c.execute("ALTER TABLE list_signups ADD UNIQUE KEY unique_signup (list_id, user_id)");
+        console.log('   DB: ripristinato vincolo unique_signup su list_signups');
+      }
+    } catch(e) {
+      console.warn('   DB: vincolo unique_signup non ripristinabile (probabili iscrizioni duplicate):', e.message);
+    }
 
     // Liste personalizzate: nome + definizione campi (JSON array di etichette)
     try {
