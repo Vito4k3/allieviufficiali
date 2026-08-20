@@ -464,6 +464,22 @@ async function loadProfile(){
   document.getElementById('prof-perm-grades').className    = 'perm-indicator '+(currentUser.can_access_grades?'perm-ok':'perm-no');
   document.getElementById('prof-perm-com').textContent     = canWriteCom() ? '✓ Abilitato' : '✗ Solo lettura';
   document.getElementById('prof-perm-com').className       = 'perm-indicator '+(canWriteCom()?'perm-ok':'perm-no');
+  mostraVersioneServer();
+}
+
+// Mostra quale build del backend sta davvero rispondendo. Se un deploy non è
+// passato, la discrepanza si vede qui invece di doverla dedurre dai sintomi.
+async function mostraVersioneServer(){
+  const el = document.getElementById('prof-versione');
+  if(!el) return;
+  el.textContent = 'verifica…';
+  try {
+    const v = await api('GET','/api/version');
+    el.textContent = `v${v.versione} · commit ${v.commit} · ramo ${v.branch}`;
+  } catch(e){
+    // Il backend vecchio non espone /api/version: risponde la SPA e il parse fallisce
+    el.textContent = 'non disponibile — backend non aggiornato';
+  }
 }
 
 async function saveProfile(){
