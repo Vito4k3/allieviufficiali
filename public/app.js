@@ -5,8 +5,51 @@ const DOC_TITLE_APP = 'Portale AU';
 const DOC_TITLE_PUBLIC = 'Portale Allievi Ufficiali';
 const SECTION_DOC_TITLES = {
   bacheca:'Bacheca annunci', comunicazioni:'Comunicazioni', calendario:'Calendario', liste:'Liste',
+  strumenti:'Strumenti', 'strumento-locked':'Strumento bloccato',
   finanze:'Gestione finanze', voti:'Voti e registro', profilo:'Profilo', admin:'Gestione utenti'
 };
+
+// ── REGISTRO STRUMENTI ─────────────────────────────────────────────
+// Sezione "Strumenti": elenco unico da cui derivano la voce di menu, la card
+// nella pagina indice e la riga di permesso nella modale admin. Per aggiungere
+// uno strumento basta una voce qui (+ il relativo campo permesso lato server).
+const TOOLS = [
+  {
+    key:   'finanze',
+    page:  'finanze',
+    label: 'Gestione Finanze',
+    icon:  '💰',
+    desc:  'Entrate, uscite, investimenti e ricavi personali con grafici e storico transazioni.',
+    perm:  'can_access_finance'
+  }
+];
+
+function getTool(key){ return TOOLS.find(t => t.key === key) || null; }
+
+// Un permesso è concesso se l'utente è admin oppure ha il flag corrispondente
+function userHasPerm(field, user){
+  const u = user || currentUser;
+  if(!u) return false;
+  if(u.is_admin) return true;
+  return !!u[field];
+}
+function canUseTool(tool, user){ return userHasPerm(tool.perm, user); }
+
+// ── REGISTRO PERMESSI (modale admin) ───────────────────────────────
+// Unico elenco dei permessi assegnabili: schedario 2 Compagnia, strumenti,
+// amministrazione. Nuovi permessi si aggiungono solo qui.
+const PERMISSIONS = [
+  { group:'Sezioni',        field:'can_access_2compagnia', label:'Schedario 2 Compagnia', icon:'🏛',
+    desc:'Comunicazioni, Liste, Calendario e Registro Voti della 2 Compagnia.' },
+  { group:'Sezioni',        field:'can_access_grades',     label:'Registro Voti',         icon:'🎓',
+    desc:'Consultazione e inserimento di voti, punizioni, orario e note.' },
+  ...TOOLS.map(t => ({
+    group:'Strumenti', field:t.perm, label:t.label, icon:t.icon,
+    desc:`Sblocca lo strumento "${t.label}" nella sezione Strumenti.`
+  })),
+  { group:'Amministrazione', field:'is_admin',             label:'Amministratore',        icon:'⭐',
+    desc:'Accesso completo: gestione utenti, permessi e contenuti di tutti.' }
+];
 
 // ── STATE ──────────────────────────────────────────────────────────
 let currentUser = null;
@@ -210,18 +253,29 @@ function stopChatBadgePolling(){
 }
 // ─────────────────────────────────────────────────────────────────
 
-const COMPAGNIA_PAGES = ['comunicazioni','liste','calendario','voti','finanze'];
+// Pagine che restano dentro lo schedario "2 Compagnia" (finanze è passata a Strumenti)
+const COMPAGNIA_PAGES = ['comunicazioni','liste','calendario','voti'];
 
 async function showPage(id, link){
+  // Permessi sempre freschi dal server prima di decidere cosa mostrare
+  await refreshCurrentUser();
   // Blocco accesso sezione 2 Compagnia per utenti non autorizzati
   if(COMPAGNIA_PAGES.includes(id) && !currentUser?.is_admin && !currentUser?.can_access_2compagnia){
     toast('Non hai i permessi per accedere a questa sezione','err');
     return;
   }
+  // Strumenti: la voce è visibile a tutti, ma senza permesso si apre la
+  // schermata dedicata di blocco invece dello strumento vero e proprio.
+  const toolForPage = TOOLS.find(t => t.page === id);
+  if(toolForPage && !canUseTool(toolForPage)){
+    showToolLocked(toolForPage, link);
+    return;
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  if(link) link.classList.add('active');
+  if(link && link.isConnected) link.classList.add('active');
+  if(toolForPage) markToolNavActive(toolForPage.key);
   const st = SECTION_DOC_TITLES[id];
   if(st) document.title = st+' · '+DOC_TITLE_APP;
   // Se l'utente apre comunicazioni: azzera badge e aggiorna ts salvato
@@ -232,8 +286,7 @@ async function showPage(id, link){
       if(msgs && msgs.length) chatSaveTs(msgs[msgs.length-1].created_at || '');
     } catch(e){}
   }
-  // Aggiorna sempre permessi dal server prima di caricare sezione
-  await refreshCurrentUser();
+  if(id==='strumenti')      renderToolsGrid();
   if(id==='finanze')        loadFinanze();
   if(id==='voti')           loadVoti();
   if(id==='liste')          loadListe();
@@ -263,12 +316,82 @@ function applyPermissions(){
   document.getElementById('sb-section-compagnia').style.display = has2Comp ? '' : 'none';
   document.getElementById('sb-nav-compagnia').style.display     = has2Comp ? '' : 'none';
 
+  // La sezione Strumenti è sempre visibile: cambia solo lo stato dei lucchetti
+  renderToolsNav();
+
   const btnNew = document.getElementById('btnNewList');
   if(btnNew) btnNew.classList.remove('hidden');
   document.getElementById('sbUserName').textContent = currentUser.full_name||currentUser.username;
   document.getElementById('sbUserRank').textContent = currentUser.military_rank||'AU';
   const rbEl = document.getElementById('sbUserRole');
   if(rbEl) rbEl.innerHTML = roleBadge(currentUser.role, isAdmin);
+}
+
+// ── SEZIONE STRUMENTI ──────────────────────────────────────────────
+// Tutti gli strumenti sono elencati a tutti gli utenti: chi non ha il permesso
+// li vede comunque e, aprendoli, riceve una schermata di blocco dedicata.
+function renderToolsNav(){
+  const html = TOOLS.map(t => {
+    const locked = !canUseTool(t);
+    return `<a class="sb-link${locked?' sb-link-locked':''}" data-tool="${t.key}"
+      onclick="openTool('${t.key}',this)" title="${locked?'Strumento non sbloccato':t.label}">
+      <span class="sb-icon">${t.icon}</span>${escHtml(t.label)}${locked?' 🔒':''}</a>`;
+  }).join('');
+  const indice = `<a class="sb-link" onclick="showPage('strumenti',this)"><span class="sb-icon">🧰</span>Tutti gli Strumenti</a>`;
+  ['sb-nav-strumenti','drawer-nav-strumenti'].forEach(id => {
+    const nav = document.getElementById(id);
+    if(!nav) return;
+    nav.innerHTML = indice + html;
+    if(id === 'drawer-nav-strumenti'){
+      nav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
+    }
+  });
+}
+
+function renderToolsGrid(){
+  const grid = document.getElementById('toolsGrid');
+  if(!grid) return;
+  grid.innerHTML = TOOLS.map(t => {
+    const ok = canUseTool(t);
+    return `<div class="tool-card${ok?'':' tool-locked'}" onclick="openTool('${t.key}',null)">
+      <div class="tool-card-icon">${ok?t.icon:'🔒'}</div>
+      <div class="tool-card-name">${escHtml(t.label)}</div>
+      <div class="tool-card-desc">${escHtml(t.desc)}</div>
+      <div class="tool-card-state ${ok?'tool-state-on':'tool-state-off'}">${ok?'✓ Sbloccato':'🔒 Non sbloccato'}</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.72rem;padding:1rem">Nessuno strumento disponibile.</div>';
+}
+
+// La nav Strumenti viene rigenerata a ogni refresh permessi: il riferimento al
+// link cliccato può risultare staccato dal DOM, quindi l'evidenziazione va
+// riapplicata cercando la voce per chiave.
+function markToolNavActive(key){
+  document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
+  document.querySelectorAll(`.sb-link[data-tool="${key}"]`).forEach(a=>a.classList.add('active'));
+}
+
+function openTool(key, link){
+  const t = getTool(key);
+  if(!t){ toast('Strumento non trovato','err'); return Promise.resolve(); }
+  return showPage(t.page, link);   // il gate su showPage devia sulla schermata di blocco
+}
+
+// Schermata dedicata: spiega che lo strumento non è sbloccato per questo utente
+function showToolLocked(tool, link){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sb-link').forEach(a=>a.classList.remove('active'));
+  document.getElementById('page-strumento-locked').classList.add('active');
+  if(link && link.isConnected) link.classList.add('active');
+  markToolNavActive(tool.key);
+  document.title = 'Strumento bloccato · '+DOC_TITLE_APP;
+  document.getElementById('tl-breadcrumb').textContent = 'Strumenti · '+tool.label;
+  document.getElementById('tl-icon').textContent = tool.icon;
+  document.getElementById('tl-title').textContent = tool.label+' — non sbloccato';
+  document.getElementById('tl-desc').innerHTML =
+    `Lo strumento <strong>${escHtml(tool.label)}</strong> non è stato sbloccato per il tuo account.<br>`+
+    `${escHtml(tool.desc)}<br><br>`+
+    `Per ottenere l'accesso contatta un <strong>amministratore</strong>: potrà abilitarlo dalla gestione permessi.`;
+  renderToolsGrid();
 }
 
 // ── AUTH ───────────────────────────────────────────────────────────
@@ -331,8 +454,12 @@ async function loadProfile(){
   document.getElementById('prof-rank-display').textContent = currentUser.military_rank||'AU';
   document.getElementById('prof-platoon').value  = currentUser.platoon||'';
   document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
-  document.getElementById('prof-perm-finance').textContent = currentUser.can_access_finance ? '✓ Abilitato' : '✗ Non abilitato';
-  document.getElementById('prof-perm-finance').className   = 'perm-indicator '+(currentUser.can_access_finance?'perm-ok':'perm-no');
+  const has2c = userHasPerm('can_access_2compagnia');
+  document.getElementById('prof-perm-2comp').textContent  = has2c ? '✓ Abilitato' : '✗ Non abilitato';
+  document.getElementById('prof-perm-2comp').className    = 'perm-indicator '+(has2c?'perm-ok':'perm-no');
+  const hasFin = userHasPerm('can_access_finance');
+  document.getElementById('prof-perm-finance').textContent = hasFin ? '✓ Sbloccato' : '✗ Non sbloccato';
+  document.getElementById('prof-perm-finance').className   = 'perm-indicator '+(hasFin?'perm-ok':'perm-no');
   document.getElementById('prof-perm-grades').textContent  = currentUser.can_access_grades ? '✓ Abilitato' : '✗ Non abilitato';
   document.getElementById('prof-perm-grades').className    = 'perm-indicator '+(currentUser.can_access_grades?'perm-ok':'perm-no');
   document.getElementById('prof-perm-com').textContent     = canWriteCom() ? '✓ Abilitato' : '✗ Solo lettura';
@@ -1263,29 +1390,88 @@ async function loadVoti(){
 }
 function refreshVoti(){ renderSubjectAreaUni(); renderSubjectAreaGym(); renderSubjectAreaMil(); renderPunizioni(); renderSchedule(); renderNotes(); renderGraduatoria(); renderSubjectMgmt() }
 
-// CALCOLI
-function wAvg(grades){ if(!grades||!grades.length) return null; const t=grades.reduce((a,g)=>a+g.value*g.weight,0),w=grades.reduce((a,g)=>a+g.weight,0); return w>0?t/w:null }
-function arAvg(grades){ if(!grades||!grades.length) return null; return grades.reduce((a,g)=>a+g.value,0)/grades.length }
-function subjAvg(s){ return wAvg(s.grades) }
-function areaExamAvg(subjects){
-  const subs=subjects.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='exam')})).filter(s=>s.grades.length);
-  if(!subs.length) return null;
-  const tp=subs.reduce((a,s)=>a+wAvg(s.grades)*s.credits,0),tc=subs.reduce((a,s)=>a+s.credits,0);
-  return tc>0?tp/tc:null;
+// ── CALCOLI MEDIE ──────────────────────────────────────────────────
+// Regole (rif. refactor registro voti):
+//  1. Media Militare      = media aritmetica semplice fra materie militari e
+//                           accertamenti universitari — gli accertamenti NON
+//                           pesano per CFU anche se la materia ne ha di associati.
+//  2. Media Universitaria = media ponderata per CFU dei soli Esami universitari:
+//                           Σ(voto × CFU) / Σ(CFU).
+//  3. Media Ginnica       = media delle prove di educazione fisica.
+//  Media Finale = media aritmetica semplice delle tre medie sopra.
+//  Le penalità restano registrabili e visibili ma NON entrano nel calcolo.
+
+// Media aritmetica semplice di una lista di numeri
+function meanOf(values){
+  const v=(values||[]).filter(x=>x!=null&&!isNaN(x));
+  if(!v.length) return null;
+  return v.reduce((a,b)=>a+b,0)/v.length;
 }
-function areaAccertAvgUni(subjects){
-  const subs=subjects.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='accertamento')})).filter(s=>s.grades.length);
-  if(!subs.length) return null;
-  const tp=subs.reduce((a,s)=>a+wAvg(s.grades)*s.credits,0),tc=subs.reduce((a,s)=>a+s.credits,0);
-  return tc>0?tp/tc:null;
+// Media aritmetica dei voti (nessun peso): usata per il voto di una materia
+function arAvg(grades){ if(!grades||!grades.length) return null; return meanOf(grades.map(g=>Number(g.value))) }
+// Media ponderata sui pesi del singolo voto — mantenuta per compatibilità
+function wAvg(grades){
+  if(!grades||!grades.length) return null;
+  const t=grades.reduce((a,g)=>a+Number(g.value)*Number(g.weight||1),0);
+  const w=grades.reduce((a,g)=>a+Number(g.weight||1),0);
+  return w>0?t/w:null;
 }
-function areaWAvg(subjects){
-  const subs=subjects.filter(s=>s.grades&&s.grades.length);
-  if(!subs.length) return null;
-  const tp=subs.reduce((a,s)=>a+subjAvg(s)*s.credits,0),tc=subs.reduce((a,s)=>a+s.credits,0);
-  return tc>0?tp/tc:null;
+// Voto di una materia = media semplice dei suoi voti (di un dato tipo)
+function subjAvg(s,gradeType){
+  const gs=gradeType?(s.grades||[]).filter(g=>g.grade_type===gradeType):(s.grades||[]);
+  return arAvg(gs);
 }
-function areaArAvg(subjects){ const avgs=subjects.filter(s=>s.grades&&s.grades.length).map(s=>subjAvg(s)); if(!avgs.length) return null; return avgs.reduce((a,b)=>a+b,0)/avgs.length }
+function subjCredits(s){ const c=parseFloat(s.credits); return isNaN(c)?0:c }
+
+// 2 · MEDIA UNIVERSITARIA — solo esami, ponderata per CFU della materia
+function mediaUniversitaria(subjects){
+  const subs=(subjects||vdb.subjects.university)
+    .map(s=>({avg:subjAvg(s,'exam'), cfu:subjCredits(s)}))
+    .filter(x=>x.avg!=null);
+  if(!subs.length) return null;
+  const totCfu=subs.reduce((a,x)=>a+x.cfu,0);
+  // Se nessun CFU è valorizzato si degrada alla media semplice (retrocompatibilità)
+  if(totCfu<=0) return meanOf(subs.map(x=>x.avg));
+  const num=subs.reduce((a,x)=>a+x.avg*x.cfu,0);
+  return num/totCfu;
+}
+// CFU effettivamente conteggiati nella media universitaria
+function cfuConteggiati(subjects){
+  return (subjects||vdb.subjects.university)
+    .filter(s=>subjAvg(s,'exam')!=null)
+    .reduce((a,s)=>a+subjCredits(s),0);
+}
+// Confronto: media aritmetica degli esami, ignorando i CFU
+function mediaUniversitariaArit(subjects){
+  return meanOf((subjects||vdb.subjects.university).map(s=>subjAvg(s,'exam')).filter(v=>v!=null));
+}
+// Media dei soli accertamenti universitari — peso uniforme, mai per CFU
+function mediaAccertamentiUni(subjects){
+  return meanOf((subjects||vdb.subjects.university).map(s=>subjAvg(s,'accertamento')).filter(v=>v!=null));
+}
+// Media delle sole materie militari — peso uniforme
+function mediaMaterieMilitari(subjects){
+  return meanOf((subjects||vdb.subjects.military).map(s=>subjAvg(s)).filter(v=>v!=null));
+}
+// 1 · MEDIA MILITARE — materie militari + accertamenti universitari, tutti con
+// peso uniforme: ogni materia valutata conta esattamente una volta.
+function mediaMilitare(){
+  const vals=[];
+  vdb.subjects.military.forEach(s=>{ const a=subjAvg(s); if(a!=null) vals.push(a) });
+  vdb.subjects.university.forEach(s=>{ const a=subjAvg(s,'accertamento'); if(a!=null) vals.push(a) });
+  return meanOf(vals);
+}
+// 3 · MEDIA GINNICA — media delle prove di educazione fisica
+function mediaGinnica(subjects){
+  return meanOf((subjects||vdb.subjects.gym).map(s=>subjAvg(s)).filter(v=>v!=null));
+}
+// MEDIA FINALE — media semplice delle tre medie di area disponibili.
+// NB: non tiene conto dell'attitudine militare e non è influenzata dalle penalità.
+function mediaFinale(mil,uni,gym){
+  return meanOf([mil,uni,gym].filter(v=>v!=null));
+}
+
+// Le penalità restano calcolate e mostrate, ma non entrano più nel punteggio
 function calcPenalties(){
   const rate=parseFloat(vdb.settings.pen_consegna_rate)||0.5;
   const c=vdb.penalties.consegna.reduce((a,p)=>a+p.days*rate,0);
@@ -1296,51 +1482,47 @@ function badgeGradeClass(v){ if(v>=27)return'badge-green'; if(v>=24)return'badge
 
 // GRADUATORIA
 function renderGraduatoria(){
-  const avgUni=areaExamAvg(vdb.subjects.university);
-  const avgAccUni=areaAccertAvgUni(vdb.subjects.university);
-  const avgGym=areaWAvg(vdb.subjects.gym);
-  const avgMil=areaWAvg(vdb.subjects.military);
-  const pen=calcPenalties();
-  const {weight_uni,weight_acad,weight_gym,weight_mil}=vdb.settings;
-  const wG=parseFloat(weight_gym)||50,wM=parseFloat(weight_mil)||50;
-  let acadComponents=[],acadWeights=[];
-  if(avgGym!=null){acadComponents.push(avgGym);acadWeights.push(wG)}
-  if(avgMil!=null){acadComponents.push(avgMil);acadWeights.push(wM)}
-  if(avgAccUni!=null){acadComponents.push(avgAccUni);acadWeights.push(Math.max(wG,wM))}
-  let avgAcad=null;
-  if(acadComponents.length){ const total=acadComponents.reduce((a,v,i)=>a+v*acadWeights[i],0),wt=acadWeights.reduce((a,b)=>a+b,0); avgAcad=wt>0?total/wt:null }
-  const wU=parseFloat(weight_uni)||50,wA=parseFloat(weight_acad)||50;
-  let finalScore=null;
-  if(avgUni!=null||avgAcad!=null){
-    const parts=[],ws=[];
-    if(avgUni!=null){parts.push(avgUni);ws.push(wU)}
-    if(avgAcad!=null){parts.push(avgAcad);ws.push(wA)}
-    const t=parts.reduce((a,v,i)=>a+v*ws[i],0),w=ws.reduce((a,b)=>a+b,0);
-    finalScore=w>0?Math.max(0,t/w-pen.total):null;
-  }
-  document.getElementById('g-avg-uni').textContent  = avgUni!=null  ? fmt(avgUni)  : '—';
-  document.getElementById('g-avg-acad').textContent = avgAcad!=null ? fmt(avgAcad) : '—';
-  document.getElementById('g-penalties').textContent= fmt(pen.total);
-  document.getElementById('g-final').textContent    = finalScore!=null ? fmt(finalScore) : '—';
-  document.getElementById('g-formula-text').textContent=`Uni ${wU}% · Mil.Tot. ${wA}% · Penalità: −${fmt(pen.total)}`;
-  const maxVal=Math.max(avgUni||0,avgAcad||0,avgGym||0,avgMil||0,1);
+  const avgMil = mediaMilitare();
+  const avgUni = mediaUniversitaria();
+  const avgGym = mediaGinnica();
+  const finalScore = mediaFinale(avgMil, avgUni, avgGym);   // penalità escluse
+  const avgAccUni  = mediaAccertamentiUni();
+  const avgMilSubj = mediaMaterieMilitari();
+  const pen = calcPenalties();
+
+  document.getElementById('g-media-mil').textContent = avgMil!=null ? fmt(avgMil) : '—';
+  document.getElementById('g-media-uni').textContent = avgUni!=null ? fmt(avgUni) : '—';
+  document.getElementById('g-media-gym').textContent = avgGym!=null ? fmt(avgGym) : '—';
+  document.getElementById('g-final').textContent     = finalScore!=null ? fmt(finalScore) : '—';
+  document.getElementById('g-penalties').textContent = fmt(pen.total);
+
+  const allG=[];
+  ['university','gym','military'].forEach(type=>{ vdb.subjects[type].forEach(s=>s.grades.forEach(g=>allG.push({...g,subjectName:s.name,stype:type}))) });
+  document.getElementById('g-count-voti').textContent = allG.length;
+  document.getElementById('g-count-cfu').textContent  = fmt(cfuConteggiati(),1);
+
+  const presenti=[avgMil,avgUni,avgGym].filter(v=>v!=null).length;
+  document.getElementById('g-formula-text').textContent =
+    presenti ? `Media Finale = media semplice di ${presenti} ${presenti===1?'media':'medie'} di area su 3 · penalità escluse`
+             : 'Nessun voto registrato';
+
+  const maxVal=Math.max(avgMil||0,avgUni||0,avgGym||0,finalScore||0,1);
   const items=[
-    {label:'Media Uni (Esami)',  val:avgUni,    desc:'Materie universitarie — esami pond. CFU'},
-    {label:'Acc. Universitari',  val:avgAccUni, desc:'Accertamenti materie universitarie'},
-    {label:'Media Ginnastica',   val:avgGym,    desc:'Esami ginnici ponderati'},
-    {label:'Media Militare',     val:avgMil,    desc:'Accertamenti militari ponderati'},
-    {label:'Media Mil. Totale',  val:avgAcad,   desc:'Combinazione: Gin + Mil + Acc.Uni'},
-    {label:'Penalità totali',    val:pen.total>0?-pen.total:null, desc:`Consegna: −${fmt(pen.consegnaPts)} · Rigore: −${fmt(pen.rigorePts)}`}
+    {label:'Media Militare',        val:avgMil,     desc:'Materie militari + accertamenti uni — peso uniforme'},
+    {label:'· Materie militari',    val:avgMilSubj, desc:'Componente della Media Militare'},
+    {label:'· Accertamenti uni',    val:avgAccUni,  desc:'Componente della Media Militare — senza peso CFU'},
+    {label:'Media Universitaria',   val:avgUni,     desc:'Soli esami universitari — Σ(voto × CFU) / Σ(CFU)'},
+    {label:'Media Ginnica',         val:avgGym,     desc:'Prove di educazione fisica'},
+    {label:'Media Finale',          val:finalScore, desc:'(Militare + Universitaria + Ginnica) / 3 — esclusa attitudine militare'}
   ].filter(x=>x.val!=null);
   document.getElementById('g-rank-detail').innerHTML=items.map(item=>`
     <div class="rank-row">
       <div style="width:190px;font-family:var(--font-mono);font-size:.8rem;color:var(--text2)">${item.label}</div>
-      <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${(Math.abs(item.val)/maxVal*100).toFixed(1)}%${item.val<0?';background:var(--red)':''}"></div></div>
-      <div style="width:65px;text-align:right;font-family:var(--font-mono);font-size:1rem;font-weight:600;color:${item.val<0?'var(--red-l)':'var(--gold)'}">${item.val<0?'−':'+'}${fmt(Math.abs(item.val))}</div>
+      <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${(Math.abs(item.val)/maxVal*100).toFixed(1)}%"></div></div>
+      <div style="width:65px;text-align:right;font-family:var(--font-mono);font-size:1rem;font-weight:600;color:var(--gold)">${fmt(item.val)}</div>
       <div style="font-family:var(--font-mono);font-size:.68rem;color:var(--text3);padding-left:.5rem">${item.desc}</div>
     </div>`).join('')||'<div style="color:var(--text3);padding:1rem;font-family:var(--font-mono);font-size:.72rem">Inserisci voti per visualizzare</div>';
-  const allG=[];
-  ['university','gym','military'].forEach(type=>{ vdb.subjects[type].forEach(s=>s.grades.forEach(g=>allG.push({...g,subjectName:s.name,stype:type}))) });
+
   allG.sort((a,b)=>b.date>a.date?1:-1);
   document.getElementById('g-history').innerHTML=allG.length?`<table class="data-table"><thead><tr><th>Data</th><th>Materia</th><th>Area</th><th>Tipo</th><th>Voto</th><th>Descrizione</th></tr></thead><tbody>
   ${allG.map(g=>`<tr><td>${fmtDate(g.date)}</td><td>${escHtml(g.subjectName)}</td>
@@ -1358,17 +1540,18 @@ function buildGradeTable(grades,type){
   ${grades.map(g=>`<tr><td>${fmtDate(g.date)}</td><td><span class="badge ${badgeGradeClass(g.value)}">${g.value}</span></td><td style="color:var(--text3)">${g.weight}</td><td style="color:var(--text2)">${escHtml(g.description||'—')}</td><td><button class="btn btn-sm btn-red del-btn" onclick="deleteGrade('${g.id}','${type}')">✕</button></td></tr>`).join('')}
   </tbody></table>
   <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text2);padding:.5rem .3rem;display:flex;gap:1.5rem">
-    <span>Media pond.: <strong style="color:var(--gold)">${fmt(wAvg(grades))}</strong></span>
-    <span>Media arit.: <strong style="color:var(--gold)">${fmt(arAvg(grades))}</strong></span>
+    <span>Media materia: <strong style="color:var(--gold)">${fmt(arAvg(grades))}</strong></span>
+    <span style="color:var(--text3)">${grades.length} voto/i</span>
   </div>`;
 }
 
 // UNIVERSITÀ — esami + accertamenti separati per materia
 function renderSubjectAreaUni(){
   const subjects=vdb.subjects.university;
-  const examG=subjects.map(s=>({...s,grades:s.grades.filter(g=>g.grade_type==='exam')}));
-  document.getElementById('u-weighted').textContent  = areaExamAvg(subjects)!=null?fmt(areaExamAvg(subjects)):'—';
-  document.getElementById('u-arithmetic').textContent= areaArAvg(examG)!=null?fmt(areaArAvg(examG)):'—';
+  const pond=mediaUniversitaria(subjects), arit=mediaUniversitariaArit(subjects), acc=mediaAccertamentiUni(subjects);
+  document.getElementById('u-weighted').textContent  = pond!=null?fmt(pond):'—';
+  document.getElementById('u-arithmetic').textContent= arit!=null?fmt(arit):'—';
+  document.getElementById('u-accert').textContent    = acc!=null?fmt(acc):'—';
   document.getElementById('u-list').innerHTML=subjects.length?subjects.map(s=>buildUniCard(s)).join(''):'<div style="color:var(--text3);font-family:var(--font-mono);font-size:.75rem;padding:1rem">Nessuna materia universitaria aggiunta.</div>';
 }
 function buildUniCard(s){
@@ -1376,11 +1559,11 @@ function buildUniCard(s){
   const accerts=s.grades.filter(g=>g.grade_type==='accertamento');
   return `<div class="uni-subject-card">
     <div class="uni-subject-header">
-      <div><div style="font-family:var(--font-display);font-size:.9rem;color:var(--text);letter-spacing:.05em">${escHtml(s.name)}</div><div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.15rem">${s.credits} CFU</div></div>
+      <div><div style="font-family:var(--font-display);font-size:.9rem;color:var(--text);letter-spacing:.05em">${escHtml(s.name)}</div><div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.15rem">${s.credits} CFU — peso solo sugli esami</div></div>
       <div style="display:flex;gap:.6rem;font-family:var(--font-mono);font-size:.68rem;color:var(--text2)">
-        <span>Esami: <strong style="color:var(--gold)">${exams.length?fmt(wAvg(exams)):'—'}</strong></span>
+        <span>Esami: <strong style="color:var(--gold)">${exams.length?fmt(arAvg(exams)):'—'}</strong></span>
         <span style="color:var(--text3)">|</span>
-        <span>Acc.: <strong style="color:var(--blue-light)">${accerts.length?fmt(wAvg(accerts)):'—'}</strong></span>
+        <span>Acc.: <strong style="color:var(--blue-light)">${accerts.length?fmt(arAvg(accerts)):'—'}</strong></span>
       </div>
     </div>
     <div class="uni-subject-section">
@@ -1403,15 +1586,16 @@ function buildUniCard(s){
 // GINNASTICA — solo esami ginnici
 function renderSubjectAreaGym(){
   const subjects=vdb.subjects.gym;
-  document.getElementById('gym-weighted').textContent  = areaWAvg(subjects)!=null?fmt(areaWAvg(subjects)):'—';
-  document.getElementById('gym-arithmetic').textContent= areaArAvg(subjects)!=null?fmt(areaArAvg(subjects)):'—';
+  const g=mediaGinnica(subjects);
+  document.getElementById('gym-weighted').textContent = g!=null?fmt(g):'—';
+  document.getElementById('gym-count').textContent    = subjects.reduce((a,s)=>a+(s.grades?s.grades.length:0),0);
   document.getElementById('gym-list').innerHTML=subjects.length?subjects.map(s=>`
     <div class="subject-section">
       <div class="subject-toggle" onclick="toggleSubject('${s.id}')">
         <div class="subject-toggle-name">${escHtml(s.name)}</div>
         <div class="subject-toggle-stats">
-          <span>Peso ${s.credits}</span><span>${s.grades.length} es. ginnico/i</span>
-          <span style="color:var(--green-light)">${s.grades.length?fmt(wAvg(s.grades)):'—'}</span>
+          <span>${s.grades.length} es. ginnico/i</span>
+          <span style="color:var(--green-light)">${s.grades.length?fmt(arAvg(s.grades)):'—'}</span>
           <button class="btn btn-sm btn-green" style="font-size:.58rem" onclick="event.stopPropagation();openAddGradeModal('gym','${s.id}','exam')">+ Esame Gin.</button>
         </div>
       </div>
@@ -1422,15 +1606,17 @@ function renderSubjectAreaGym(){
 // MILITARE — solo accertamenti
 function renderSubjectAreaMil(){
   const subjects=vdb.subjects.military;
-  document.getElementById('mil-weighted').textContent  = areaWAvg(subjects)!=null?fmt(areaWAvg(subjects)):'—';
-  document.getElementById('mil-arithmetic').textContent= areaArAvg(subjects)!=null?fmt(areaArAvg(subjects)):'—';
+  const propria=mediaMaterieMilitari(subjects), accUni=mediaAccertamentiUni(), totale=mediaMilitare();
+  document.getElementById('mil-subjects').textContent    = propria!=null?fmt(propria):'—';
+  document.getElementById('mil-accert-uni').textContent  = accUni!=null?fmt(accUni):'—';
+  document.getElementById('mil-weighted').textContent    = totale!=null?fmt(totale):'—';
   document.getElementById('mil-list').innerHTML=subjects.length?subjects.map(s=>`
     <div class="subject-section">
       <div class="subject-toggle" onclick="toggleSubject('${s.id}')">
         <div class="subject-toggle-name">${escHtml(s.name)}</div>
         <div class="subject-toggle-stats">
-          <span>Peso ${s.credits}</span><span>${s.grades.length} accer.</span>
-          <span style="color:var(--green-light)">${s.grades.length?fmt(wAvg(s.grades)):'—'}</span>
+          <span>${s.grades.length} accer.</span>
+          <span style="color:var(--green-light)">${s.grades.length?fmt(arAvg(s.grades)):'—'}</span>
           <button class="btn btn-sm btn-green" style="font-size:.58rem" onclick="event.stopPropagation();openAddGradeModal('military','${s.id}','accertamento')">+ Accertamento</button>
         </div>
       </div>
@@ -1452,7 +1638,9 @@ function openAddGradeModal(type,subjectId,gradeType){
   document.getElementById('agWeight').value=s.credits||1;
   document.getElementById('agDate').value=today();
   document.getElementById('agDesc').value='';
-  document.getElementById('agWeightLabel').textContent=type==='university'?'Peso CFU':'Peso (1=norm.)';
+  // Il peso resta memorizzato per lo storico ma non incide sulle medie:
+  // i CFU che contano sono quelli della materia, e solo per gli esami uni.
+  document.getElementById('agWeightLabel').textContent='Peso (solo archivio)';
   openModal('addGradeModal');
 }
 async function saveGrade(){
@@ -1651,19 +1839,17 @@ async function deleteNote(id){
 }
 
 // IMPOSTAZIONI VOTI
+// I pesi di graduatoria non sono più configurabili (formula fissa), ma restano
+// in vdb.settings e vengono rispediti invariati al server per non perdere i dati.
 function loadVotiSettings(){
   const s=vdb.settings;
-  document.getElementById('s-wuni').value  = s.weight_uni  || 50;
-  document.getElementById('s-wacad').value = s.weight_acad || 50;
-  document.getElementById('s-wgym').value  = s.weight_gym  || 50;
-  document.getElementById('s-wmil').value  = s.weight_mil  || 50;
-  document.getElementById('s-pen').value   = s.pen_consegna_rate || 0.5;
+  document.getElementById('s-pen').value = s.pen_consegna_rate || 0.5;
 }
 async function saveVotiSettings(){
-  const weight_uni=parseFloat(document.getElementById('s-wuni').value)||50;
-  const weight_acad=parseFloat(document.getElementById('s-wacad').value)||50;
-  const weight_gym=parseFloat(document.getElementById('s-wgym').value)||50;
-  const weight_mil=parseFloat(document.getElementById('s-wmil').value)||50;
+  const weight_uni =parseFloat(vdb.settings.weight_uni) ||50;
+  const weight_acad=parseFloat(vdb.settings.weight_acad)||50;
+  const weight_gym =parseFloat(vdb.settings.weight_gym) ||50;
+  const weight_mil =parseFloat(vdb.settings.weight_mil) ||50;
   const pen_consegna_rate=parseFloat(document.getElementById('s-pen').value)||0.5;
   const full_name=document.getElementById('s-name').value.trim();
   const military_rank=document.getElementById('s-rank').value.trim();
@@ -1698,59 +1884,105 @@ function switchVotiTab(id,btn){
 }
 
 // ── ADMIN ──────────────────────────────────────────────────────────
+// Cache degli utenti caricati: evita di riscaricare la lista ad ogni apertura
+// della modale permessi.
+let adminUsers = [];
+
 async function loadAdminUsers(){
   try {
     const users=await api('GET','/api/admin/users');
     users.sort((a,b)=>Number(b.id)-Number(a.id));
+    adminUsers = users;
     document.getElementById('adminUserBody').innerHTML=users.map(u=>`
       <tr>
         <td style="color:var(--text3)">${u.id}</td>
         <td>${escHtml(u.username)}</td>
         <td style="color:var(--text2)">${escHtml(u.cognome&&u.nome ? u.cognome+' '+u.nome : u.full_name||'—')}</td>
-        <td>
-          <select class="role-select" onchange="setUserRole(${u.id},this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:.2rem .4rem;font-family:var(--font-mono);font-size:.65rem">
-            ${Object.entries(ROLE_LABELS).map(([val,lbl])=>`<option value="${val}" ${u.role===val?'selected':''}>${lbl}</option>`).join('')}
-          </select>
-        </td>
+        <td>${roleBadge(u.role,u.is_admin)||'<span class="role-badge role-none">Allievo</span>'}</td>
         <td style="color:var(--text3);font-size:.65rem">${fmtDate(u.created_at?.slice(0,10))}</td>
-        <td><span class="perm-toggle ${u.can_access_2compagnia?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'compagnia',${!u.can_access_2compagnia})">${u.can_access_2compagnia?'✓ Sì':'✗ No'}</span></td>
-        <td><span class="perm-toggle ${u.can_access_finance?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'finance',${!u.can_access_finance})">${u.can_access_finance?'✓ Sì':'✗ No'}</span></td>
-        <td><span class="perm-toggle ${u.can_access_grades?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'grades',${!u.can_access_grades})">${u.can_access_grades?'✓ Sì':'✗ No'}</span></td>
-        <td><span class="perm-toggle ${u.is_admin?'perm-on':'perm-off'}" onclick="togglePerm(${u.id},'admin',${!u.is_admin})">${u.is_admin?'✓ Admin':'✗ No'}</span></td>
-        <td><button class="btn btn-sm btn-red" onclick="deleteUser(${u.id},'${escHtml(u.username)}')">🗑</button></td>
+        <td><div class="perm-summary">${permSummaryBadges(u)}</div></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm btn-gold" onclick="openUserPermModal(${u.id})">⚙ &nbsp;Permessi</button>
+          <button class="btn btn-sm btn-red" onclick="deleteUser(${u.id},'${escHtml(u.username)}')">🗑</button>
+        </td>
       </tr>`).join('');
   } catch(e){toast(e.message,'err')}
 }
-async function setUserRole(id, role){
-  try {
-    const users = await api('GET','/api/admin/users');
-    const u = users.find(x=>x.id===id);
-    if(!u) return;
-    await api('PUT','/api/admin/users/'+id,{
-      can_access_finance:    u.can_access_finance,
-      can_access_grades:     u.can_access_grades,
-      can_access_2compagnia: u.can_access_2compagnia,
-      is_admin:              u.is_admin,
-      role
-    });
-    toast('Ruolo aggiornato');
-  } catch(e){ toast(e.message,'err'); loadAdminUsers(); }
+
+// Riepilogo compatto dei permessi attivi, dal registro PERMISSIONS
+function permSummaryBadges(u){
+  const attivi = PERMISSIONS.filter(p => !!u[p.field]);
+  if(!attivi.length) return '<span style="font-family:var(--font-mono);font-size:.6rem;color:var(--text3)">Nessuno</span>';
+  return attivi.map(p=>`<span class="badge badge-${p.field==='is_admin'?'gold':'green'}">${p.icon} ${escHtml(p.label)}</span>`).join('');
 }
-async function togglePerm(id,field,val){
-  try {
-    const users=await api('GET','/api/admin/users');
-    const u=users.find(x=>x.id===id);if(!u) return;
-    const upd={
-      can_access_finance:    field==='finance'   ?val:u.can_access_finance,
-      can_access_grades:     field==='grades'    ?val:u.can_access_grades,
-      can_access_2compagnia: field==='compagnia' ?val:u.can_access_2compagnia,
-      is_admin:              field==='admin'     ?val:u.is_admin,
-      role: u.role
-    };
-    await api('PUT','/api/admin/users/'+id,upd);
-    loadAdminUsers();toast('Permessi aggiornati — effettivi immediatamente per l\'utente','ok');
-  } catch(e){toast(e.message,'err')}
+
+// ── MODALE PERMESSI UTENTE ─────────────────────────────────────────
+// Punto centrale unico: dati utente + tutti i permessi assegnabili.
+// Aggiungere una voce a PERMISSIONS (o a TOOLS) la fa comparire qui da sola.
+function openUserPermModal(id){
+  const u = adminUsers.find(x => Number(x.id) === Number(id));
+  if(!u){ toast('Utente non trovato — aggiorna la lista','err'); return; }
+
+  document.getElementById('upUserId').value = u.id;
+  document.getElementById('upAvatar').textContent = getInitials(u.full_name||u.username);
+  document.getElementById('upFullName').textContent = u.cognome&&u.nome ? `${u.cognome} ${u.nome}` : (u.full_name||u.username);
+  document.getElementById('upMeta').innerHTML =
+    `@${escHtml(u.username)} · ID ${u.id}<br>`+
+    `${escHtml(u.email||'email non indicata')}<br>`+
+    `Grado: ${escHtml(u.military_rank||'AU')} · Registrato il ${fmtDate(u.created_at?.slice(0,10))}`;
+
+  document.getElementById('upRole').innerHTML = Object.entries(ROLE_LABELS)
+    .map(([val,lbl])=>`<option value="${val}" ${u.role===val?'selected':''}>${lbl}</option>`).join('');
+
+  // Righe permesso raggruppate
+  const groups = [];
+  PERMISSIONS.forEach(p=>{
+    let g = groups.find(x=>x.name===p.group);
+    if(!g){ g={name:p.group,items:[]}; groups.push(g); }
+    g.items.push(p);
+  });
+  document.getElementById('upPermList').innerHTML = groups.map(g=>`
+    <div class="perm-group-title">${escHtml(g.name)}</div>
+    ${g.items.map(p=>`
+      <div class="perm-row">
+        <div style="min-width:0">
+          <div class="perm-row-label">${p.icon} ${escHtml(p.label)}</div>
+          <div class="perm-row-desc">${escHtml(p.desc)}</div>
+        </div>
+        <span class="perm-toggle ${u[p.field]?'perm-on':'perm-off'}" id="up-perm-${p.field}"
+              data-on="${u[p.field]?1:0}" onclick="toggleUserPermRow('${p.field}')">${u[p.field]?'✓ Sì':'✗ No'}</span>
+      </div>`).join('')}
+  `).join('');
+
+  openModal('userPermModal');
 }
+
+// Toggle locale: nulla viene salvato finché non si conferma
+function toggleUserPermRow(field){
+  const el = document.getElementById('up-perm-'+field);
+  if(!el) return;
+  const on = el.dataset.on === '1' ? 0 : 1;
+  el.dataset.on = String(on);
+  el.className = 'perm-toggle '+(on?'perm-on':'perm-off');
+  el.textContent = on ? '✓ Sì' : '✗ No';
+}
+
+async function saveUserPermissions(){
+  const id = document.getElementById('upUserId').value;
+  if(!id) return;
+  const payload = { role: document.getElementById('upRole').value };
+  PERMISSIONS.forEach(p=>{
+    const el = document.getElementById('up-perm-'+p.field);
+    payload[p.field] = el ? el.dataset.on === '1' : false;
+  });
+  try {
+    await api('PUT','/api/admin/users/'+id, payload);
+    closeModal('userPermModal');
+    await loadAdminUsers();
+    toast("Permessi aggiornati — effettivi immediatamente per l'utente",'ok');
+  } catch(e){ toast(e.message,'err') }
+}
+
 async function deleteUser(id,username){
   if(!confirm(`Eliminare l'utente ${username} e TUTTI i suoi dati?`)) return;
   try { await api('DELETE','/api/admin/users/'+id);loadAdminUsers();toast('Utente eliminato') } catch(e){toast(e.message,'err')}

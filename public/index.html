@@ -780,6 +780,11 @@ div.page-desc{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var
 .stat-value{font-family:var(--font-d);font-size:1.85rem;color:var(--gold);line-height:1;margin-bottom:.22rem}
 .stat-value.danger{color:var(--red-l)}.stat-value.ok{color:var(--green-l)}.stat-value.blue{color:var(--blue-l)}
 .stat-label{font-family:var(--font-m);font-size:.52rem;color:var(--text3);letter-spacing:.2em;text-transform:uppercase}
+.stat-note{font-family:var(--font-m);font-size:.5rem;color:var(--text3);line-height:1.55;margin-top:.3rem;letter-spacing:.02em;text-transform:none;opacity:.9}
+/* Nota obbligatoria ovunque compaia la Media Finale */
+.media-disclaimer{display:flex;gap:.45rem;align-items:flex-start;border-radius:var(--r);
+  padding:.55rem .85rem;font-family:var(--font-m);font-size:.62rem;line-height:1.7;
+  background:var(--amber-a12);border-left:3px solid var(--amber-l);color:var(--amber-l);margin-bottom:.9rem}
 
 /* ── BADGES ── */
 .badge{display:inline-block;padding:.1rem .48rem;border-radius:4px;font-family:var(--font-m);font-size:.64rem}
@@ -824,6 +829,40 @@ div.page-desc{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var
 .locked-icon{font-size:2.8rem;margin-bottom:1rem;opacity:.45}
 .locked-title{font-family:var(--font-d);font-size:1rem;color:var(--text2);letter-spacing:.1em;margin-bottom:.5rem}
 .locked-desc{font-family:var(--font-m);font-size:.68rem;color:var(--text3);line-height:1.8}
+
+/* ── STRUMENTI ── */
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem}
+.tool-card{position:relative;display:flex;flex-direction:column;gap:.5rem;text-align:left;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.1rem 1.15rem;cursor:pointer;transition:border-color .18s,transform .18s,box-shadow .18s}
+.tool-card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.tool-card.tool-locked{opacity:.72}
+.tool-card.tool-locked:hover{border-color:var(--amber-l)}
+.tool-card-icon{font-size:1.7rem;line-height:1}
+.tool-card-name{font-family:var(--font-d);font-size:.9rem;letter-spacing:.06em;color:var(--text)}
+.tool-card-desc{font-family:var(--font-m);font-size:.63rem;color:var(--text3);line-height:1.7}
+.tool-card-state{margin-top:.3rem;align-self:flex-start;font-family:var(--font-m);font-size:.58rem;
+  letter-spacing:.06em;padding:.18rem .5rem;border-radius:4px;border:1px solid}
+.tool-state-on{color:var(--green-l);border-color:var(--green-l);background:var(--green-a12)}
+.tool-state-off{color:var(--amber-l);border-color:var(--amber-l);background:var(--amber-a12)}
+.sb-link.sb-link-locked .sb-icon{opacity:.5}
+
+/* ── PERMESSI (modale admin) ── */
+.perm-user-card{display:flex;gap:.9rem;align-items:center;background:var(--surface2);
+  border:1px solid var(--border);border-radius:var(--r);padding:.85rem 1rem;margin-bottom:1.1rem}
+.perm-user-avatar{width:44px;height:44px;flex:0 0 44px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;background:var(--gold-a18);color:var(--gold);
+  font-family:var(--font-d);font-size:.9rem;letter-spacing:.05em}
+.perm-user-meta{font-family:var(--font-m);font-size:.62rem;color:var(--text3);line-height:1.7}
+.perm-user-name{font-family:var(--font-d);font-size:.92rem;color:var(--text);letter-spacing:.05em}
+.perm-group-title{font-family:var(--font-m);font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--gold);margin:.9rem 0 .45rem}
+.perm-row{display:flex;align-items:center;justify-content:space-between;gap:.8rem;
+  padding:.55rem .7rem;border:1px solid var(--border);border-radius:var(--r);margin-bottom:.4rem;
+  background:var(--surface)}
+.perm-row-label{font-family:var(--font-b);font-size:.78rem;color:var(--text2)}
+.perm-row-desc{font-family:var(--font-m);font-size:.57rem;color:var(--text3);margin-top:.12rem}
+.perm-summary{display:flex;flex-wrap:wrap;gap:.28rem}
 
 /* ════════════════════════════════════════════════════
    PROFILO
@@ -1502,8 +1541,10 @@ canvas{max-height:220px}
         <a class="sb-link" onclick="showPage('voti',this);closeDrawer()"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
         <a class="sb-link" onclick="showPage('liste',this);closeDrawer()"><span class="sb-icon">📋</span>Liste</a>
         <a class="sb-link" onclick="showPage('calendario',this);closeDrawer()"><span class="sb-icon">📅</span>Calendario</a>
-        <a class="sb-link" onclick="showPage('finanze',this);closeDrawer()"><span class="sb-icon">💰</span>Gestione Finanze</a>
       </nav>
+      <div class="sb-section" id="drawer-section-strumenti">Strumenti</div>
+      <!-- Popolata da renderToolsNav() a partire dal registro TOOLS -->
+      <nav id="drawer-nav-strumenti"></nav>
       <div class="sb-section" id="drawer-section-admin" style="display:none">Amministrazione</div>
       <nav id="drawer-nav-admin" style="display:none">
         <a class="sb-link" onclick="showPage('admin',this);closeDrawer()"><span class="sb-icon">🔐</span>Gestione Utenti</a>
@@ -1549,8 +1590,11 @@ canvas{max-height:220px}
         <a class="sb-link" onclick="showPage('voti',this)"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
         <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
         <a class="sb-link" onclick="showPage('calendario',this)"><span class="sb-icon">📅</span>Calendario</a>
-        <a class="sb-link" onclick="showPage('finanze',this)"><span class="sb-icon">💰</span>Gestione Finanze</a>
       </nav>
+      <div class="sb-section" id="sb-section-strumenti">Strumenti</div>
+      <!-- Popolata da renderToolsNav() a partire dal registro TOOLS: tutti gli
+           strumenti sono elencati a tutti, il blocco avviene al click -->
+      <nav id="sb-nav-strumenti"></nav>
       <div class="sb-section" id="sb-section-admin" style="display:none">Amministrazione</div>
       <nav id="sb-nav-admin" style="display:none">
         <a class="sb-link" onclick="showPage('admin',this)"><span class="sb-icon">🔐</span>Gestione Utenti</a>
@@ -1580,8 +1624,9 @@ canvas{max-height:220px}
       <div class="card">
         <div class="card-header"><div class="card-title">Permessi Attivi</div></div>
         <div class="perm-grid">
-          <div class="perm-box"><div class="perm-box-label">💰 Finanze</div><div class="perm-indicator" id="prof-perm-finance">—</div></div>
+          <div class="perm-box"><div class="perm-box-label">🏛 Sezione 2 Compagnia</div><div class="perm-indicator" id="prof-perm-2comp">—</div></div>
           <div class="perm-box"><div class="perm-box-label">🎓 Registro Voti</div><div class="perm-indicator" id="prof-perm-grades">—</div></div>
+          <div class="perm-box"><div class="perm-box-label">🧰 Strumento: Gestione Finanze</div><div class="perm-indicator" id="prof-perm-finance">—</div></div>
           <div class="perm-box"><div class="perm-box-label">💬 Comunicazioni (scrittura)</div><div class="perm-indicator" id="prof-perm-com">—</div></div>
         </div>
         <div style="font-family:var(--font-m);font-size:.6rem;color:var(--text3);margin-top:.8rem">I permessi vengono assegnati dall'amministratore. Contatta un admin per richiedere accesso.</div>
@@ -1697,11 +1742,41 @@ canvas{max-height:220px}
       <div id="list-content"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-m);font-size:.68rem">Caricamento…</div></div>
     </div>
 
+    <!-- ── STRUMENTI (indice) ── -->
+    <!-- Elenca TUTTI gli strumenti a TUTTI gli utenti: quelli non sbloccati
+         restano visibili e, al click, portano alla schermata di blocco dedicata. -->
+    <div class="page" id="page-strumenti">
+      <div class="page-title">Stru<em>menti</em></div>
+      <div class="page-desc">Applicativi disponibili · Accesso su abilitazione individuale</div>
+      <div class="alert alert-info" style="margin-bottom:1.2rem">
+        ℹ Qui trovi <strong>tutti</strong> gli strumenti del portale. Quelli non ancora sbloccati per te
+        restano elencati: puoi aprirli per vedere come richiederne l'abilitazione a un amministratore.
+      </div>
+      <div class="tools-grid" id="toolsGrid"></div>
+    </div>
+
+    <!-- ── STRUMENTO NON SBLOCCATO ── -->
+    <div class="page" id="page-strumento-locked">
+      <div class="page-title">Strumento <em>Bloccato</em></div>
+      <div class="page-desc" id="tl-breadcrumb">Strumenti · —</div>
+      <div class="card">
+        <div class="locked-state">
+          <div class="locked-icon" id="tl-icon">🔒</div>
+          <div class="locked-title" id="tl-title">Strumento non sbloccato</div>
+          <div class="locked-desc" id="tl-desc">—</div>
+          <div style="display:flex;gap:.6rem;justify-content:center;margin-top:1.6rem;flex-wrap:wrap">
+            <button class="btn" onclick="showPage('strumenti',null)">← &nbsp;Torna agli Strumenti</button>
+            <button class="btn btn-gold" onclick="showPage('profilo',null)">👤 &nbsp;Vedi i miei permessi</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── FINANZE ── -->
     <div class="page" id="page-finanze">
       <div class="page-title">Gestione <em>Finanze</em></div>
-      <div class="page-desc">Entrate · Uscite · Investimenti · Ricavi</div>
-      <div id="fin-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Accesso Non Autorizzato</div><div class="locked-desc">Non hai i permessi per la sezione Finanze.<br>Contatta un amministratore per richiedere l'accesso.</div></div></div>
+      <div class="page-desc">Strumenti · Entrate · Uscite · Investimenti · Ricavi</div>
+      <div id="fin-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Strumento non sbloccato</div><div class="locked-desc">Lo strumento <strong>Gestione Finanze</strong> non è stato sbloccato per il tuo account.<br>Contatta un amministratore per richiederne l'abilitazione.</div></div></div>
       <div id="fin-content">
         <div class="fin-kpi">
           <div class="stat-box top-green"><div class="stat-value ok" id="f-patrimonio">€0</div><div class="stat-label">Patrimonio Netto</div></div>
@@ -1749,43 +1824,53 @@ canvas{max-height:220px}
           <button class="tab-btn" onclick="switchVotiTab('impostazioni',this)">⚙ Impostazioni</button>
         </div>
         <div class="tab-panel active" id="vtab-graduatoria">
-          <div class="grid-4" style="margin-bottom:1.5rem">
-            <div class="stat-box top-gold"><div class="stat-value" id="g-avg-uni">—</div><div class="stat-label">Media Uni</div></div>
-            <div class="stat-box top-blue"><div class="stat-value blue" id="g-avg-acad">—</div><div class="stat-label">Media Mil. Tot.</div></div>
-            <div class="stat-box top-red"><div class="stat-value danger" id="g-penalties">0.00</div><div class="stat-label">Penalità</div></div>
-            <div class="stat-box top-gold"><div class="stat-value" id="g-final">—</div><div class="stat-label">Punteggio Finale</div></div>
+          <div class="grid-4" style="margin-bottom:1.2rem">
+            <div class="stat-box top-green"><div class="stat-value ok" id="g-media-mil">—</div><div class="stat-label">Media Militare</div><div class="stat-note">Materie militari + accertamenti universitari — peso uniforme</div></div>
+            <div class="stat-box top-gold"><div class="stat-value" id="g-media-uni">—</div><div class="stat-label">Media Universitaria</div><div class="stat-note">Soli esami universitari — ponderata per CFU</div></div>
+            <div class="stat-box top-blue"><div class="stat-value blue" id="g-media-gym">—</div><div class="stat-label">Media Ginnica</div><div class="stat-note">Prove di educazione fisica</div></div>
+            <div class="stat-box top-gold"><div class="stat-value" id="g-final">—</div><div class="stat-label">Media Finale</div><div class="stat-note">(Militare + Universitaria + Ginnica) / 3</div></div>
           </div>
-          <div class="alert alert-info" style="margin-bottom:1rem">ℹ <strong>Media Uni</strong>: esami universitari pond. per CFU · <strong>Media Mil. Tot.</strong>: accertamenti militari + esami ginnici + accertamenti uni (pesati)</div>
-          <div class="card"><div class="card-header"><div class="card-title">Dettaglio Aree</div><div class="card-meta" id="g-formula-text"></div></div><div id="g-rank-detail"></div></div>
+          <div class="media-disclaimer"><span>⚠</span><span><strong>Nota:</strong> la Media Finale <strong>non tiene conto dell'attitudine militare</strong>.</span></div>
+          <div class="alert alert-info" style="margin-bottom:1rem">ℹ La <strong>Media Finale</strong> è la media aritmetica semplice delle tre medie di area. Gli <strong>accertamenti</strong> (militari e universitari) pesano in modo uniforme, senza CFU. Le <strong>penalità non incidono</strong> sul calcolo.</div>
+          <div class="grid-3" style="margin-bottom:1.5rem">
+            <div class="stat-box top-red"><div class="stat-value danger" id="g-penalties">0.00</div><div class="stat-label">Penalità (solo informative)</div><div class="stat-note">Registrate e consultabili, non sottratte alla Media Finale</div></div>
+            <div class="stat-box top-gold"><div class="stat-value" id="g-count-voti">0</div><div class="stat-label">Voti registrati</div></div>
+            <div class="stat-box top-gold"><div class="stat-value" id="g-count-cfu">0</div><div class="stat-label">CFU universitari conteggiati</div></div>
+          </div>
+          <div class="card"><div class="card-header"><div class="card-title">Dettaglio Aree</div><div class="card-meta" id="g-formula-text"></div></div><div class="media-disclaimer" style="margin:0 0 .9rem"><span>⚠</span><span>La Media Finale riportata <strong>non tiene conto dell'attitudine militare</strong>.</span></div><div id="g-rank-detail"></div></div>
           <div class="card"><div class="card-header"><div class="card-title">Storico Voti</div></div><div id="g-history" style="max-height:260px;overflow-y:auto"></div></div>
         </div>
         <div class="tab-panel" id="vtab-universita">
-          <div class="grid-2" style="margin-bottom:1.5rem">
-            <div class="stat-box top-gold"><div class="stat-value" id="u-weighted">—</div><div class="stat-label">Media Esami (pond. CFU)</div></div>
-            <div class="stat-box top-gold"><div class="stat-value" id="u-arithmetic">—</div><div class="stat-label">Media Esami (arit.)</div></div>
+          <div class="alert alert-info" style="margin-bottom:1rem">🎓 La <strong>Media Universitaria</strong> considera i soli <strong>Esami</strong>, ponderati per i CFU della materia: <code>Σ(voto × CFU) / Σ(CFU)</code>. Gli <strong>Accertamenti</strong> non hanno peso CFU e confluiscono nella <strong>Media Militare</strong>.</div>
+          <div class="grid-3" style="margin-bottom:1.5rem">
+            <div class="stat-box top-gold"><div class="stat-value" id="u-weighted">—</div><div class="stat-label">Media Esami (pond. CFU)</div><div class="stat-note">Entra nella Media Finale</div></div>
+            <div class="stat-box top-gold"><div class="stat-value" id="u-arithmetic">—</div><div class="stat-label">Media Esami (arit.)</div><div class="stat-note">Confronto: ignora i CFU</div></div>
+            <div class="stat-box top-blue"><div class="stat-value blue" id="u-accert">—</div><div class="stat-label">Media Accertamenti Uni</div><div class="stat-note">Peso uniforme → Media Militare</div></div>
           </div>
           <div id="u-list"></div>
           <button class="btn btn-gold" onclick="openAddSubjectModal('university')" style="margin-top:.5rem">+ &nbsp;Aggiungi Materia</button>
         </div>
         <div class="tab-panel" id="vtab-ginnastica">
-          <div class="alert alert-info" style="margin-bottom:1rem">🏅 Le prove di ginnastica sono <strong>Esami Ginnici</strong>. Contribuiscono alla <strong>Media Ginnastica</strong>, parte della Media Militare Totale.</div>
+          <div class="alert alert-info" style="margin-bottom:1rem">🏅 Le prove di ginnastica sono <strong>Esami Ginnici</strong>. La loro media è la <strong>Media Ginnica</strong>, una delle tre medie che compongono la Media Finale.</div>
           <div class="grid-2" style="margin-bottom:1.5rem">
-            <div class="stat-box top-green"><div class="stat-value ok" id="gym-weighted">—</div><div class="stat-label">Media Ginnastica (pond.)</div></div>
-            <div class="stat-box top-green"><div class="stat-value ok" id="gym-arithmetic">—</div><div class="stat-label">Media Ginnastica (arit.)</div></div>
+            <div class="stat-box top-green"><div class="stat-value ok" id="gym-weighted">—</div><div class="stat-label">Media Ginnica</div><div class="stat-note">Media semplice delle discipline — entra nella Media Finale</div></div>
+            <div class="stat-box top-green"><div class="stat-value ok" id="gym-count">0</div><div class="stat-label">Prove registrate</div></div>
           </div>
           <div id="gym-list"></div>
           <button class="btn btn-gold" onclick="openAddSubjectModal('gym')" style="margin-top:.5rem">+ &nbsp;Aggiungi Disciplina</button>
         </div>
         <div class="tab-panel" id="vtab-militare">
-          <div class="alert alert-info" style="margin-bottom:1rem">🎖 Le materie militari si valutano esclusivamente con <strong>Accertamenti</strong>. Contribuiscono alla <strong>Media Militare Totale</strong>.</div>
-          <div class="grid-2" style="margin-bottom:1.5rem">
-            <div class="stat-box top-green"><div class="stat-value ok" id="mil-weighted">—</div><div class="stat-label">Media Militare (pond.)</div></div>
-            <div class="stat-box top-green"><div class="stat-value ok" id="mil-arithmetic">—</div><div class="stat-label">Media Militare (arit.)</div></div>
+          <div class="alert alert-info" style="margin-bottom:1rem">🎖 Le materie militari si valutano con <strong>Accertamenti</strong>. La <strong>Media Militare</strong> è la media aritmetica semplice fra materie militari e accertamenti universitari: gli accertamenti <strong>non pesano per CFU</strong>.</div>
+          <div class="grid-3" style="margin-bottom:1.5rem">
+            <div class="stat-box top-green"><div class="stat-value ok" id="mil-subjects">—</div><div class="stat-label">Media Materie Militari</div></div>
+            <div class="stat-box top-blue"><div class="stat-value blue" id="mil-accert-uni">—</div><div class="stat-label">Media Accertamenti Uni</div></div>
+            <div class="stat-box top-green"><div class="stat-value ok" id="mil-weighted">—</div><div class="stat-label">Media Militare</div><div class="stat-note">Entra nella Media Finale</div></div>
           </div>
           <div id="mil-list"></div>
           <button class="btn btn-gold" onclick="openAddSubjectModal('military')" style="margin-top:.5rem">+ &nbsp;Aggiungi Materia</button>
         </div>
         <div class="tab-panel" id="vtab-punizioni">
+          <div class="alert alert-warn" style="margin-bottom:1rem">⚠ Le punizioni restano <strong>registrabili e consultabili</strong>, ma <strong>non incidono più</strong> sul calcolo delle medie né sulla Media Finale. I punti indicati hanno valore puramente informativo.</div>
           <div class="grid-3" style="margin-bottom:1.5rem">
             <div class="stat-box top-red"><div class="stat-value danger" id="p-consegna">0.00</div><div class="stat-label">Punti Consegna</div></div>
             <div class="stat-box top-red"><div class="stat-value danger" id="p-rigore">0.00</div><div class="stat-label">Punti Rigore</div></div>
@@ -1833,18 +1918,21 @@ canvas{max-height:220px}
               <button class="btn btn-gold" onclick="saveVotiSettings()">💾 &nbsp;Salva</button>
             </div>
             <div class="card">
-              <div class="card-header"><div class="card-title">Pesi Graduatoria (%)</div></div>
-              <div class="alert alert-info">Uni + Mil.Tot. devono sommare 100%. I sub-pesi Gin + Mil pesano all'interno della Media Militare Totale.</div>
-              <div class="form-row-2" style="margin-bottom:.7rem">
-                <div class="form-group"><label>Peso Media Uni (%)</label><input type="number" id="s-wuni" value="50" min="0" max="100"></div>
-                <div class="form-group"><label>Peso Mil. Tot. (%)</label><input type="number" id="s-wacad" value="50" min="0" max="100"></div>
+              <div class="card-header"><div class="card-title">Formula della Media Finale</div></div>
+              <div class="alert alert-info" style="line-height:1.9">
+                La formula è <strong>fissa</strong> e non richiede più pesi configurabili:<br>
+                <strong>1.</strong> Media Militare = media aritmetica semplice di materie militari + accertamenti universitari (senza CFU)<br>
+                <strong>2.</strong> Media Universitaria = <code>Σ(voto × CFU) / Σ(CFU)</code> dei soli esami universitari<br>
+                <strong>3.</strong> Media Ginnica = media delle prove di educazione fisica<br>
+                <strong>Media Finale</strong> = (1 + 2 + 3) / 3
               </div>
-              <div class="form-row-2" style="margin-bottom:.7rem">
-                <div class="form-group"><label>Sub-peso Ginnastica (%)</label><input type="number" id="s-wgym" value="50" min="0" max="100"></div>
-                <div class="form-group"><label>Sub-peso Militare (%)</label><input type="number" id="s-wmil" value="50" min="0" max="100"></div>
+              <div class="media-disclaimer"><span>⚠</span><span>La Media Finale <strong>non tiene conto dell'attitudine militare</strong>.</span></div>
+              <div class="form-group" style="margin-bottom:.7rem">
+                <label>Det. Consegna (pt/giorno)</label>
+                <input type="number" id="s-pen" value="0.5" step="0.1" min="0">
+                <div style="font-family:var(--font-m);font-size:.55rem;color:var(--text3);margin-top:.25rem">Usato solo per il conteggio informativo delle punizioni: non incide sulle medie.</div>
               </div>
-              <div class="form-group" style="margin-bottom:.7rem"><label>Det. Consegna (pt/giorno)</label><input type="number" id="s-pen" value="0.5" step="0.1" min="0"></div>
-              <button class="btn btn-gold" onclick="saveVotiSettings()">💾 &nbsp;Salva Pesi</button>
+              <button class="btn btn-gold" onclick="saveVotiSettings()">💾 &nbsp;Salva</button>
             </div>
           </div>
           <div class="card" style="margin-top:1rem"><div class="card-header"><div class="card-title">Gestione Materie</div></div><div class="grid-3" id="subjectMgmt"></div></div>
@@ -1890,9 +1978,10 @@ canvas{max-height:220px}
       </div>
       <div class="card">
         <div class="card-header"><div class="card-title">Utenti Registrati</div><button class="btn btn-gold" onclick="loadAdminUsers()">↻ &nbsp;Aggiorna</button></div>
+        <div class="alert alert-info" style="margin-bottom:.9rem">ℹ Tutti i permessi di un utente (schedario 2 Compagnia, singoli strumenti, amministrazione) si gestiscono dal pulsante <strong>⚙ Permessi</strong>: è il punto centrale unico e resta valido man mano che si aggiungono nuovi strumenti.</div>
         <div style="overflow-x:auto">
           <table class="data-table">
-            <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Ruolo Militare</th><th>Registrato</th><th>2 Comp.</th><th>Finanze</th><th>Voti</th><th>Admin</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Ruolo</th><th>Registrato</th><th>Permessi attivi</th><th></th></tr></thead>
             <tbody id="adminUserBody"></tbody>
           </table>
         </div>
@@ -2046,6 +2135,31 @@ canvas{max-height:220px}
   </div>
 </div>
 
+<!-- Gestione completa di un utente: dati + tutti i permessi assegnabili.
+     Le righe permesso sono generate da renderPermRows() dal registro PERMISSIONS. -->
+<div class="modal-overlay" id="userPermModal">
+  <div class="modal">
+    <div class="modal-title">⚙ Permessi Utente</div>
+    <input type="hidden" id="upUserId">
+    <div class="perm-user-card">
+      <div class="perm-user-avatar" id="upAvatar">?</div>
+      <div style="flex:1;min-width:0">
+        <div class="perm-user-name" id="upFullName">—</div>
+        <div class="perm-user-meta" id="upMeta">—</div>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:.4rem">
+      <label>Ruolo in Compagnia</label>
+      <select id="upRole"></select>
+      <div style="font-family:var(--font-m);font-size:.55rem;color:var(--text3);margin-top:.25rem">Determina chi può scrivere in Comunicazioni.</div>
+    </div>
+    <div id="upPermList"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('userPermModal')">Annulla</button>
+      <button class="btn btn-gold" onclick="saveUserPermissions()">💾 &nbsp;Salva Permessi</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="comPostModal">
   <div class="modal">
     <div class="modal-title">📋 Nuovo Comunicato Ufficiale</div>

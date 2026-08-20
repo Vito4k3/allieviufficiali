@@ -269,7 +269,7 @@ function auth(req, res, next) {
 
 function requireFinance(req, res, next) {
   if (req.user.is_admin || req.user.can_access_finance) return next();
-  return res.status(403).json({ error: 'Accesso alla sezione Finanze non autorizzato' });
+  return res.status(403).json({ error: 'Strumento Gestione Finanze non sbloccato per il tuo account' });
 }
 
 function requireGrades(req, res, next) {
@@ -555,8 +555,10 @@ app.delete('/api/comunicazioni/posts/:id', auth, requireCompagnia, async (req, r
   } catch(e) { errServer(res, e); }
 });
 
-// ── FINANZE ───────────────────────────────────────────────────
-app.get('/api/finance', auth, requireCompagnia, requireFinance, async (req, res) => {
+// ── STRUMENTI › GESTIONE FINANZE ──────────────────────────────
+// Lo strumento vive nella sezione "Strumenti", indipendente da "2 Compagnia":
+// serve solo il permesso individuale can_access_finance (o essere admin).
+app.get('/api/finance', auth, requireFinance, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
@@ -567,7 +569,7 @@ app.get('/api/finance', auth, requireCompagnia, requireFinance, async (req, res)
   } catch (e) { errServer(res, e); }
 });
 
-app.post('/api/finance', auth, requireCompagnia, requireFinance, async (req, res) => {
+app.post('/api/finance', auth, requireFinance, async (req, res) => {
   const { id, type, desc, amount, date, cat, note } = req.body;
   if (!id || !type || !desc || !amount || !date)
     return res.status(400).json({ error: 'Dati transazione incompleti' });
@@ -581,7 +583,7 @@ app.post('/api/finance', auth, requireCompagnia, requireFinance, async (req, res
   } catch (e) { errServer(res, e); }
 });
 
-app.put('/api/finance/:id', auth, requireCompagnia, requireFinance, async (req, res) => {
+app.put('/api/finance/:id', auth, requireFinance, async (req, res) => {
   const { type, desc, amount, date, cat, note } = req.body;
   try {
     const c = await db();
@@ -593,7 +595,7 @@ app.put('/api/finance/:id', auth, requireCompagnia, requireFinance, async (req, 
   } catch (e) { errServer(res, e); }
 });
 
-app.delete('/api/finance/:id', auth, requireCompagnia, requireFinance, async (req, res) => {
+app.delete('/api/finance/:id', auth, requireFinance, async (req, res) => {
   try {
     const c = await db();
     await c.execute('DELETE FROM finance_transactions WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
