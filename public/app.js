@@ -40,9 +40,7 @@ function canUseTool(tool, user){ return userHasPerm(tool.perm, user); }
 // amministrazione. Nuovi permessi si aggiungono solo qui.
 const PERMISSIONS = [
   { group:'Sezioni',        field:'can_access_2compagnia', label:'Schedario 2 Compagnia', icon:'🏛',
-    desc:'Comunicazioni, Liste, Calendario e Registro Voti della 2 Compagnia.' },
-  { group:'Sezioni',        field:'can_access_grades',     label:'Registro Voti',         icon:'🎓',
-    desc:'Consultazione e inserimento di voti, punizioni, orario e note.' },
+    desc:"Comunicazioni, Liste, Calendario e Registro Voti. Include l'accesso ai voti: non esiste più un permesso separato." },
   ...TOOLS.map(t => ({
     group:'Strumenti', field:t.perm, label:t.label, icon:t.icon,
     desc:`Sblocca lo strumento "${t.label}" nella sezione Strumenti.`
@@ -70,6 +68,18 @@ let currentComTab = 'chat';
 let comChatMessages = [], comPosts = [];
 let pendingComFile = null;
 let _finSearchTimer = null;
+let _adminSearchTimer = null;
+
+// Anni di corso gestiti dal Registro Voti. Per aggiungerne altri basta
+// estendere questa lista (e ANNO_MAX lato server).
+const ANNI_CORSO = [1, 2, 3, 4, 5];
+// Anno selezionato: ricordato tra una sessione e l'altra
+let annoRegistro = (() => {
+  const salvato = parseInt(localStorage.getItem('au-anno-registro'), 10);
+  return ANNI_CORSO.includes(salvato) ? salvato : 1;
+})();
+// Materie universitarie aperte: chiuse di default, l'apertura non persiste
+let uniAperte = new Set();
 
 const LIST_LABELS = {
   liberi_sab_pom:  'Liberi Uscenti Sabato Pomeriggio',
@@ -108,7 +118,8 @@ const ROLE_LABELS = {
   'allievo_servizio':   'Allievo di Servizio',
   'capo_compagnia':     'Capo Compagnia',
   'vice_capo_compagnia':'Vice Capo Compagnia',
-  'tenente':            'Tenente'
+  'tenente':            'Tenente',
+  'capitano':           'Capitano'
 };
  
 const ROLE_CLASSES = {
@@ -116,10 +127,13 @@ const ROLE_CLASSES = {
   'allievo_servizio':   'role-servizio',
   'capo_compagnia':     'role-capo',
   'vice_capo_compagnia':'role-vice',
-  'tenente':            'role-tenente'
+  'tenente':            'role-tenente',
+  'capitano':           'role-tenente'   // stesso livello, stessa resa grafica
 };
  
-const ROLES_WITH_WRITE = ['allievo_servizio','capo_compagnia','vice_capo_compagnia','tenente'];
+// Capitano e Tenente condividono lo stesso livello di autorizzazione:
+// una sola lista, nessuna logica duplicata (rispecchia ROLES_WITH_COM_WRITE lato server).
+const ROLES_WITH_WRITE = ['allievo_servizio','capo_compagnia','vice_capo_compagnia','tenente','capitano'];
 
 // ── UTILS ──────────────────────────────────────────────────────────
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
@@ -149,7 +163,7 @@ function roleBadge(role, isAdmin) {
   const label = ROLE_LABELS[r] || r;
   const cls = ROLE_CLASSES[r] || 'role-none';
   if (r === 'none') return '';
-  const icons = { allievo_servizio:'🎯', capo_compagnia:'⚔', vice_capo_compagnia:'🛡', tenente:'🎖' };
+  const icons = { allievo_servizio:'🎯', capo_compagnia:'⚔', vice_capo_compagnia:'🛡', tenente:'🎖', capitano:'🎖' };
   return `<span class="role-badge ${cls}">${icons[r]||''} ${label}</span>`;
 }
  
@@ -330,18 +344,14 @@ function applyPermissions(){
 // ── SEZIONE STRUMENTI ──────────────────────────────────────────────
 // Tutti gli strumenti sono elencati a tutti gli utenti: chi non ha il permesso
 // li vede comunque e, aprendoli, riceve una schermata di blocco dedicata.
+// Nella sidebar resta solo la voce indice: i singoli strumenti si raggiungono
+// da "Tutti gli Strumenti", così non compaiono due volte nella navigazione.
 function renderToolsNav(){
-  const html = TOOLS.map(t => {
-    const locked = !canUseTool(t);
-    return `<a class="sb-link${locked?' sb-link-locked':''}" data-tool="${t.key}"
-      onclick="openTool('${t.key}',this)" title="${locked?'Strumento non sbloccato':t.label}">
-      <span class="sb-icon">${t.icon}</span>${escHtml(t.label)}${locked?' 🔒':''}</a>`;
-  }).join('');
   const indice = `<a class="sb-link" onclick="showPage('strumenti',this)"><span class="sb-icon">🧰</span>Tutti gli Strumenti</a>`;
   ['sb-nav-strumenti','drawer-nav-strumenti'].forEach(id => {
     const nav = document.getElementById(id);
     if(!nav) return;
-    nav.innerHTML = indice + html;
+    nav.innerHTML = indice;
     if(id === 'drawer-nav-strumenti'){
       nav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
     }
@@ -460,8 +470,6 @@ async function loadProfile(){
   const hasFin = userHasPerm('can_access_finance');
   document.getElementById('prof-perm-finance').textContent = hasFin ? '✓ Sbloccato' : '✗ Non sbloccato';
   document.getElementById('prof-perm-finance').className   = 'perm-indicator '+(hasFin?'perm-ok':'perm-no');
-  document.getElementById('prof-perm-grades').textContent  = currentUser.can_access_grades ? '✓ Abilitato' : '✗ Non abilitato';
-  document.getElementById('prof-perm-grades').className    = 'perm-indicator '+(currentUser.can_access_grades?'perm-ok':'perm-no');
   document.getElementById('prof-perm-com').textContent     = canWriteCom() ? '✓ Abilitato' : '✗ Solo lettura';
   document.getElementById('prof-perm-com').className       = 'perm-indicator '+(canWriteCom()?'perm-ok':'perm-no');
   mostraVersioneServer();
@@ -1383,27 +1391,48 @@ async function deleteTx(id){
 
 // ── VOTI ───────────────────────────────────────────────────────────
 async function loadVoti(){
-  const locked=!currentUser?.can_access_grades&&!currentUser?.is_admin;
+  const locked=!userHasPerm('can_access_2compagnia');   // il Registro Voti segue il permesso 2 Compagnia
   document.getElementById('voti-locked').classList.toggle('hidden',!locked);
   document.getElementById('voti-content').classList.toggle('hidden',locked);
   if(locked) return;
+  popolaTendinaAnni();
   try {
-    const data=await api('GET','/api/grades/all');
+    const data=await api('GET','/api/grades/all?anno='+annoRegistro);
+    if(data.anno) annoRegistro = Number(data.anno);
     vdb.subjects  = data.subjects  || {university:[],gym:[],military:[]};
     vdb.penalties = data.penalties || {consegna:[],rigore:[]};
     vdb.schedule  = data.schedule  || {};
     vdb.notes     = data.notes     || [];
     vdb.settings  = data.settings  || vdb.settings;
-    if(data.cadet){
-      document.getElementById('s-name').value    = data.cadet.name||'';
-      document.getElementById('s-rank').value    = data.cadet.rank||'';
-      document.getElementById('s-year').value    = data.cadet.year||'1° Anno';
-      document.getElementById('s-platoon').value = data.cadet.platoon||'';
-    }
+    // Nome, grado e reparto sono dell'account: qui si mostrano soltanto.
+    // Nessuna copia modificabile separatamente nel Registro Voti.
+    const cadet = data.cadet || {};
+    document.getElementById('s-name').textContent    = cadet.full_name || currentUser?.full_name || '—';
+    document.getElementById('s-rank').textContent    = cadet.rank      || currentUser?.military_rank || 'AU';
+    document.getElementById('s-platoon').textContent = cadet.platoon   || currentUser?.platoon || '—';
     loadVotiSettings();
     refreshVoti();
   } catch(e){ toast(e.message,'err') }
 }
+function popolaTendinaAnni(){
+  const sel = document.getElementById('votiAnno');
+  if(!sel) return;
+  sel.innerHTML = ANNI_CORSO.map(a=>`<option value="${a}">${a}° Anno</option>`).join('');
+  sel.value = String(annoRegistro);
+}
+
+// Cambio anno: i voti dell'anno precedente restano sul database, si ricarica
+// soltanto la vista sull'anno scelto.
+async function cambiaAnnoRegistro(valore){
+  const a = parseInt(valore, 10);
+  if(!ANNI_CORSO.includes(a) || a === annoRegistro) return;
+  annoRegistro = a;
+  localStorage.setItem('au-anno-registro', String(a));
+  uniAperte.clear();
+  await loadVoti();
+  toast(`Registro ${a}° anno`, 'info');
+}
+
 function refreshVoti(){ renderSubjectAreaUni(); renderSubjectAreaGym(); renderSubjectAreaMil(); renderPunizioni(); renderSchedule(); renderNotes(); renderGraduatoria(); renderSubjectMgmt() }
 
 // ── CALCOLI MEDIE ──────────────────────────────────────────────────
@@ -1425,13 +1454,6 @@ function meanOf(values){
 }
 // Media aritmetica dei voti (nessun peso): usata per il voto di una materia
 function arAvg(grades){ if(!grades||!grades.length) return null; return meanOf(grades.map(g=>Number(g.value))) }
-// Media ponderata sui pesi del singolo voto — mantenuta per compatibilità
-function wAvg(grades){
-  if(!grades||!grades.length) return null;
-  const t=grades.reduce((a,g)=>a+Number(g.value)*Number(g.weight||1),0);
-  const w=grades.reduce((a,g)=>a+Number(g.weight||1),0);
-  return w>0?t/w:null;
-}
 // Voto di una materia = media semplice dei suoi voti (di un dato tipo)
 function subjAvg(s,gradeType){
   const gs=gradeType?(s.grades||[]).filter(g=>g.grade_type===gradeType):(s.grades||[]);
@@ -1439,17 +1461,29 @@ function subjAvg(s,gradeType){
 }
 function subjCredits(s){ const c=parseFloat(s.credits); return isNaN(c)?0:c }
 
-// 2 · MEDIA UNIVERSITARIA — solo esami, ponderata per CFU della materia
+// Elenco piatto dei voti d'esame universitari, ciascuno con i CFU della
+// materia a cui appartiene: base comune alle due medie, così differiscono
+// esattamente quando i CFU differiscono.
+function votiEsamiUni(subjects){
+  const out=[];
+  (subjects||vdb.subjects.university).forEach(s=>{
+    const cfu=subjCredits(s);
+    (s.grades||[]).filter(g=>g.grade_type==='exam').forEach(g=>{
+      const v=Number(g.value);
+      if(!isNaN(v)) out.push({voto:v, cfu});
+    });
+  });
+  return out;
+}
+
+// 2 · MEDIA UNIVERSITARIA — solo esami, ponderata per CFU: Σ(voto × CFU) / Σ(CFU)
 function mediaUniversitaria(subjects){
-  const subs=(subjects||vdb.subjects.university)
-    .map(s=>({avg:subjAvg(s,'exam'), cfu:subjCredits(s)}))
-    .filter(x=>x.avg!=null);
-  if(!subs.length) return null;
-  const totCfu=subs.reduce((a,x)=>a+x.cfu,0);
+  const voti=votiEsamiUni(subjects);
+  if(!voti.length) return null;
+  const totCfu=voti.reduce((a,x)=>a+x.cfu,0);
   // Se nessun CFU è valorizzato si degrada alla media semplice (retrocompatibilità)
-  if(totCfu<=0) return meanOf(subs.map(x=>x.avg));
-  const num=subs.reduce((a,x)=>a+x.avg*x.cfu,0);
-  return num/totCfu;
+  if(totCfu<=0) return meanOf(voti.map(x=>x.voto));
+  return voti.reduce((a,x)=>a+x.voto*x.cfu,0)/totCfu;
 }
 // CFU effettivamente conteggiati nella media universitaria
 function cfuConteggiati(subjects){
@@ -1457,9 +1491,9 @@ function cfuConteggiati(subjects){
     .filter(s=>subjAvg(s,'exam')!=null)
     .reduce((a,s)=>a+subjCredits(s),0);
 }
-// Confronto: media aritmetica degli esami, ignorando i CFU
+// Media aritmetica: la normale media dei voti, i CFU non contano
 function mediaUniversitariaArit(subjects){
-  return meanOf((subjects||vdb.subjects.university).map(s=>subjAvg(s,'exam')).filter(v=>v!=null));
+  return meanOf(votiEsamiUni(subjects).map(x=>x.voto));
 }
 // Media dei soli accertamenti universitari — peso uniforme, mai per CFU
 function mediaAccertamentiUni(subjects){
@@ -1570,12 +1604,26 @@ function renderSubjectAreaUni(){
   document.getElementById('u-accert').textContent    = acc!=null?fmt(acc):'—';
   document.getElementById('u-list').innerHTML=subjects.length?subjects.map(s=>buildUniCard(s)).join(''):'<div style="color:var(--text3);font-family:var(--font-mono);font-size:.75rem;padding:1rem">Nessuna materia universitaria aggiunta.</div>';
 }
+// Chiusa mostra solo il nome della materia; al click si apre e rivela i voti.
+function toggleUniSubject(id){
+  if(uniAperte.has(id)) uniAperte.delete(id); else uniAperte.add(id);
+  const card=document.getElementById('unicard-'+id);
+  if(card) card.classList.toggle('aperta', uniAperte.has(id));
+}
+
 function buildUniCard(s){
   const exams=s.grades.filter(g=>g.grade_type==='exam');
   const accerts=s.grades.filter(g=>g.grade_type==='accertamento');
-  return `<div class="uni-subject-card">
+  const aperta=uniAperte.has(s.id);
+  return `<div class="uni-subject-card${aperta?' aperta':''}" id="unicard-${s.id}">
+    <div class="uni-subject-head" onclick="toggleUniSubject('${s.id}')">
+      <div style="font-family:var(--font-display);font-size:.9rem;color:var(--text);letter-spacing:.05em">
+        <span class="uni-caret">▶</span> ${escHtml(s.name)}
+      </div>
+    </div>
+    <div class="uni-subject-panel">
     <div class="uni-subject-header">
-      <div><div style="font-family:var(--font-display);font-size:.9rem;color:var(--text);letter-spacing:.05em">${escHtml(s.name)}</div><div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3);margin-top:.15rem">${s.credits} CFU — peso solo sugli esami</div></div>
+      <div><div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3)">${s.credits} CFU — peso solo sugli esami</div></div>
       <div style="display:flex;gap:.6rem;font-family:var(--font-mono);font-size:.68rem;color:var(--text2)">
         <span>Esami: <strong style="color:var(--gold)">${exams.length?fmt(arAvg(exams)):'—'}</strong></span>
         <span style="color:var(--text3)">|</span>
@@ -1595,6 +1643,7 @@ function buildUniCard(s){
         <button class="btn btn-sm btn-blue" style="font-size:.58rem" onclick="openAddGradeModal('university','${s.id}','accertamento')">+ Accertamento</button>
       </div>
       ${buildGradeTable(accerts,'university')}
+    </div>
     </div>
   </div>`;
 }
@@ -1670,7 +1719,7 @@ async function saveGrade(){
   if(isNaN(value)){ toast('Inserisci un voto valido','err'); return }
   try {
     const id=uid();
-    await api('POST','/api/grades/grades',{id,subject_id,grade_type,value,weight,date,description});
+    await api('POST','/api/grades/grades',{id,subject_id,grade_type,value,weight,date,description,anno:annoRegistro});
     const s=vdb.subjects[type].find(x=>x.id===subject_id);
     s.grades.unshift({id,subject_id,grade_type,value,weight,date,description});
     closeModal('addGradeModal'); refreshVoti(); toast('Voto aggiunto');
@@ -1698,8 +1747,8 @@ async function addSubject(){
   if(!name){ toast('Inserisci il nome','err'); return }
   try {
     const id=uid();
-    await api('POST','/api/grades/subjects',{id,type,name,credits});
-    vdb.subjects[type].push({id,type,name,credits,grades:[]});
+    await api('POST','/api/grades/subjects',{id,type,name,credits,anno:annoRegistro});
+    vdb.subjects[type].push({id,type,name,credits,grades:[],academic_year:annoRegistro});
     closeModal('addSubjModal'); refreshVoti(); toast('Materia aggiunta');
   } catch(e){ toast(e.message,'err') }
 }
@@ -1867,12 +1916,10 @@ async function saveVotiSettings(){
   const weight_gym =parseFloat(vdb.settings.weight_gym) ||50;
   const weight_mil =parseFloat(vdb.settings.weight_mil) ||50;
   const pen_consegna_rate=parseFloat(document.getElementById('s-pen').value)||0.5;
-  const full_name=document.getElementById('s-name').value.trim();
-  const military_rank=document.getElementById('s-rank').value.trim();
-  const academic_year=document.getElementById('s-year').value;
-  const platoon=document.getElementById('s-platoon').value.trim();
+  // Nome, grado, anno di corso e reparto appartengono all'account e si
+  // modificano solo dal Profilo: da qui non vengono più inviati.
   try {
-    await api('PUT','/api/grades/settings',{weight_uni,weight_acad,weight_gym,weight_mil,pen_consegna_rate,full_name,military_rank,academic_year,platoon});
+    await api('PUT','/api/grades/settings',{weight_uni,weight_acad,weight_gym,weight_mil,pen_consegna_rate});
     Object.assign(vdb.settings,{weight_uni,weight_acad,weight_gym,weight_mil,pen_consegna_rate});
     renderGraduatoria();renderPunizioni();toast('Impostazioni salvate');
   } catch(e){toast(e.message,'err')}
@@ -1904,9 +1951,18 @@ function switchVotiTab(id,btn){
 // della modale permessi.
 let adminUsers = [];
 
+// Ricerca con debounce: una sola richiesta a fine digitazione
+function scheduleAdminSearch(){
+  clearTimeout(_adminSearchTimer);
+  _adminSearchTimer = setTimeout(() => { loadAdminUsers(); _adminSearchTimer = null; }, 250);
+}
+
 async function loadAdminUsers(){
   try {
-    const users=await api('GET','/api/admin/users');
+    const campo = document.getElementById('adminSearch');
+    const q = campo ? campo.value.trim() : '';
+    // La ricerca corre sul server con LIKE parametrizzato (vedi /api/admin/users)
+    const users=await api('GET','/api/admin/users'+(q?('?q='+encodeURIComponent(q)):''));
     users.sort((a,b)=>Number(b.id)-Number(a.id));
     adminUsers = users;
     document.getElementById('adminUserBody').innerHTML=users.map(u=>`
@@ -1921,7 +1977,7 @@ async function loadAdminUsers(){
           <button class="btn btn-sm btn-gold" onclick="openUserPermModal(${u.id})">⚙ &nbsp;Permessi</button>
           <button class="btn btn-sm btn-red" onclick="deleteUser(${u.id},'${escHtml(u.username)}')">🗑</button>
         </td>
-      </tr>`).join('');
+      </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--text3);font-family:var(--font-mono);font-size:.7rem;padding:1.6rem">${q?'Nessun utente trovato per «'+escHtml(q)+'»':'Nessun utente registrato'}</td></tr>`;
   } catch(e){toast(e.message,'err')}
 }
 

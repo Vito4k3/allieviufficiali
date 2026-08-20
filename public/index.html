@@ -830,6 +830,26 @@ div.page-desc{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var
 .locked-title{font-family:var(--font-d);font-size:1rem;color:var(--text2);letter-spacing:.1em;margin-bottom:.5rem}
 .locked-desc{font-family:var(--font-m);font-size:.68rem;color:var(--text3);line-height:1.8}
 
+/* ── BARRA ANNO REGISTRO VOTI ── */
+.anno-bar{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin-bottom:1rem;
+  background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);
+  border-radius:var(--r);padding:.7rem .95rem}
+.anno-bar label{font-family:var(--font-m);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+.anno-bar select{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  border-radius:4px;padding:.35rem .6rem;font-family:var(--font-m);font-size:.72rem;cursor:pointer}
+.anno-hint{font-family:var(--font-m);font-size:.57rem;color:var(--text3);flex:1;min-width:180px}
+.ro-field{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);
+  padding:.6rem .88rem;font-family:var(--font-m);font-size:.78rem;color:var(--text2)}
+/* Riga materia comprimibile: chiusa mostra solo il nome */
+.uni-subject-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+  padding:.85rem 1.1rem;background:var(--surface2);cursor:pointer;user-select:none}
+.uni-subject-head:hover{background:rgba(255,255,255,.03)}
+.uni-caret{font-family:var(--font-m);font-size:.7rem;color:var(--gold);transition:transform .18s;display:inline-block}
+.uni-subject-card.aperta .uni-caret{transform:rotate(90deg)}
+.uni-subject-panel{display:none}
+.uni-subject-panel .uni-subject-header{background:transparent;border-top:1px solid var(--border)}
+.uni-subject-card.aperta .uni-subject-panel{display:block;animation:fadeIn .2s ease}
+
 /* ── STRUMENTI ── */
 .tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem}
 .tool-card{position:relative;display:flex;flex-direction:column;gap:.5rem;text-align:left;
@@ -1624,8 +1644,7 @@ canvas{max-height:220px}
       <div class="card">
         <div class="card-header"><div class="card-title">Permessi Attivi</div></div>
         <div class="perm-grid">
-          <div class="perm-box"><div class="perm-box-label">🏛 Sezione 2 Compagnia</div><div class="perm-indicator" id="prof-perm-2comp">—</div></div>
-          <div class="perm-box"><div class="perm-box-label">🎓 Registro Voti</div><div class="perm-indicator" id="prof-perm-grades">—</div></div>
+          <div class="perm-box"><div class="perm-box-label">🏛 Sezione 2 Compagnia<div style="font-size:.52rem;color:var(--text3);margin-top:.15rem;text-transform:none;letter-spacing:0">Include il Registro Voti</div></div><div class="perm-indicator" id="prof-perm-2comp">—</div></div>
           <div class="perm-box"><div class="perm-box-label">🧰 Strumento: Gestione Finanze</div><div class="perm-indicator" id="prof-perm-finance">—</div></div>
           <div class="perm-box"><div class="perm-box-label">💬 Comunicazioni (scrittura)</div><div class="perm-indicator" id="prof-perm-com">—</div></div>
         </div>
@@ -1814,8 +1833,15 @@ canvas{max-height:220px}
     <div class="page" id="page-voti">
       <div class="page-title">Registro <em>Voti</em></div>
       <div class="page-desc">Università · Ginnastica · Militare · Punizioni</div>
-      <div id="voti-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Accesso Non Autorizzato</div><div class="locked-desc">Non hai i permessi per il Registro Voti.<br>Contatta un amministratore per richiedere l'accesso.</div></div></div>
+      <div id="voti-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Accesso Non Autorizzato</div><div class="locked-desc">Il Registro Voti fa parte della sezione <strong>2 Compagnia</strong>.<br>Contatta un amministratore per richiedere l'accesso.</div></div></div>
       <div id="voti-content">
+        <!-- L'anno selezionato determina quali voti si vedono e si modificano.
+             Le opzioni sono generate da ANNI_CORSO in app.js. -->
+        <div class="anno-bar">
+          <label for="votiAnno">Anno di corso</label>
+          <select id="votiAnno" onchange="cambiaAnnoRegistro(this.value)"></select>
+          <span class="anno-hint">I voti di ogni anno restano separati: cambiando anno non si perde nulla.</span>
+        </div>
         <div class="tabs">
           <button class="tab-btn active" onclick="switchVotiTab('graduatoria',this)">⭐ Graduatoria</button>
           <button class="tab-btn" onclick="switchVotiTab('universita',this)">🎓 Università</button>
@@ -1914,11 +1940,14 @@ canvas{max-height:220px}
           <div class="grid-2">
             <div class="card">
               <div class="card-header"><div class="card-title">Dati Allievo</div></div>
-              <div class="form-group" style="margin-bottom:.7rem"><label>Nome Completo</label><input type="text" id="s-name" placeholder="Ten. Mario Rossi"></div>
-              <div class="form-group" style="margin-bottom:.7rem"><label>Grado Militare</label><input type="text" id="s-rank" placeholder="es. Ten."></div>
-              <div class="form-group" style="margin-bottom:.7rem"><label>Anno di Corso</label><select id="s-year"><option>1° Anno</option><option>2° Anno</option><option>3° Anno</option><option>4° Anno</option><option>5° Anno</option></select></div>
-              <div class="form-group" style="margin-bottom:.7rem"><label>Reparto / Plotone</label><input type="text" id="s-platoon" placeholder="es. 3° Plotone Alpha"></div>
-              <button class="btn btn-gold" onclick="saveVotiSettings()">💾 &nbsp;Salva</button>
+              <div class="alert alert-info">Questi dati arrivano dal tuo account e non sono modificabili da qui. Per cambiarli usa la pagina <strong>Profilo</strong>.</div>
+              <div class="form-group" style="margin-bottom:.7rem"><label>Nome Completo</label>
+                <div class="ro-field" id="s-name">—</div></div>
+              <div class="form-group" style="margin-bottom:.7rem"><label>Grado Militare</label>
+                <div class="ro-field" id="s-rank">—</div></div>
+              <div class="form-group" style="margin-bottom:.7rem"><label>Reparto / Plotone</label>
+                <div class="ro-field" id="s-platoon">—</div></div>
+              <button class="btn" onclick="showPage('profilo',null)">👤 &nbsp;Vai al Profilo</button>
             </div>
             <div class="card">
               <div class="card-header"><div class="card-title">Formula della Media Finale</div></div>
@@ -1971,6 +2000,7 @@ canvas{max-height:220px}
         <div class="card-header"><div class="card-title">Ruoli e Permessi Comunicazioni</div></div>
         <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.8rem">
           <span class="role-badge role-tenente">🎖 Tenente</span>
+          <span class="role-badge role-tenente">🎖 Capitano</span>
           <span class="role-badge role-capo">⚔ Capo Compagnia</span>
           <span class="role-badge role-vice">🛡 Vice Capo Compagnia</span>
           <span class="role-badge role-servizio">🎯 Allievo di Servizio</span>
@@ -1981,6 +2011,12 @@ canvas{max-height:220px}
       </div>
       <div class="card">
         <div class="card-header"><div class="card-title">Utenti Registrati</div><button class="btn btn-gold" onclick="loadAdminUsers()">↻ &nbsp;Aggiorna</button></div>
+        <div class="fin-filter-row">
+          <div class="search-wrap" style="flex:1">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="adminSearch" placeholder="Cerca per nome, cognome o username…" autocomplete="off" oninput="scheduleAdminSearch()">
+          </div>
+        </div>
         <div class="alert alert-info" style="margin-bottom:.9rem">ℹ Tutti i permessi di un utente (schedario 2 Compagnia, singoli strumenti, amministrazione) si gestiscono dal pulsante <strong>⚙ Permessi</strong>: è il punto centrale unico e resta valido man mano che si aggiungono nuovi strumenti.</div>
         <div style="overflow-x:auto">
           <table class="data-table">

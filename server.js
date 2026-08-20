@@ -259,6 +259,23 @@ async function initDB() {
       await c.execute("ALTER TABLE users ADD COLUMN can_access_2compagnia TINYINT(1) NOT NULL DEFAULT 0");
     } catch(e) { /* già presente */ }
 
+    // ── ANNO ACCADEMICO DEL REGISTRO VOTI ───────────────────────
+    // I voti sono separati per anno di corso (1-5). Le righe già presenti
+    // sono per definizione del 1° anno: DEFAULT 1 le preserva senza toccarle.
+    try {
+      await c.execute("ALTER TABLE subjects ADD COLUMN academic_year TINYINT NOT NULL DEFAULT 1");
+    } catch(e) { /* già presente */ }
+    try {
+      await c.execute("ALTER TABLE grades ADD COLUMN academic_year TINYINT NOT NULL DEFAULT 1");
+    } catch(e) { /* già presente */ }
+    // Indici per il filtro per anno (ignorati se già creati)
+    try {
+      await c.execute("ALTER TABLE subjects ADD INDEX idx_subjects_user_anno (user_id, academic_year)");
+    } catch(e) { /* già presente */ }
+    try {
+      await c.execute("ALTER TABLE grades ADD INDEX idx_grades_user_anno (user_id, academic_year)");
+    } catch(e) { /* già presente */ }
+
     // Grado militare: AU come default per chi non ce l'ha
     await c.execute("UPDATE users SET military_rank = 'AU' WHERE military_rank IS NULL OR TRIM(military_rank) = ''");
 
@@ -313,11 +330,6 @@ function requireFinance(req, res, next) {
   return res.status(403).json({ error: 'Strumento Gestione Finanze non sbloccato per il tuo account' });
 }
 
-function requireGrades(req, res, next) {
-  if (req.user.is_admin || req.user.can_access_grades) return next();
-  return res.status(403).json({ error: 'Accesso alla sezione Voti non autorizzato' });
-}
-
 function requireAdmin(req, res, next) {
   if (req.user.is_admin) return next();
   return res.status(403).json({ error: 'Solo gli amministratori possono eseguire questa operazione' });
@@ -328,7 +340,18 @@ function requireCompagnia(req, res, next) {
   return res.status(403).json({ error: 'Accesso alla sezione 2 Compagnia non autorizzato' });
 }
 
-const ROLES_WITH_COM_WRITE = ['allievo_servizio', 'capo_compagnia', 'vice_capo_compagnia', 'tenente'];
+// Capitano e Tenente condividono lo stesso livello di autorizzazione:
+// un'unica lista, nessuna logica duplicata.
+// Anni di corso gestiti dal Registro Voti. Per aggiungerne altri in futuro
+// basta estendere questo intervallo (e l'elenco corrispondente nel frontend).
+const ANNO_MIN = 1, ANNO_MAX = 5;
+function annoValido(v) {
+  const n = parseInt(v, 10);
+  if (isNaN(n) || n < ANNO_MIN || n > ANNO_MAX) return ANNO_MIN;
+  return n;
+}
+
+const ROLES_WITH_COM_WRITE = ['allievo_servizio', 'capo_compagnia', 'vice_capo_compagnia', 'tenente', 'capitano'];
 
 function canWriteComunicazioni(user) {
   return user.is_admin || ROLES_WITH_COM_WRITE.includes(user.role);
@@ -344,7 +367,7 @@ app.post('/api/setup', limitaTentativi(5, 15 * 60 * 1000), async (req, res) => {
     if (!username || !email || !password) return res.status(400).json({ error: 'Campi obbligatori mancanti' });
     const hash = await bcrypt.hash(password, 12);
     await c.execute(
-      "INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_grades,role) VALUES (?,?,?,?,1,1,1,'none')",
+      "INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_2compagnia,role) VALUES (?,?,?,?,1,1,1,'none')",
       [username, email, hash, full_name || username]
     );
     res.json({ ok: true, message: 'Amministratore creato con successo' });
@@ -396,7 +419,6 @@ app.post('/api/auth/login', limitaTentativi(15, 15 * 60 * 1000), async (req, res
       military_rank: user.military_rank || 'AU',
       role: user.role || 'none',
       can_access_finance:     !!Number(user.can_access_finance),
-      can_access_grades:      !!Number(user.can_access_grades),
       can_access_2compagnia:  !!Number(user.can_access_2compagnia),
       is_admin: !!Number(user.is_admin)
     };
@@ -415,13 +437,12 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,nome,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_grades,can_access_2compagnia,is_admin FROM users WHERE id=?',
+      'SELECT id,username,email,full_name,nome,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_2compagnia,is_admin FROM users WHERE id=?',
       [req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
     const u = rows[0];
     u.can_access_finance    = !!Number(u.can_access_finance);
-    u.can_access_grades     = !!Number(u.can_access_grades);
     u.can_access_2compagnia = !!Number(u.can_access_2compagnia);
     u.is_admin              = !!Number(u.is_admin);
     u.role                  = u.role || 'none';
@@ -433,7 +454,6 @@ app.get('/api/auth/me', auth, async (req, res) => {
       military_rank: u.military_rank,
       role: u.role,
       can_access_finance:    u.can_access_finance,
-      can_access_grades:     u.can_access_grades,
       can_access_2compagnia: u.can_access_2compagnia,
       is_admin: u.is_admin
     };
@@ -645,13 +665,14 @@ app.delete('/api/finance/:id', auth, requireFinance, async (req, res) => {
 });
 
 // ── VOTI ──────────────────────────────────────────────────────
-app.get('/api/grades/all', auth, requireCompagnia, requireGrades, async (req, res) => {
+app.get('/api/grades/all', auth, requireCompagnia, async (req, res) => {
   try {
     const c  = await db();
     const id = req.user.id;
     const [[cadetRow]]   = await c.execute('SELECT full_name,military_rank AS `rank`,platoon,academic_year AS `year` FROM users WHERE id=?', [id]);
-    const [subjects]     = await c.execute('SELECT * FROM subjects WHERE user_id=? ORDER BY sort_order,name', [id]);
-    const [gradesRaw]    = await c.execute('SELECT * FROM grades WHERE user_id=? ORDER BY date DESC', [id]);
+    const anno = annoValido(req.query.anno);
+    const [subjects]     = await c.execute('SELECT * FROM subjects WHERE user_id=? AND academic_year=? ORDER BY sort_order,name', [id, anno]);
+    const [gradesRaw]    = await c.execute('SELECT * FROM grades WHERE user_id=? AND academic_year=? ORDER BY date DESC', [id, anno]);
     const [penalties]    = await c.execute('SELECT * FROM penalties WHERE user_id=? ORDER BY date DESC', [id]);
     const [schedule]     = await c.execute('SELECT * FROM schedule_entries WHERE user_id=?', [id]);
     const [notes]        = await c.execute('SELECT * FROM notes WHERE user_id=? ORDER BY pinned DESC, created_at DESC', [id]);
@@ -669,6 +690,7 @@ app.get('/api/grades/all', auth, requireCompagnia, requireGrades, async (req, re
     schedule.forEach(e => { schedMap[`${e.day_index}-${e.hour}`] = e; });
 
     res.json({
+      anno,
       cadet: cadetRow || {},
       subjects: {
         university: subjectsWithGrades.filter(s => s.type === 'university'),
@@ -685,17 +707,17 @@ app.get('/api/grades/all', auth, requireCompagnia, requireGrades, async (req, re
   } catch (e) { errServer(res, e); }
 });
 
-app.post('/api/grades/subjects', auth, requireGrades, async (req, res) => {
-  const { id, type, name, credits } = req.body;
+app.post('/api/grades/subjects', auth, requireCompagnia, async (req, res) => {
+  const { id, type, name, credits, anno } = req.body;
   try {
     const c = await db();
-    await c.execute('INSERT INTO subjects (id,user_id,type,name,credits) VALUES (?,?,?,?,?)',
-      [id, req.user.id, type, name, credits || 1]);
+    await c.execute('INSERT INTO subjects (id,user_id,type,name,credits,academic_year) VALUES (?,?,?,?,?,?)',
+      [id, req.user.id, type, name, credits || 1, annoValido(anno)]);
     res.json({ ok: true });
   } catch (e) { errServer(res, e); }
 });
 
-app.put('/api/grades/subjects/:id', auth, requireGrades, async (req, res) => {
+app.put('/api/grades/subjects/:id', auth, requireCompagnia, async (req, res) => {
   const { name, credits } = req.body;
   try {
     const c = await db();
@@ -705,7 +727,7 @@ app.put('/api/grades/subjects/:id', auth, requireGrades, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
-app.delete('/api/grades/subjects/:id', auth, requireGrades, async (req, res) => {
+app.delete('/api/grades/subjects/:id', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     await c.execute('DELETE FROM grades   WHERE subject_id=? AND user_id=?', [req.params.id, req.user.id]);
@@ -714,19 +736,22 @@ app.delete('/api/grades/subjects/:id', auth, requireGrades, async (req, res) => 
   } catch (e) { errServer(res, e); }
 });
 
-app.post('/api/grades/grades', auth, requireGrades, async (req, res) => {
-  const { id, subject_id, grade_type, value, weight, date, description } = req.body;
+app.post('/api/grades/grades', auth, requireCompagnia, async (req, res) => {
+  const { id, subject_id, grade_type, value, weight, date, description, anno } = req.body;
   try {
     const c = await db();
+    // L'anno del voto segue sempre quello della materia a cui appartiene
+    const [[mat]] = await c.execute('SELECT academic_year FROM subjects WHERE id=? AND user_id=?', [subject_id, req.user.id]);
+    const annoVoto = mat ? annoValido(mat.academic_year) : annoValido(anno);
     await c.execute(
-      'INSERT INTO grades (id,subject_id,user_id,grade_type,value,weight,date,description) VALUES (?,?,?,?,?,?,?,?)',
-      [id, subject_id, req.user.id, grade_type || 'exam', value, weight || 1, date || null, description || '']
+      'INSERT INTO grades (id,subject_id,user_id,grade_type,value,weight,date,description,academic_year) VALUES (?,?,?,?,?,?,?,?,?)',
+      [id, subject_id, req.user.id, grade_type || 'exam', value, weight || 1, date || null, description || '', annoVoto]
     );
     res.json({ ok: true });
   } catch (e) { errServer(res, e); }
 });
 
-app.delete('/api/grades/grades/:id', auth, requireGrades, async (req, res) => {
+app.delete('/api/grades/grades/:id', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     await c.execute('DELETE FROM grades WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
@@ -734,7 +759,7 @@ app.delete('/api/grades/grades/:id', auth, requireGrades, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
-app.post('/api/grades/penalties', auth, requireGrades, async (req, res) => {
+app.post('/api/grades/penalties', auth, requireCompagnia, async (req, res) => {
   const { id, type, days, date, reason } = req.body;
   try {
     const c = await db();
@@ -744,7 +769,7 @@ app.post('/api/grades/penalties', auth, requireGrades, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
-app.delete('/api/grades/penalties/:id', auth, requireGrades, async (req, res) => {
+app.delete('/api/grades/penalties/:id', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     await c.execute('DELETE FROM penalties WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
@@ -752,7 +777,7 @@ app.delete('/api/grades/penalties/:id', auth, requireGrades, async (req, res) =>
   } catch (e) { errServer(res, e); }
 });
 
-app.post('/api/grades/schedule/upsert', auth, requireGrades, async (req, res) => {
+app.post('/api/grades/schedule/upsert', auth, requireCompagnia, async (req, res) => {
   const { day_index, hour, subject, room, type } = req.body;
   try {
     const c = await db();
@@ -765,7 +790,7 @@ app.post('/api/grades/schedule/upsert', auth, requireGrades, async (req, res) =>
   } catch (e) { errServer(res, e); }
 });
 
-app.post('/api/grades/schedule/delete', auth, requireGrades, async (req, res) => {
+app.post('/api/grades/schedule/delete', auth, requireCompagnia, async (req, res) => {
   const { day_index, hour } = req.body;
   try {
     const c = await db();
@@ -775,7 +800,7 @@ app.post('/api/grades/schedule/delete', auth, requireGrades, async (req, res) =>
   } catch (e) { errServer(res, e); }
 });
 
-app.post('/api/grades/schedule/clear', auth, requireGrades, async (req, res) => {
+app.post('/api/grades/schedule/clear', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     await c.execute('DELETE FROM schedule_entries WHERE user_id=?', [req.user.id]);
@@ -783,7 +808,7 @@ app.post('/api/grades/schedule/clear', auth, requireGrades, async (req, res) => 
   } catch (e) { errServer(res, e); }
 });
 
-app.post('/api/grades/notes', auth, requireGrades, async (req, res) => {
+app.post('/api/grades/notes', auth, requireCompagnia, async (req, res) => {
   const { id, title, body, pinned, date } = req.body;
   try {
     const c = await db();
@@ -793,7 +818,7 @@ app.post('/api/grades/notes', auth, requireGrades, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
-app.put('/api/grades/notes/:id', auth, requireGrades, async (req, res) => {
+app.put('/api/grades/notes/:id', auth, requireCompagnia, async (req, res) => {
   const { pinned } = req.body;
   try {
     const c = await db();
@@ -803,7 +828,7 @@ app.put('/api/grades/notes/:id', auth, requireGrades, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
-app.delete('/api/grades/notes/:id', auth, requireGrades, async (req, res) => {
+app.delete('/api/grades/notes/:id', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     await c.execute('DELETE FROM notes WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
@@ -811,7 +836,7 @@ app.delete('/api/grades/notes/:id', auth, requireGrades, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
-app.put('/api/grades/settings', auth, requireGrades, async (req, res) => {
+app.put('/api/grades/settings', auth, requireCompagnia, async (req, res) => {
   const { weight_uni, weight_acad, weight_gym, weight_mil, pen_consegna_rate } = req.body;
   try {
     const c = await db();
@@ -1036,12 +1061,21 @@ app.delete('/api/calendar/:id', auth, requireCompagnia, async (req, res) => {
 app.get('/api/admin/users', auth, requireAdmin, async (req, res) => {
   try {
     const c = await db();
-    const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,nome,cognome,military_rank,role,can_access_finance,can_access_grades,can_access_2compagnia,is_admin,created_at FROM users ORDER BY id DESC'
-    );
+    // Ricerca per nome: parametrizzata (niente concatenazione di input) e con
+    // i caratteri jolly di LIKE neutralizzati, così "50%" cerca davvero "50%".
+    const q = String(req.query.q || '').trim();
+    let sql = 'SELECT id,username,email,full_name,nome,cognome,military_rank,role,can_access_finance,can_access_2compagnia,is_admin,created_at FROM users';
+    const params = [];
+    if (q) {
+      const termine = '%' + q.replace(/[\\%_]/g, ch => '\\' + ch) + '%';
+      sql += ' WHERE nome LIKE ? OR cognome LIKE ? OR full_name LIKE ? OR username LIKE ?'
+           + " OR CONCAT(cognome,' ',nome) LIKE ? OR CONCAT(nome,' ',cognome) LIKE ?";
+      params.push(termine, termine, termine, termine, termine, termine);
+    }
+    sql += ' ORDER BY id DESC';
+    const [rows] = await c.execute(sql, params);
     rows.forEach(u => {
       u.can_access_finance    = !!u.can_access_finance;
-      u.can_access_grades     = !!u.can_access_grades;
       u.can_access_2compagnia = !!u.can_access_2compagnia;
       u.is_admin              = !!u.is_admin;
       u.role                  = u.role || 'none';
@@ -1052,12 +1086,15 @@ app.get('/api/admin/users', auth, requireAdmin, async (req, res) => {
 });
 
 app.put('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
-  const { can_access_finance, can_access_grades, can_access_2compagnia, is_admin, role } = req.body;
+  // can_access_grades non esiste più come permesso a sé: l'accesso al Registro
+  // Voti deriva da can_access_2compagnia. La colonna resta in tabella per non
+  // fare modifiche distruttive, ma viene allineata al permesso 2 Compagnia.
+  const { can_access_finance, can_access_2compagnia, is_admin, role } = req.body;
   try {
     const c = await db();
     await c.execute(
-      'UPDATE users SET can_access_finance=?,can_access_grades=?,can_access_2compagnia=?,is_admin=?,role=? WHERE id=?',
-      [can_access_finance ? 1 : 0, can_access_grades ? 1 : 0, can_access_2compagnia ? 1 : 0, is_admin ? 1 : 0, role || 'none', req.params.id]
+      'UPDATE users SET can_access_finance=?,can_access_2compagnia=?,can_access_grades=?,is_admin=?,role=? WHERE id=?',
+      [can_access_finance ? 1 : 0, can_access_2compagnia ? 1 : 0, can_access_2compagnia ? 1 : 0, is_admin ? 1 : 0, role || 'none', req.params.id]
     );
     res.json({ ok: true });
   } catch (e) { errServer(res, e); }
