@@ -1378,7 +1378,11 @@ async function scaricaModuloLiberaUscita(l){
     const url  = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `LIBERI_USCENTI_${(l.list_date||'').slice(0,10).split('-').reverse().join('-')}.xlsx`;
+    // Il nome arriva dal server: e' costruito dalla stessa data scritta dentro
+    // il file, quindi non puo' sfasarsi per differenze di fuso orario.
+    const cd = r.headers.get('Content-Disposition') || '';
+    const m  = /filename="([^"]+)"/.exec(cd);
+    a.download = m ? m[1] : 'LIBERI_USCENTI.xlsx';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url), 4000);
     toast('Modulo scaricato');
@@ -1571,24 +1575,16 @@ function subjCredits(s){ const c=parseFloat(s.credits); return isNaN(c)?0:c }
 
 // Peso effettivo di un voto: quello inserito sul voto stesso, altrimenti i CFU
 // della materia, altrimenti 1. È il valore che entra nella media ponderata.
+// Il peso di un esame universitario sono i CFU della materia: e' quello che
+// entra nella media ponderata, secondo la formula Sigma(voto x CFU) / Sigma(CFU).
+// Il campo peso del singolo voto resta come ripiego per le materie senza CFU
+// (ginnastica, militare) e per i dati storici privi di crediti.
 function pesoDiVoto(g, s){
+  const cfu = s ? subjCredits(s) : 0;
+  if(cfu > 0) return cfu;
   const w = Number(g && g.weight);
   if(!isNaN(w) && w > 0) return w;
-  const c = s ? subjCredits(s) : 0;
-  return c > 0 ? c : 1;
-}
-
-// Media ponderata di un elenco di voti: somma(voto × peso) / somma(pesi)
-function mediaPonderata(grades, s){
-  if(!grades || !grades.length) return null;
-  let num=0, den=0;
-  grades.forEach(g=>{
-    const v=Number(g.value);
-    if(isNaN(v)) return;
-    const p=pesoDiVoto(g, s);
-    num += v*p; den += p;
-  });
-  return den>0 ? num/den : null;
+  return 1;
 }
 
 // Elenco piatto dei voti d'esame universitari con il rispettivo peso:
@@ -1718,9 +1714,8 @@ function buildGradeTable(grades,type,subj){
   ${grades.map(g=>`<tr><td>${fmtDate(g.date)}</td><td><span class="badge ${badgeGradeClass(g.value)}">${g.value}</span></td><td style="color:var(--text3)">${g.weight}</td><td style="color:var(--text2)">${escHtml(g.description||'—')}</td><td><button class="btn btn-sm btn-red del-btn" onclick="deleteGrade('${g.id}','${type}')">✕</button></td></tr>`).join('')}
   </tbody></table>
   <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text2);padding:.5rem .3rem;display:flex;gap:1.5rem;flex-wrap:wrap">
-    <span>Media aritmetica: <strong style="color:var(--gold)">${fmt(arAvg(grades))}</strong></span>
-    <span>Media ponderata: <strong style="color:var(--gold)">${fmt(mediaPonderata(grades, subj))}</strong></span>
-    <span style="color:var(--text3)">${grades.length} voto/i</span>
+    <span>Media materia: <strong style="color:var(--gold)">${fmt(arAvg(grades))}</strong></span>
+    <span style="color:var(--text3)">${grades.length} voto/i${subj && subjCredits(subj)>0 ? ' · '+subjCredits(subj)+' CFU' : ''}</span>
   </div>`;
 }
 

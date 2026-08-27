@@ -12,7 +12,7 @@ const jwt          = require('jsonwebtoken');
 const cors         = require('cors');
 const cookieParser = require('cookie-parser');
 const path         = require('path');
-const { compilaLiberaUscita, eLiberaUscita } = require('./lib/excel-libere-uscite');
+const excelLU = require('./lib/excel-libere-uscite');
 
 const app = express();
 app.disable('x-powered-by');
@@ -1029,60 +1029,24 @@ app.delete('/api/lists/:listId/signup/:userId', auth, requireAdmin, async (req, 
 });
 
 // ── EXPORT EXCEL LIBERE USCITE ────────────────────────────────────
-// Le opzioni dell'iscrizione viaggiano nella colonna note come JSON: stesso
-// meccanismo già usato dalle liste personalizzate, nessuna colonna nuova.
-function leggiOpzioniIscrizione(note) {
-  if (!note || typeof note !== 'string') return {};
-  const t = note.trim();
-  if (!t.startsWith('{')) return {};
-  try {
-    const o = JSON.parse(t);
-    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
-  } catch (e) { return {}; }
-}
-
-// Cognome e nome separati, con ripiego su full_name per gli account storici
-function scomponiNome(u) {
-  const cognome = (u.cognome || '').trim();
-  const nome    = (u.nome || '').trim();
-  if (cognome || nome) return { cognome, nome };
-  const intero = (u.full_name || u.username || '').trim();
-  if (!intero) return { cognome: '', nome: '' };
-  const pezzi = intero.split(/\s+/);
-  if (pezzi.length === 1) return { cognome: pezzi[0], nome: '' };
-  return { cognome: pezzi[pezzi.length - 1], nome: pezzi.slice(0, -1).join(' ') };
-}
-
+// Il modulo copre l'intera giornata: raccogliPersoneGiornata unisce tutte le
+// liste di libera uscita con la stessa data, elimina i duplicati e ordina.
 app.get('/api/lists/:id/excel', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
-    const [lists] = await c.execute('SELECT * FROM lists WHERE id=?', [req.params.id]);
+    const [lists] = await c.execute('SELECT id,list_type,list_date FROM lists WHERE id=?', [req.params.id]);
     if (!lists.length) return res.status(404).json({ error: 'Lista non trovata' });
-    const lista = lists[0];
-    if (!eLiberaUscita(lista.list_type))
+    const richiesta = lists[0];
+    if (!excelLU.eLiberaUscita(richiesta.list_type))
       return res.status(400).json({ error: 'Questa lista non ha un modulo Excel dedicato' });
 
-    // Ordine alfabetico: deterministico e coerente con il modulo cartaceo
-    const [signups] = await c.execute(`
-      SELECT s.note, u.nome, u.cognome, u.full_name, u.username
-      FROM list_signups s JOIN users u ON s.user_id = u.id
-      WHERE s.list_id = ?
-      ORDER BY u.cognome ASC, u.nome ASC, u.username ASC
-    `, [req.params.id]);
+    const persone = await excelLU.raccogliPersoneGiornata(
+      (sql, params) => c.execute(sql, params), richiesta);
+    if (!persone.length)
+      return res.status(400).json({ error: 'Nessun iscritto per questa giornata' });
 
-    const persone = signups.map(s => {
-      const opz = leggiOpzioniIscrizione(s.note);
-      const { cognome, nome } = scomponiNome(s);
-      return {
-        cognome, nome,
-        saltoPasto: !!(opz.salto_pasto || opz.saltoPasto),
-        pernotto:   !!(opz.pernotto)
-      };
-    });
-
-    const dataISO = String(lista.list_date).slice(0, 10);
-    const buf = await compilaLiberaUscita({ listType: lista.list_type, dataISO, persone });
-    const nomeFile = `LIBERI_USCENTI_${dataISO.split('-').reverse().join('-')}.xlsx`;
+    const buf = await excelLU.compilaLiberaUscita({ data: richiesta.list_date, persone });
+    const nomeFile = `LIBERI_USCENTI_${excelLU.dataItaliana(richiesta.list_date).replace(/\//g, '-')}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${nomeFile}"`);
     res.setHeader('Content-Length', buf.length);
