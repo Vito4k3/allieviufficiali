@@ -81,6 +81,11 @@ let annoRegistro = (() => {
 // Materie universitarie aperte: chiuse di default, l'apertura non persiste
 let uniAperte = new Set();
 
+// Liste di libera uscita: hanno opzioni proprie e un modulo Excel dedicato.
+// Aggiungere un tipo qui e nel registro del server lo abilita ovunque.
+const LISTE_LIBERA_USCITA = ['liberi_sab_pom','liberi_sab_sera','liberi_dom_pom'];
+function eLiberaUscita(t){ return LISTE_LIBERA_USCITA.includes(t); }
+
 const LIST_LABELS = {
   liberi_sab_pom:  'Liberi Uscenti Sabato Pomeriggio',
   liberi_sab_sera: 'Liberi Uscenti Sabato Sera',
@@ -204,11 +209,49 @@ async function api(method, path, body){
 }
 
 // ── NAVIGATION ─────────────────────────────────────────────────────
-function showLanding(){ document.title = DOC_TITLE_PUBLIC; _s('landing');_h('auth');_h('app') }
-function showAuth(tab='login'){ document.title = DOC_TITLE_PUBLIC; _h('landing');_s('auth');_h('app'); switchAuthTab(tab) }
+function showLanding(){ document.title = DOC_TITLE_PUBLIC; _s('landing');_h('auth');_h('app'); valutaBannerApp() }
+
+// ── BANNER INSTALLAZIONE APP ───────────────────────────────────────
+// Rimanda alla pagina /installa già presente nel progetto: nessuna seconda
+// logica di installazione. Non compare se l'app è già aperta come app,
+// né se l'utente lo ha chiuso in passato.
+function appGiaInstallata(){
+  try {
+    return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  } catch(e){ return false; }
+}
+function bannerAppDaMostrare(){
+  if(appGiaInstallata()) return false;
+  try { if(localStorage.getItem('au-banner-app') === 'chiuso') return false; } catch(e){}
+  return true;
+}
+function valutaBannerApp(){
+  const el = document.getElementById('appBanner');
+  if(!el) return;
+  if(!bannerAppDaMostrare()){ el.hidden = true; return; }
+  // Ritardo breve: non salta addosso all'utente appena apre la pagina
+  clearTimeout(valutaBannerApp._t);
+  valutaBannerApp._t = setTimeout(() => {
+    const landing = document.getElementById('landing');
+    if(landing && !landing.classList.contains('hidden') && bannerAppDaMostrare()) el.hidden = false;
+  }, 2500);
+}
+function chiudiBannerApp(){
+  const el = document.getElementById('appBanner');
+  if(el) el.hidden = true;
+  clearTimeout(valutaBannerApp._t);
+  try { localStorage.setItem('au-banner-app','chiuso'); } catch(e){}
+}
+function nascondiBannerApp(){
+  const el = document.getElementById('appBanner');
+  if(el) el.hidden = true;
+  clearTimeout(valutaBannerApp._t);
+}
+function showAuth(tab='login'){ document.title = DOC_TITLE_PUBLIC; _h('landing');_s('auth');_h('app'); nascondiBannerApp(); switchAuthTab(tab) }
 async function showApp(){
   document.title = DOC_TITLE_APP;
   _h('landing');_h('auth');_s('app');
+  nascondiBannerApp();
   await refreshCurrentUser();
   applyPermissions();
   loadBacheca();
@@ -929,6 +972,8 @@ function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
       return `<button class="btn btn-gold" onclick="openMessaModal('${l.id}')">✋ Iscriviti alla Messa</button>`;
     if(isCustom)
       return `<button class="btn btn-gold" onclick="openCustomSignupModal('${l.id}')">✋ Iscriviti</button>`;
+    if(eLiberaUscita(l.list_type))
+      return `<button class="btn btn-gold" onclick="openLiberaUscitaModal('${l.id}')">✋ Iscriviti</button>`;
     return `<button class="btn btn-gold" onclick="signupList('${l.id}')">✋ Iscriviti</button>`;
   }
 
@@ -964,10 +1009,13 @@ function formatNameForList(s){
 }
 
 // Scarica la lista come CSV apribile in Excel
-function downloadListExcel(listId){
+async function downloadListExcel(listId){
   const l = allLists.find(x => x.id === listId);
   if(!l){ toast('Lista non trovata','err'); return; }
   if(!l.signups || !l.signups.length){ toast('Nessun iscritto da scaricare','err'); return; }
+  // Le libere uscite hanno un modulo Excel ufficiale: lo compila il server
+  // partendo dal template, qui si scarica soltanto il file già pronto.
+  if(eLiberaUscita(l.list_type)) return scaricaModuloLiberaUscita(l);
   const title   = l.list_type==='custom' ? (l.custom_name||'Lista') : (LIST_LABELS[l.list_type]||l.list_type);
   const sorted  = [...l.signups].sort((a,b) =>
     getLastName(a).localeCompare(getLastName(b),'it',{sensitivity:'base'})
@@ -1033,6 +1081,15 @@ function renderSignupRows(l, isAdmin){
         detail = `<span style="color:var(--gold)">→ ${escHtml(s.note)}</span>`;
       }
     }
+    // Libere uscite: mostra le opzioni scelte, che finiscono nelle X del modulo
+    if(eLiberaUscita(l.list_type) && s.note){
+      const opz = parseCustomSignupNote(s.note) || {};
+      const scelte = [];
+      if(opz.salto_pasto) scelte.push('🍽 Salto pasto');
+      if(opz.pernotto)    scelte.push('🌙 Pernotto');
+      if(scelte.length)
+        detail = `<span style="color:var(--text2);font-size:.72rem">${scelte.map(escHtml).join(' · ')}</span>`;
+    }
     if(isMessa && s.relative_name)
       detail = `<span style="color:var(--text2)">👥 ${escHtml(s.relative_name)}${s.relative_relation?' ('+escHtml(s.relative_relation)+')':''}</span>`;
     if(isParlatorio){
@@ -1093,6 +1150,33 @@ function toggleListCard(id){
 async function signupList(listId){
   try {
     await api('POST','/api/lists/'+listId+'/signup',{signup_id:uid()});
+    toast('Iscritto!');
+    openListId = listId;
+    await loadListDetail(listId);
+  } catch(e){ toast(e.message,'err') }
+}
+
+// ── ISCRIZIONE LIBERA USCITA ──────────────────────────────────────
+function openLiberaUscitaModal(listId){
+  document.getElementById('luListId').value = listId;
+  document.getElementById('luSaltoPasto').value = 'no';
+  document.getElementById('luPernotto').value = 'no';
+  const l = allLists.find(x => x.id === listId);
+  document.getElementById('liberaUscitaTitle').textContent =
+    '🚶 ' + (l ? (LIST_LABELS[l.list_type] || 'Libera Uscita') : 'Libera Uscita');
+  openModal('liberaUscitaModal');
+}
+
+async function confirmLiberaUscitaSignup(){
+  const listId = document.getElementById('luListId').value;
+  // Le opzioni viaggiano nel campo note come JSON, come per le liste personalizzate
+  const opzioni = {
+    salto_pasto: document.getElementById('luSaltoPasto').value === 'si',
+    pernotto:    document.getElementById('luPernotto').value === 'si'
+  };
+  try {
+    await api('POST','/api/lists/'+listId+'/signup',{ signup_id:uid(), note: JSON.stringify(opzioni) });
+    closeModal('liberaUscitaModal');
     toast('Iscritto!');
     openListId = listId;
     await loadListDetail(listId);
@@ -1274,6 +1358,30 @@ async function confirmParlatorioSignup(){
     toast(_parlManage ? 'Parenti aggiornati!' : 'Iscritto al parlatorio!');
     openListId = _parlListId;
     await loadListDetail(_parlListId);
+  } catch(e){ toast(e.message,'err') }
+}
+
+// Scarica il modulo Excel compilato dal server (template ufficiale)
+async function scaricaModuloLiberaUscita(l){
+  try {
+    toast('Preparazione del modulo…','info');
+    const r = await fetch(API+'/api/lists/'+l.id+'/excel', {
+      headers: token ? { 'Authorization':'Bearer '+token } : {},
+      credentials:'include'
+    });
+    if(!r.ok){
+      let msg = 'Errore nella generazione del modulo';
+      try { msg = (await r.json()).error || msg; } catch(e){}
+      throw new Error(msg);
+    }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `LIBERI_USCENTI_${(l.list_date||'').slice(0,10).split('-').reverse().join('-')}.xlsx`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    toast('Modulo scaricato');
   } catch(e){ toast(e.message,'err') }
 }
 
@@ -1461,16 +1569,36 @@ function subjAvg(s,gradeType){
 }
 function subjCredits(s){ const c=parseFloat(s.credits); return isNaN(c)?0:c }
 
-// Elenco piatto dei voti d'esame universitari, ciascuno con i CFU della
-// materia a cui appartiene: base comune alle due medie, così differiscono
-// esattamente quando i CFU differiscono.
+// Peso effettivo di un voto: quello inserito sul voto stesso, altrimenti i CFU
+// della materia, altrimenti 1. È il valore che entra nella media ponderata.
+function pesoDiVoto(g, s){
+  const w = Number(g && g.weight);
+  if(!isNaN(w) && w > 0) return w;
+  const c = s ? subjCredits(s) : 0;
+  return c > 0 ? c : 1;
+}
+
+// Media ponderata di un elenco di voti: somma(voto × peso) / somma(pesi)
+function mediaPonderata(grades, s){
+  if(!grades || !grades.length) return null;
+  let num=0, den=0;
+  grades.forEach(g=>{
+    const v=Number(g.value);
+    if(isNaN(v)) return;
+    const p=pesoDiVoto(g, s);
+    num += v*p; den += p;
+  });
+  return den>0 ? num/den : null;
+}
+
+// Elenco piatto dei voti d'esame universitari con il rispettivo peso:
+// base comune alle due medie, così differiscono quando i pesi differiscono.
 function votiEsamiUni(subjects){
   const out=[];
   (subjects||vdb.subjects.university).forEach(s=>{
-    const cfu=subjCredits(s);
     (s.grades||[]).filter(g=>g.grade_type==='exam').forEach(g=>{
       const v=Number(g.value);
-      if(!isNaN(v)) out.push({voto:v, cfu});
+      if(!isNaN(v)) out.push({voto:v, peso:pesoDiVoto(g, s)});
     });
   });
   return out;
@@ -1480,10 +1608,10 @@ function votiEsamiUni(subjects){
 function mediaUniversitaria(subjects){
   const voti=votiEsamiUni(subjects);
   if(!voti.length) return null;
-  const totCfu=voti.reduce((a,x)=>a+x.cfu,0);
-  // Se nessun CFU è valorizzato si degrada alla media semplice (retrocompatibilità)
-  if(totCfu<=0) return meanOf(voti.map(x=>x.voto));
-  return voti.reduce((a,x)=>a+x.voto*x.cfu,0)/totCfu;
+  const totPesi=voti.reduce((a,x)=>a+x.peso,0);
+  // Nessun peso valorizzato: si degrada alla media semplice (retrocompatibilità)
+  if(totPesi<=0) return meanOf(voti.map(x=>x.voto));
+  return voti.reduce((a,x)=>a+x.voto*x.peso,0)/totPesi;
 }
 // CFU effettivamente conteggiati nella media universitaria
 function cfuConteggiati(subjects){
@@ -1584,13 +1712,14 @@ function renderGraduatoria(){
 }
 
 // RENDER TABLE VOTI
-function buildGradeTable(grades,type){
+function buildGradeTable(grades,type,subj){
   if(!grades.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.7rem;padding:.4rem 0">Nessun voto inserito</div>';
   return `<table class="data-table"><thead><tr><th>Data</th><th>Voto</th><th>Peso</th><th>Descrizione</th><th></th></tr></thead><tbody>
   ${grades.map(g=>`<tr><td>${fmtDate(g.date)}</td><td><span class="badge ${badgeGradeClass(g.value)}">${g.value}</span></td><td style="color:var(--text3)">${g.weight}</td><td style="color:var(--text2)">${escHtml(g.description||'—')}</td><td><button class="btn btn-sm btn-red del-btn" onclick="deleteGrade('${g.id}','${type}')">✕</button></td></tr>`).join('')}
   </tbody></table>
-  <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text2);padding:.5rem .3rem;display:flex;gap:1.5rem">
-    <span>Media materia: <strong style="color:var(--gold)">${fmt(arAvg(grades))}</strong></span>
+  <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text2);padding:.5rem .3rem;display:flex;gap:1.5rem;flex-wrap:wrap">
+    <span>Media aritmetica: <strong style="color:var(--gold)">${fmt(arAvg(grades))}</strong></span>
+    <span>Media ponderata: <strong style="color:var(--gold)">${fmt(mediaPonderata(grades, subj))}</strong></span>
     <span style="color:var(--text3)">${grades.length} voto/i</span>
   </div>`;
 }
@@ -1635,14 +1764,14 @@ function buildUniCard(s){
         <span style="font-family:var(--font-mono);font-size:.65rem;color:var(--gold);letter-spacing:.08em;text-transform:uppercase">📋 Esami (${exams.length})</span>
         <button class="btn btn-sm btn-gold" style="font-size:.58rem" onclick="openAddGradeModal('university','${s.id}','exam')">+ Esame</button>
       </div>
-      ${buildGradeTable(exams,'university')}
+      ${buildGradeTable(exams,'university',s)}
     </div>
     <div class="uni-subject-section" style="border-top:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
         <span style="font-family:var(--font-mono);font-size:.65rem;color:var(--blue-light);letter-spacing:.08em;text-transform:uppercase">📝 Accertamenti (${accerts.length})</span>
         <button class="btn btn-sm btn-blue" style="font-size:.58rem" onclick="openAddGradeModal('university','${s.id}','accertamento')">+ Accertamento</button>
       </div>
-      ${buildGradeTable(accerts,'university')}
+      ${buildGradeTable(accerts,'university',s)}
     </div>
     </div>
   </div>`;
@@ -1664,7 +1793,7 @@ function renderSubjectAreaGym(){
           <button class="btn btn-sm btn-green" style="font-size:.58rem" onclick="event.stopPropagation();openAddGradeModal('gym','${s.id}','exam')">+ Esame Gin.</button>
         </div>
       </div>
-      <div class="subject-body" id="sbody-${s.id}">${buildGradeTable(s.grades,'gym')}</div>
+      <div class="subject-body" id="sbody-${s.id}">${buildGradeTable(s.grades,'gym',s)}</div>
     </div>`).join(''):'<div style="color:var(--text3);font-family:var(--font-mono);font-size:.75rem;padding:1rem">Nessuna disciplina ginnica aggiunta.</div>';
 }
 
@@ -1685,7 +1814,7 @@ function renderSubjectAreaMil(){
           <button class="btn btn-sm btn-green" style="font-size:.58rem" onclick="event.stopPropagation();openAddGradeModal('military','${s.id}','accertamento')">+ Accertamento</button>
         </div>
       </div>
-      <div class="subject-body" id="sbody-${s.id}">${buildGradeTable(s.grades,'military')}</div>
+      <div class="subject-body" id="sbody-${s.id}">${buildGradeTable(s.grades,'military',s)}</div>
     </div>`).join(''):'<div style="color:var(--text3);font-family:var(--font-mono);font-size:.75rem;padding:1rem">Nessuna materia militare aggiunta.</div>';
 }
 
@@ -1703,9 +1832,9 @@ function openAddGradeModal(type,subjectId,gradeType){
   document.getElementById('agWeight').value=s.credits||1;
   document.getElementById('agDate').value=today();
   document.getElementById('agDesc').value='';
-  // Il peso resta memorizzato per lo storico ma non incide sulle medie:
-  // i CFU che contano sono quelli della materia, e solo per gli esami uni.
-  document.getElementById('agWeightLabel').textContent='Peso (solo archivio)';
+  // Il peso entra nella media ponderata; se lasciato al valore proposto
+  // (i CFU della materia) la ponderata pesa per CFU.
+  document.getElementById('agWeightLabel').textContent=type==='university'?'Peso / CFU':'Peso';
   openModal('addGradeModal');
 }
 async function saveGrade(){

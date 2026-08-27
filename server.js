@@ -12,6 +12,7 @@ const jwt          = require('jsonwebtoken');
 const cors         = require('cors');
 const cookieParser = require('cookie-parser');
 const path         = require('path');
+const { compilaLiberaUscita, eLiberaUscita } = require('./lib/excel-libere-uscite');
 
 const app = express();
 app.disable('x-powered-by');
@@ -156,6 +157,11 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Indice per l'ordinamento della chat e per la potatura dei messaggi
+    try {
+      await c.execute("ALTER TABLE comunicazioni_chat ADD INDEX idx_chat_created (created_at)");
+    } catch(e) { /* già presente */ }
 
     // Tabella comunicati ufficiali (con file opzionale)
     await c.execute(`
@@ -521,15 +527,45 @@ app.delete('/api/announcements/:id', auth, async (req, res) => {
 });
 
 // ── COMUNICAZIONI: CHAT ───────────────────────────────────────
+// La chat conserva solo gli ultimi messaggi: senza un tetto la tabella
+// cresce indefinitamente. Il limite è applicato qui sul database, non
+// nascondendo righe nel frontend.
+const CHAT_MAX_MESSAGGI = 50;
+// Si pota solo dopo aver superato il limite di questo margine, così la
+// cancellazione non gira a ogni singolo messaggio ma una volta ogni SLACK.
+const CHAT_SLACK = 10;
+
+async function potaChat(c) {
+  const [[{ n }]] = await c.execute('SELECT COUNT(*) AS n FROM comunicazioni_chat');
+  if (n <= CHAT_MAX_MESSAGGI + CHAT_SLACK) return 0;
+  // Il numero nella LIMIT è una costante del codice, mai input utente.
+  // Due inserimenti concorrenti possono potare insieme: l'operazione è
+  // idempotente, al massimo la seconda non trova più nulla da eliminare.
+  const [r] = await c.execute(`
+    DELETE FROM comunicazioni_chat
+    WHERE id NOT IN (
+      SELECT id FROM (
+        SELECT id FROM comunicazioni_chat
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${CHAT_MAX_MESSAGGI}
+      ) AS recenti
+    )
+  `);
+  return r.affectedRows;
+}
 app.get('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(`
-      SELECT m.id, m.content, m.created_at,
-             u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
-      FROM comunicazioni_chat m
-      JOIN users u ON m.user_id = u.id
-      ORDER BY m.created_at ASC LIMIT 300
+      SELECT * FROM (
+        SELECT m.id, m.content, m.created_at,
+               u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
+        FROM comunicazioni_chat m
+        JOIN users u ON m.user_id = u.id
+        ORDER BY m.created_at DESC, m.id DESC
+        LIMIT ${CHAT_MAX_MESSAGGI}
+      ) AS ultimi
+      ORDER BY ultimi.created_at ASC, ultimi.id ASC
     `);
     res.json(rows);
   } catch(e) { errServer(res, e); }
@@ -544,6 +580,8 @@ app.post('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => 
     const c = await db();
     await c.execute('INSERT INTO comunicazioni_chat (id,user_id,content) VALUES (?,?,?)',
       [id, req.user.id, content.trim()]);
+    // Il tetto non deve far fallire l'invio: se la potatura va storta si logga
+    try { await potaChat(c); } catch(e) { console.warn('   chat: potatura non riuscita:', e.message); }
     res.json({ ok: true });
   } catch(e) { errServer(res, e); }
 });
@@ -988,6 +1026,68 @@ app.delete('/api/lists/:listId/signup/:userId', auth, requireAdmin, async (req, 
     await c.execute('DELETE FROM list_relatives WHERE list_id=? AND user_id=?', [req.params.listId, req.params.userId]);
     res.json({ ok: true });
   } catch(e) { errServer(res, e); }
+});
+
+// ── EXPORT EXCEL LIBERE USCITE ────────────────────────────────────
+// Le opzioni dell'iscrizione viaggiano nella colonna note come JSON: stesso
+// meccanismo già usato dalle liste personalizzate, nessuna colonna nuova.
+function leggiOpzioniIscrizione(note) {
+  if (!note || typeof note !== 'string') return {};
+  const t = note.trim();
+  if (!t.startsWith('{')) return {};
+  try {
+    const o = JSON.parse(t);
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  } catch (e) { return {}; }
+}
+
+// Cognome e nome separati, con ripiego su full_name per gli account storici
+function scomponiNome(u) {
+  const cognome = (u.cognome || '').trim();
+  const nome    = (u.nome || '').trim();
+  if (cognome || nome) return { cognome, nome };
+  const intero = (u.full_name || u.username || '').trim();
+  if (!intero) return { cognome: '', nome: '' };
+  const pezzi = intero.split(/\s+/);
+  if (pezzi.length === 1) return { cognome: pezzi[0], nome: '' };
+  return { cognome: pezzi[pezzi.length - 1], nome: pezzi.slice(0, -1).join(' ') };
+}
+
+app.get('/api/lists/:id/excel', auth, requireCompagnia, async (req, res) => {
+  try {
+    const c = await db();
+    const [lists] = await c.execute('SELECT * FROM lists WHERE id=?', [req.params.id]);
+    if (!lists.length) return res.status(404).json({ error: 'Lista non trovata' });
+    const lista = lists[0];
+    if (!eLiberaUscita(lista.list_type))
+      return res.status(400).json({ error: 'Questa lista non ha un modulo Excel dedicato' });
+
+    // Ordine alfabetico: deterministico e coerente con il modulo cartaceo
+    const [signups] = await c.execute(`
+      SELECT s.note, u.nome, u.cognome, u.full_name, u.username
+      FROM list_signups s JOIN users u ON s.user_id = u.id
+      WHERE s.list_id = ?
+      ORDER BY u.cognome ASC, u.nome ASC, u.username ASC
+    `, [req.params.id]);
+
+    const persone = signups.map(s => {
+      const opz = leggiOpzioniIscrizione(s.note);
+      const { cognome, nome } = scomponiNome(s);
+      return {
+        cognome, nome,
+        saltoPasto: !!(opz.salto_pasto || opz.saltoPasto),
+        pernotto:   !!(opz.pernotto)
+      };
+    });
+
+    const dataISO = String(lista.list_date).slice(0, 10);
+    const buf = await compilaLiberaUscita({ listType: lista.list_type, dataISO, persone });
+    const nomeFile = `LIBERI_USCENTI_${dataISO.split('-').reverse().join('-')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomeFile}"`);
+    res.setHeader('Content-Length', buf.length);
+    res.send(buf);
+  } catch (e) { errServer(res, e); }
 });
 
 // ── PARENTI PARLATORIO ────────────────────────────────────────────

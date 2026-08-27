@@ -463,29 +463,36 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
    AUTH
    ════════════════════════════════════════════════════ */
 #auth{
-  min-height:100vh;display:flex;align-items:flex-start;justify-content:center;
-  padding:1.25rem 1rem 2rem;background:var(--bg);position:relative;overflow-x:hidden;overflow-y:auto;
+  min-height:100vh;min-height:100svh;
+  /* Griglia con "safe center": centra il riquadro quando c'è spazio e,
+     quando il modulo è più alto dello schermo, riparte dall'alto invece
+     di tagliarne la cima (il difetto classico della centratura flex). */
+  display:grid;justify-items:center;align-content:safe center;
+  padding:clamp(1.5rem,5vh,4rem) 1rem;
+  background:var(--bg);position:relative;overflow-x:hidden;
 }
+/* Sfondo: pochi strati morbidi, nessun effetto invadente */
 #auth::before{
   content:'';position:absolute;inset:0;pointer-events:none;
   background:
-    radial-gradient(ellipse 65% 50% at 50% -5%,rgba(196,162,66,.09) 0%,transparent 65%),
-    radial-gradient(ellipse 40% 45% at 82% 80%,rgba(90,152,242,.04) 0%,transparent 55%);
+    radial-gradient(ellipse 90% 55% at 50% -10%,var(--gold-a18) 0%,transparent 60%),
+    radial-gradient(ellipse 55% 45% at 12% 105%,rgba(90,152,242,.07) 0%,transparent 60%),
+    radial-gradient(ellipse 45% 40% at 92% 88%,var(--gold-a10) 0%,transparent 60%);
+}
+/* Vignettatura appena percepibile, dà profondità senza sporcare */
+#auth::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 78% 68% at 50% 45%,transparent 55%,rgba(0,0,0,.28) 100%);
 }
 .auth-box{
   background:var(--surface);
   border:1px solid var(--border-gold);
-  border-radius:var(--r2);
-  padding:2.2rem 1.85rem;
-  width:100%;max-width:min(100%,520px);
-  box-shadow:var(--sh-xl),0 0 60px var(--gold-a10);
-  animation:fadeUp .4s cubic-bezier(.22,.61,.36,1);
+  border-radius:calc(var(--r2) * 1.5);
+  padding:clamp(1.9rem,4vw,2.9rem) clamp(1.4rem,3.5vw,2.6rem);
+  width:100%;max-width:460px;
+  box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 24px 60px -12px rgba(0,0,0,.5), 0 0 90px -30px var(--gold-a30);
+  animation:fadeUp .45s cubic-bezier(.22,.61,.36,1);
   position:relative;
-  overflow-x:hidden;
-  overflow-y:auto;
-  max-height:min(calc(100vh - 2.5rem),880px);
-  -webkit-overflow-scrolling:touch;
-  margin:1rem 0;
 }
 /* Top accent line */
 .auth-box::before{
@@ -494,16 +501,71 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
 }
 /* Corner ornament */
 .auth-box::after{
-  content:'';position:absolute;top:14px;right:14px;
+  content:'';position:absolute;top:16px;right:16px;
   width:18px;height:18px;
   border-top:1px solid var(--border-gold);border-right:1px solid var(--border-gold);
-  pointer-events:none;
+  pointer-events:none;opacity:.6;
+}
+
+/* ── INSTALLAZIONE APP: sezione dedicata in home ── */
+.land-app-wrap{max-width:1080px;margin:0 auto;padding:0 1.5rem 4.5rem}
+.land-app{
+  display:flex;align-items:center;gap:clamp(1.4rem,4vw,3rem);flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border-gold);
+  border-radius:calc(var(--r2) * 1.4);padding:clamp(1.6rem,4vw,2.8rem);
+  box-shadow:0 18px 50px -20px rgba(0,0,0,.45);position:relative;overflow:hidden;
+}
+.land-app::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 120% at 88% 50%,var(--gold-a10) 0%,transparent 70%);
+}
+.land-app-visual{
+  width:104px;height:104px;flex:0 0 104px;border-radius:26px;
+  border:1px solid var(--border-gold);background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;position:relative;
+  box-shadow:0 12px 30px -12px rgba(0,0,0,.5);
+}
+.land-app-visual .emblema-svg{width:62%;height:62%}
+.land-app-body{flex:1;min-width:250px;position:relative}
+.land-app-eyebrow{font-family:var(--font-m);font-size:.56rem;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:.6rem}
+.land-app-title{font-family:var(--font-d);font-size:clamp(1.3rem,3.2vw,1.85rem);color:var(--text);letter-spacing:.04em;margin-bottom:.6rem;line-height:1.25}
+.land-app-desc{font-family:var(--font-b);font-size:1rem;color:var(--text2);line-height:1.7;margin-bottom:1.3rem;max-width:52ch}
+.land-app-actions{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.land-app-note{font-family:var(--font-m);font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text3)}
+
+/* ── Banner discreto, richiudibile, solo se non già installata ── */
+.app-banner{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:1rem;z-index:900;
+  display:flex;align-items:center;gap:.85rem;
+  width:min(calc(100% - 2rem),460px);
+  background:var(--surface);border:1px solid var(--border-gold);
+  border-radius:var(--r2);padding:.8rem 1rem;
+  box-shadow:0 18px 44px -14px rgba(0,0,0,.55);
+  animation:bannerSu .45s cubic-bezier(.22,.61,.36,1);
+}
+.app-banner[hidden]{display:none}
+.app-banner-icon{font-size:1.4rem;line-height:1}
+.app-banner-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem}
+.app-banner-text strong{font-family:var(--font-d);font-size:.8rem;color:var(--text);letter-spacing:.05em}
+.app-banner-text span{font-family:var(--font-m);font-size:.58rem;color:var(--text3)}
+.app-banner-close{
+  background:none;border:none;color:var(--text3);cursor:pointer;
+  font-size:.85rem;padding:.2rem .3rem;line-height:1;border-radius:4px;
+}
+.app-banner-close:hover{color:var(--text);background:rgba(255,255,255,.06)}
+@keyframes bannerSu{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}
+@media(max-width:520px){
+  .app-banner{gap:.6rem;padding:.7rem .8rem}
+  .app-banner-text span{display:none}
+  .land-app{flex-direction:column;text-align:center}
+  .land-app-desc{margin-inline:auto}
+  .land-app-actions{justify-content:center}
 }
 
 @keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
-.auth-emblem{text-align:center;margin-bottom:1.8rem}
+.auth-emblem{text-align:center;margin-bottom:2.1rem}
 .auth-emblem-icon{
   width:68px;height:68px;border-radius:50%;
   border:1px solid var(--border-gold);
@@ -517,10 +579,10 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
   content:'';position:absolute;inset:-5px;border-radius:50%;
   border:1px solid var(--gold-a10);
 }
-.auth-title{font-family:var(--font-d);font-size:1.1rem;color:var(--gold);letter-spacing:.2em;margin-top:.9rem}
+.auth-title{font-family:var(--font-d);font-size:1.25rem;color:var(--gold);letter-spacing:.18em;margin-top:1rem;line-height:1.2}
 .auth-subtitle{font-family:var(--font-m);font-size:.54rem;color:var(--text3);letter-spacing:.26em;text-transform:uppercase;margin-top:.25rem}
 
-.auth-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.8rem}
+.auth-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.7rem;gap:.2rem}
 .auth-tab{
   flex:1;font-family:var(--font-m);font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;
   padding:.72rem;border:none;background:none;color:var(--text3);cursor:pointer;
@@ -1184,7 +1246,7 @@ canvas{max-height:220px}
   .form-row-2,.form-row-3{grid-template-columns:1fr}
   .page{padding:1.2rem}
   .hero-title{font-size:clamp(2.2rem,8vw,3.2rem)}
-  .auth-box{padding:1.6rem 1.25rem;max-height:calc(100vh - 1.5rem)}
+  .auth-box{max-width:100%}
   .profile-hero{flex-direction:column;text-align:center;gap:1rem}
 }
 /* ════════════════════════════════════════════════════
@@ -1466,12 +1528,39 @@ canvas{max-height:220px}
     </div>
   </div>
 
+  <!-- Installazione app: sezione dedicata, sempre presente e non invasiva -->
+  <div class="land-app-wrap">
+    <div class="land-app reveal">
+      <div class="land-app-visual"><svg class="emblema-svg"><use href="#emblema-au"/></svg></div>
+      <div class="land-app-body">
+        <div class="land-app-eyebrow">✦ &nbsp;Applicazione</div>
+        <h2 class="land-app-title">Il portale, anche come app</h2>
+        <p class="land-app-desc">Installa il Portale AU su iPhone, Android o desktop: si apre a schermo intero, senza barra del browser, con l'icona sulla schermata home. Nessuno store, bastano pochi secondi.</p>
+        <div class="land-app-actions">
+          <a class="btn btn-gold btn-lg" href="/installa">📲 &nbsp;Installa l'app</a>
+          <span class="land-app-note">iOS · Android · Desktop</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <footer class="land-footer">
     <svg class="land-footer-emblema"><use href="#emblema-au"/></svg>
     <div class="land-footer-line1">Portale Allievi Ufficiali</div>
     <div class="land-footer-motto">207° Corso · «Vna Acies»</div>
     <div class="land-footer-line2">Uso riservato · Trattamento dati secondo normativa vigente</div>
   </footer>
+</div>
+
+<!-- Banner installazione: compare solo in home, una volta, e si chiude -->
+<div class="app-banner" id="appBanner" hidden>
+  <div class="app-banner-icon">📲</div>
+  <div class="app-banner-text">
+    <strong>Installa il Portale AU</strong>
+    <span>Aprilo come app, a schermo intero</span>
+  </div>
+  <a class="btn btn-sm btn-gold" href="/installa">Installa</a>
+  <button class="app-banner-close" onclick="chiudiBannerApp()" aria-label="Chiudi">✕</button>
 </div>
 
 <!-- ════════════════════ AUTH ════════════════════ -->
@@ -2110,6 +2199,21 @@ canvas{max-height:220px}
   </div>
 </div>
 <!-- LISTA PERSONALIZZATA MODAL -->
+<!-- Iscrizione libera uscita: le opzioni finiscono nelle colonne X del modulo -->
+<div class="modal-overlay" id="liberaUscitaModal">
+  <div class="modal">
+    <div class="modal-title" id="liberaUscitaTitle">🚶 Iscrizione Libera Uscita</div>
+    <input type="hidden" id="luListId">
+    <div class="alert alert-info">Le opzioni selezionate finiscono nel modulo Excel della libera uscita.</div>
+    <div class="form-row-2">
+      <div class="form-group"><label>Salto pasto</label>
+        <select id="luSaltoPasto"><option value="no">No</option><option value="si">Sì</option></select></div>
+      <div class="form-group"><label>Pernotto</label>
+        <select id="luPernotto"><option value="no">No</option><option value="si">Sì</option></select></div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('liberaUscitaModal')">Annulla</button><button class="btn btn-gold" onclick="confirmLiberaUscitaSignup()">✓ &nbsp;Iscriviti</button></div>
+  </div>
+</div>
 <div class="modal-overlay" id="customSignupModal">
   <div class="modal" style="max-width:480px">
     <div class="modal-title" id="customSignupTitle">🎯 Iscrizione Lista</div>
