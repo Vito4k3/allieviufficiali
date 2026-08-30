@@ -1879,7 +1879,18 @@ app.listen(PORT, async () => {
   // raggiungibili da QUESTO ambiente. Così la risposta a "l'hosting blocca la
   // 465?" sta nei log di ogni deploy, senza dover fare prove a mano.
   // Non parte niente: solo connessioni TCP aperte e richiuse.
-  if (mailer.emailConfigurata() && !process.env.BREVO_API_KEY) {
+  // Con Brevo attivo si controlla la forma della chiave invece delle porte:
+  // il rifiuto "Key not found" nasce quasi sempre da un incollaggio troncato
+  // o dalla chiave SMTP presa al posto di quella API.
+  const cfgEmail = mailer.configurazioneEmail();
+  if (cfgEmail.canale === 'brevo-https') {
+    console.log(`   EMAIL: canale Brevo via HTTPS · mittente ${cfgEmail.mittente || '(non impostato!)'} · chiave: ${cfgEmail.chiave}`);
+    if (!/^inizia con xkeysib-/.test(cfgEmail.chiave || ''))
+      console.warn('   EMAIL: la chiave non inizia con "xkeysib-" — probabilmente è la chiave SMTP invece di quella API (scheda "Chiavi API" su Brevo).');
+    if (!cfgEmail.mittente)
+      console.warn('   EMAIL: nessun mittente impostato — serve SMTP_FROM oppure SMTP_USER con l\'indirizzo verificato su Brevo.');
+  }
+  if (mailer.emailConfigurata() && cfgEmail.canale === 'smtp') {
     mailer.diagnosticaRete().then(d => {
       const righe = d.porte.map(p => `${p.porta}:${p.esito === 'raggiungibile' ? 'OK' : p.esito}`).join('  ');
       console.log(`   SMTP: porte di ${d.host} → ${righe}  (https di controllo: ${d.controllo_https.esito})`);

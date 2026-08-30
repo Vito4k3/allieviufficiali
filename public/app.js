@@ -2482,8 +2482,13 @@ async function provaInvioEmail(){
       + `(${escHtml(r.config.host)}:${r.porta}). Controlla la casella, anche nella posta indesiderata.`, 'ok');
     return;
   } catch(e){
-    // L'invio è fallito: prima di lasciare l'amministratore con un messaggio
-    // criptico, si guarda quali porte sono raggiungibili e, se ce n'è una
+    // Con Brevo il canale è HTTPS: sondare le porte SMTP non direbbe nulla di
+    // utile, l'errore dell'API è già la risposta.
+    if(/Brevo/i.test(e.message)){
+      _emailEsito('⚠ ' + escHtml(e.message), 'warn');
+      return;
+    }
+    // Su SMTP invece si guarda quali porte sono raggiungibili e, se ce n'è una
     // buona diversa da quella in uso, si riprova subito da lì.
     _emailEsito('⚠ ' + escHtml(e.message) + '<br>⏳ Verifico quali porte sono raggiungibili…', 'warn');
     try {
