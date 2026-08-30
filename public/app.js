@@ -596,11 +596,11 @@ async function inviaLinkRecupero(){
   if(bottone.disabled) return;
   bottone.disabled = true;
   bottone.innerHTML = '⏳ &nbsp;Invio in corso…';
-  // Il server risponde solo dopo aver consegnato l'email al provider, e al
-  // primo risveglio dell'hosting possono passare parecchi secondi. Senza
-  // questo avviso la finestra restava identica e sembrava che il tasto non
-  // funzionasse: da lì gli invii ripetuti.
-  pdEsito('⏳ Invio in corso… può richiedere fino a un minuto. Non chiudere questa finestra.', 'info');
+  // Senza questo avviso la finestra restava identica finché il server non
+  // rispondeva, e sembrava che il tasto non funzionasse: da lì gli invii
+  // ripetuti. Al primo risveglio dell'hosting l'attesa può essere di qualche
+  // decina di secondi.
+  pdEsito('⏳ Invio in corso… non chiudere questa finestra.', 'info');
   try {
     const r = await api('POST','/api/auth/password/forgot',{email});
     // La risposta è volutamente identica che l'indirizzo esista o no
@@ -2369,6 +2369,29 @@ async function saveUserPermissions(){
     await loadAdminUsers();
     toast("Permessi aggiornati — effettivi immediatamente per l'utente",'ok');
   } catch(e){ toast(e.message,'err') }
+}
+
+// Prova di invio email: dice se il recupero password funziona davvero, senza
+// dover chiedere a qualcuno di provare né leggere i log dell'hosting.
+// L'errore arriva per intero perché è una rotta riservata agli amministratori.
+async function provaInvioEmail(){
+  const box = document.getElementById('esitoProvaEmail');
+  const bottone = document.getElementById('btnProvaEmail');
+  const mostra = (testo, tipo) => { box.textContent = testo; box.className = 'alert alert-' + tipo; };
+  if(bottone.disabled) return;
+  bottone.disabled = true;
+  bottone.innerHTML = '⏳ &nbsp;Invio…';
+  mostra('⏳ Invio della email di prova in corso…', 'info');
+  try {
+    const r = await api('POST','/api/admin/email-test',{});
+    mostra(`✓ Email di prova inviata a ${r.a} in ${(r.millisecondi/1000).toFixed(1)}s `
+      + `(${r.config.host}:${r.config.porta}). Controlla la casella, anche nella posta indesiderata.`, 'ok');
+  } catch(e){
+    mostra('⚠ ' + e.message, 'warn');
+  } finally {
+    bottone.disabled = false;
+    bottone.innerHTML = '✉ &nbsp;Prova email';
+  }
 }
 
 // Link di reimpostazione generato a mano dall'admin: serve quando l'allievo

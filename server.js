@@ -767,12 +767,13 @@ app.post('/api/auth/password/forgot', limitaTentativi('reset-richiesta', 8, 15 *
       link: linkReset(req, token),
       minutiValidita: RESET_VALIDITA_MINUTI
     });
-    try {
-      await mailer.inviaEmail({ a: utente.email, oggetto, testo, html });
-    } catch (e) {
-      // L'invio fallito non deve rivelare nulla all'esterno, ma va tracciato.
-      console.error('   reset password: invio email fallito —', e.message);
-    }
+    // La risposta non aspetta la consegna: è generica in ogni caso, e tenere
+    // l'utente fermo davanti a una schermata bloccata per tutto il dialogo con
+    // il server di posta non serve a niente. L'invio prosegue per conto suo e
+    // un eventuale fallimento finisce nei log (e si diagnostica per intero da
+    // POST /api/admin/email-test).
+    mailer.inviaEmail({ a: utente.email, oggetto, testo, html })
+      .catch(e => console.error('   reset password: invio email fallito —', e.message));
     res.json(rispostaGenerica);
   } catch (e) { errServer(res, e); }
 });
@@ -1592,6 +1593,39 @@ app.post('/api/admin/users/:id/reset-link', auth, requireAdmin, async (req, res)
   } catch (e) { errServer(res, e); }
 });
 
+// Prova di invio email. Il recupero password risponde sempre allo stesso modo
+// per non rivelare chi è registrato, quindi un errore di configurazione SMTP
+// resterebbe invisibile: qui invece l'errore torna per intero, e solo a un
+// amministratore. Serve a distinguere "credenziali sbagliate" da "porta
+// bloccata dall'hosting" senza dover leggere i log.
+app.post('/api/admin/email-test', auth, requireAdmin, async (req, res) => {
+  const config = mailer.configurazioneEmail();
+  if (!config.configurata)
+    return res.status(400).json({ error: 'SMTP non configurato: mancano SMTP_USER e/o SMTP_PASS', config });
+  try {
+    const c = await db();
+    const [righe] = await c.execute('SELECT email FROM users WHERE id=?', [req.user.id]);
+    const a = String(req.body?.a || righe[0]?.email || '').trim();
+    if (!a) return res.status(400).json({ error: 'Nessun indirizzo a cui inviare la prova', config });
+    const inizio = Date.now();
+    await mailer.inviaEmail({
+      a,
+      oggetto: 'Prova di invio — Portale Allievi Ufficiali',
+      testo: 'Se stai leggendo questo messaggio, l\'invio email del portale funziona.\n'
+           + 'Il recupero password è operativo.'
+    });
+    res.json({ ok: true, a, millisecondi: Date.now() - inizio, config });
+  } catch (e) {
+    // Il messaggio deve bastare da solo: il frontend mostra solo `error`.
+    res.status(502).json({
+      error: `${e.message}${e.code ? ' [' + e.code + ']' : ''} — ${config.host}:${config.porta}`,
+      codice: e.code || null,
+      comando: e.command || null,
+      config
+    });
+  }
+});
+
 // Stato dello schema: dice se le chiavi perse nella migrazione a Railway sono
 // state ripristinate e cosa resta eventualmente da sistemare a mano. Senza
 // questo, l'unico modo di saperlo è leggere i log di avvio di Render.
@@ -1611,7 +1645,7 @@ app.get('/api/admin/db-stato', auth, requireAdmin, async (req, res) => {
     res.json({
       riparazione: statoSchema,
       auto_increment: autoIncrement,
-      email_configurata: mailer.emailConfigurata()
+      email: mailer.configurazioneEmail()
     });
   } catch (e) { errServer(res, e); }
 });

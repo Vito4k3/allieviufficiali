@@ -2112,7 +2112,13 @@ canvas{max-height:220px}
         </div>
       </div>
       <div class="card">
-        <div class="card-header"><div class="card-title">Utenti Registrati</div><button class="btn btn-gold" onclick="loadAdminUsers()">↻ &nbsp;Aggiorna</button></div>
+        <div class="card-header"><div class="card-title">Utenti Registrati</div>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+            <button class="btn" id="btnProvaEmail" onclick="provaInvioEmail()" title="Invia una email di prova al tuo indirizzo per verificare la configurazione">✉ &nbsp;Prova email</button>
+            <button class="btn btn-gold" onclick="loadAdminUsers()">↻ &nbsp;Aggiorna</button>
+          </div>
+        </div>
+        <div id="esitoProvaEmail" class="alert alert-info hidden" style="margin-bottom:.7rem"></div>
         <div class="fin-filter-row">
           <div class="search-wrap" style="flex:1">
             <span class="search-icon">🔍</span>
