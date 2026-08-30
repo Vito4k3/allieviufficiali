@@ -420,6 +420,7 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
 /* ════════════════════════════════════════════════════
    BUTTONS
    ════════════════════════════════════════════════════ */
+.btn:disabled,.btn[disabled]{opacity:.5;cursor:progress;box-shadow:none;filter:grayscale(.35)}
 .btn{
   font-family:var(--font-u);font-size:.68rem;font-weight:600;letter-spacing:.06em;
   padding:.55rem 1.25rem;
@@ -887,6 +888,7 @@ div.page-desc{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var
 .alert{border-radius:var(--r);padding:.6rem .95rem;font-family:var(--font-m);font-size:.67rem;margin-bottom:.8rem;border-left:3px solid}
 .alert-warn{background:var(--amber-a12);border-color:var(--amber-l);color:var(--amber-l)}
 .alert-info{background:var(--blue-a12);border-color:var(--blue-l);color:var(--blue-l)}
+.alert-ok{background:var(--green-a12);border-color:var(--green-l);color:var(--green-l)}
 
 /* ── LOCKED ── */
 .locked-state{text-align:center;padding:5rem 2rem}
@@ -2254,7 +2256,7 @@ canvas{max-height:220px}
              onkeydown="if(event.key==='Enter')confermaNuovaPassword()"></div>
     <div class="modal-footer">
       <button class="btn" onclick="annullaNuovaPassword()">Annulla</button>
-      <button class="btn btn-gold" onclick="confermaNuovaPassword()">✓ &nbsp;Salva password</button>
+      <button class="btn btn-gold" id="npSalva" onclick="confermaNuovaPassword()">✓ &nbsp;Salva password</button>
     </div>
   </div>
 </div>

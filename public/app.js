@@ -549,30 +549,68 @@ function showAuthError(msg){ const el=document.getElementById('authError');el.te
 // ── RECUPERO PASSWORD ──────────────────────────────────────────────
 // Il token arriva nel frammento dell'indirizzo (#reset=…): così non finisce
 // nei log del server né viene passato ai siti esterni con il Referer.
+// Riquadro di esito della modale "Password dimenticata"
+function pdEsito(testo, tipo){
+  const el = document.getElementById('pdEsito');
+  el.textContent = testo;
+  el.className = 'alert alert-' + (tipo || 'info');   // 'info' | 'ok' | 'warn'
+}
+
+// Dopo un invio riuscito il tasto resta fermo per un minuto, con il conto alla
+// rovescia in chiaro: il tempo perché l'email arrivi davvero. Senza, bastava
+// premere due volte per farsi mandare due link (e il secondo annulla il primo).
+let _pdConto = null;
+function pdAttesaRiprova(bottone, secondi){
+  clearInterval(_pdConto);
+  let restano = secondi;
+  const passo = () => {
+    if(restano <= 0){
+      clearInterval(_pdConto); _pdConto = null;
+      bottone.disabled = false;
+      bottone.innerHTML = '✉ &nbsp;Invia di nuovo';
+      return;
+    }
+    bottone.textContent = `Invia di nuovo tra ${restano}s`;
+    restano--;
+  };
+  passo();
+  _pdConto = setInterval(passo, 1000);
+}
+
 function openPasswordDimenticata(){
   document.getElementById('pdEmail').value = document.getElementById('loginUser').value.includes('@')
     ? document.getElementById('loginUser').value.trim() : '';
-  const esito = document.getElementById('pdEsito');
-  esito.classList.add('hidden'); esito.textContent = '';
-  document.getElementById('pdInvia').disabled = false;
+  const el = document.getElementById('pdEsito');
+  el.className = 'alert alert-info hidden'; el.textContent = '';
+  clearInterval(_pdConto); _pdConto = null;
+  const bottone = document.getElementById('pdInvia');
+  bottone.disabled = false;
+  bottone.innerHTML = '✉ &nbsp;Invia il link';
   openModal('passwordDimenticataModal');
 }
 
 async function inviaLinkRecupero(){
   const email = document.getElementById('pdEmail').value.trim();
-  const esito = document.getElementById('pdEsito');
-  if(!email){ esito.textContent = '⚠ Inserisci il tuo indirizzo email'; esito.classList.remove('hidden'); return; }
+  if(!email){ pdEsito('⚠ Inserisci il tuo indirizzo email', 'warn'); return; }
   const bottone = document.getElementById('pdInvia');
+  if(bottone.disabled) return;
   bottone.disabled = true;
+  bottone.innerHTML = '⏳ &nbsp;Invio in corso…';
+  // Il server risponde solo dopo aver consegnato l'email al provider, e al
+  // primo risveglio dell'hosting possono passare parecchi secondi. Senza
+  // questo avviso la finestra restava identica e sembrava che il tasto non
+  // funzionasse: da lì gli invii ripetuti.
+  pdEsito('⏳ Invio in corso… può richiedere fino a un minuto. Non chiudere questa finestra.', 'info');
   try {
     const r = await api('POST','/api/auth/password/forgot',{email});
     // La risposta è volutamente identica che l'indirizzo esista o no
-    esito.textContent = '✓ ' + (r.message || 'Se l\'indirizzo è registrato riceverai a breve un\'email.');
-    esito.classList.remove('hidden');
+    pdEsito('✓ ' + (r.message || 'Se l\'indirizzo è registrato riceverai a breve un\'email.')
+      + ' Se non la vedi, controlla la posta indesiderata.', 'ok');
+    pdAttesaRiprova(bottone, 60);
   } catch(e){
-    esito.textContent = '⚠ ' + e.message;
-    esito.classList.remove('hidden');
+    pdEsito('⚠ ' + e.message, 'warn');
     bottone.disabled = false;
+    bottone.innerHTML = '✉ &nbsp;Invia il link';
   }
 }
 
@@ -619,6 +657,10 @@ async function confermaNuovaPassword(){
   const p2 = document.getElementById('npPass2').value;
   if(p1.length < 6){ toast('Password troppo corta (min 6 caratteri)','err'); return; }
   if(p1 !== p2){ toast('Le password non coincidono','err'); return; }
+  const bottone = document.getElementById('npSalva');
+  if(bottone.disabled) return;
+  bottone.disabled = true;
+  bottone.innerHTML = '⏳ &nbsp;Salvataggio…';
   try {
     await api('POST','/api/auth/password/reset',{token, password:p1});
     closeModal('nuovaPasswordModal');
@@ -627,6 +669,10 @@ async function confermaNuovaPassword(){
     document.getElementById('loginPass').value = '';
     document.getElementById('loginUser').focus();
   } catch(e){ toast(e.message,'err') }
+  finally {
+    bottone.disabled = false;
+    bottone.innerHTML = '✓ &nbsp;Salva password';
+  }
 }
 async function doLogout(){ try{ fetch('/api/auth/logout',{method:'POST',credentials:'include'}) }catch(e){} token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();stopChatBadgePolling();showLanding() }
 async function tryAutoLogin(){
