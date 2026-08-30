@@ -1607,14 +1607,20 @@ app.post('/api/admin/email-test', auth, requireAdmin, async (req, res) => {
     const [righe] = await c.execute('SELECT email FROM users WHERE id=?', [req.user.id]);
     const a = String(req.body?.a || righe[0]?.email || '').trim();
     if (!a) return res.status(400).json({ error: 'Nessun indirizzo a cui inviare la prova', config });
+    // `porta` opzionale: permette di provare la 587 senza cambiare la
+    // variabile d'ambiente e riavviare il servizio a ogni tentativo.
+    const porta = req.body?.porta ? parseInt(req.body.porta, 10) : null;
+    if (porta !== null && !(porta > 0 && porta < 65536))
+      return res.status(400).json({ error: 'Porta non valida', config });
     const inizio = Date.now();
     await mailer.inviaEmail({
       a,
+      porta,
       oggetto: 'Prova di invio — Portale Allievi Ufficiali',
       testo: 'Se stai leggendo questo messaggio, l\'invio email del portale funziona.\n'
            + 'Il recupero password è operativo.'
     });
-    res.json({ ok: true, a, millisecondi: Date.now() - inizio, config });
+    res.json({ ok: true, a, porta: porta || config.porta, millisecondi: Date.now() - inizio, config });
   } catch (e) {
     // Il messaggio deve bastare da solo: il frontend mostra solo `error`.
     res.status(502).json({
@@ -1624,6 +1630,17 @@ app.post('/api/admin/email-test', auth, requireAdmin, async (req, res) => {
       config
     });
   }
+});
+
+// Quali porte del server di posta sono davvero raggiungibili da qui.
+// Apre e chiude una connessione TCP, non invia niente e non usa le credenziali.
+// Distingue i due casi che da fuori sembrano uguali: l'hosting che blocca le
+// porte SMTP in uscita, e un problema di credenziali o di rete in generale
+// (per quello c'è il controllo su HTTPS, che deve sempre riuscire).
+app.get('/api/admin/email-diagnostica', auth, requireAdmin, async (req, res) => {
+  try {
+    res.json(await mailer.diagnosticaRete());
+  } catch (e) { errServer(res, e); }
 });
 
 // Stato dello schema: dice se le chiavi perse nella migrazione a Railway sono

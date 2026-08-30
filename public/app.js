@@ -2374,23 +2374,66 @@ async function saveUserPermissions(){
 // Prova di invio email: dice se il recupero password funziona davvero, senza
 // dover chiedere a qualcuno di provare né leggere i log dell'hosting.
 // L'errore arriva per intero perché è una rotta riservata agli amministratori.
-async function provaInvioEmail(){
+function _emailEsito(testo, tipo){
   const box = document.getElementById('esitoProvaEmail');
+  box.innerHTML = testo;
+  box.className = 'alert alert-' + tipo;
+}
+
+async function provaInvioEmail(){
   const bottone = document.getElementById('btnProvaEmail');
-  const mostra = (testo, tipo) => { box.textContent = testo; box.className = 'alert alert-' + tipo; };
   if(bottone.disabled) return;
   bottone.disabled = true;
   bottone.innerHTML = '⏳ &nbsp;Invio…';
-  mostra('⏳ Invio della email di prova in corso…', 'info');
+  _emailEsito('⏳ Invio della email di prova in corso…', 'info');
   try {
     const r = await api('POST','/api/admin/email-test',{});
-    mostra(`✓ Email di prova inviata a ${r.a} in ${(r.millisecondi/1000).toFixed(1)}s `
-      + `(${r.config.host}:${r.config.porta}). Controlla la casella, anche nella posta indesiderata.`, 'ok');
+    _emailEsito(`✓ Email di prova inviata a <strong>${escHtml(r.a)}</strong> in ${(r.millisecondi/1000).toFixed(1)}s `
+      + `(${escHtml(r.config.host)}:${r.porta}). Controlla la casella, anche nella posta indesiderata.`, 'ok');
+    return;
   } catch(e){
-    mostra('⚠ ' + e.message, 'warn');
+    // L'invio è fallito: prima di lasciare l'amministratore con un messaggio
+    // criptico, si guarda quali porte sono raggiungibili e, se ce n'è una
+    // buona diversa da quella in uso, si riprova subito da lì.
+    _emailEsito('⚠ ' + escHtml(e.message) + '<br>⏳ Verifico quali porte sono raggiungibili…', 'warn');
+    try {
+      const d = await api('GET','/api/admin/email-diagnostica');
+      await _emailDopoDiagnostica(e.message, d);
+    } catch(e2){
+      _emailEsito('⚠ ' + escHtml(e.message), 'warn');
+    }
   } finally {
     bottone.disabled = false;
     bottone.innerHTML = '✉ &nbsp;Prova email';
+  }
+}
+
+async function _emailDopoDiagnostica(erroreInvio, d){
+  const riga = p => `${p.porta}: ${p.esito}${p.dettaglio ? ' (' + p.dettaglio + ')' : ''} — ${p.ms} ms`;
+  const elenco = d.porte.map(p => '<div>&nbsp;&nbsp;• ' + escHtml(riga(p)) + '</div>').join('');
+  const intestazione = `⚠ ${escHtml(erroreInvio)}<br><br><strong>Porte di ${escHtml(d.host)}:</strong>${elenco}`
+    + `<div>&nbsp;&nbsp;• controllo HTTPS (www.google.com:443): ${escHtml(d.controllo_https.esito)}</div><br>`;
+
+  if(d.controllo_https.esito !== 'raggiungibile'){
+    _emailEsito(intestazione + 'Non esce nemmeno il traffico HTTPS: il problema è la rete del server, non le porte di posta.', 'warn');
+    return;
+  }
+  // Porte aperte diverse da quella già usata e fallita
+  const alternative = d.aperte.filter(p => p !== d.porta_configurata);
+  if(!alternative.length){
+    _emailEsito(intestazione
+      + '<strong>Nessuna porta SMTP raggiungibile</strong>: l\'hosting blocca la posta in uscita. '
+      + 'Serve un servizio email che passi da HTTPS (per esempio Brevo o Resend).', 'warn');
+    return;
+  }
+  _emailEsito(intestazione + `⏳ La porta ${alternative[0]} risulta aperta: riprovo l'invio da lì…`, 'info');
+  try {
+    const r = await api('POST','/api/admin/email-test',{ porta: alternative[0] });
+    _emailEsito(intestazione
+      + `✓ <strong>Riuscito sulla porta ${r.porta}</strong> (${(r.millisecondi/1000).toFixed(1)}s), email inviata a ${escHtml(r.a)}.<br>`
+      + `Per rendere la cosa definitiva imposta su Render la variabile <strong>SMTP_PORT = ${r.porta}</strong>.`, 'ok');
+  } catch(e){
+    _emailEsito(intestazione + `⚠ Anche la porta ${alternative[0]} rifiuta l'invio: ${escHtml(e.message)}`, 'warn');
   }
 }
 
