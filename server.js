@@ -95,18 +95,37 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 
 // ── ANTI BRUTE-FORCE ──────────────────────────────────────────
-// Limita i tentativi per IP sulle rotte sensibili (login, registrazione,
-// recupero password).
+// Il conteggio va fatto su CHI si sta cercando di forzare, non su da dove
+// arriva la richiesta.
 //
-// Il contatore è per (rotta, IP), non per solo IP: prima era condiviso, così
-// i tentativi di login consumavano anche il budget della registrazione e del
-// recupero password, e chi sbagliava qualche password si ritrovava bloccato
-// pure il "Password dimenticata". Ogni rotta ha già il suo `max`: teneva
-// senso solo con contatori separati.
-const tentativi = new Map(); // "nome|ip" → { n, primoTs }
-function limitaTentativi(nome, max, finestraMs) {
+// In Accademia gli allievi escono quasi tutti dalla stessa rete, quindi per il
+// server hanno un solo indirizzo IP: un tetto per IP li mette tutti nello
+// stesso secchio, e il lunedì mattina bastava che accedessero in quindici
+// perché al sedicesimo comparisse "Troppi tentativi" senza aver sbagliato
+// nulla. Il tetto per IP resta, ma largo e solo come rete di sicurezza contro
+// i tentativi automatici; quello stretto è sull'identità presa di mira:
+// lo username per il login, l'indirizzo email per il recupero password.
+//
+// Su un attacco vero questo protegge di più: chi prova mille password su un
+// account viene fermato dopo dieci tentativi, indipendentemente da quanti
+// indirizzi IP usi.
+const QUARTO_DORA = 15 * 60 * 1000;
+
+const tentativi = new Map(); // "nome|chiave" → { n, primoTs }
+
+/**
+ * @param {string}   nome        etichetta del contatore (una per rotta e per asse)
+ * @param {number}   max         tentativi consentiti nella finestra
+ * @param {number}   finestraMs  durata della finestra
+ * @param {Function} [estrai]    da cosa contare; se assente si conta per IP.
+ *                               Se restituisce vuoto il controllo non si applica
+ *                               (la rotta rifiuterà comunque i dati mancanti).
+ */
+function limitaTentativi(nome, max, finestraMs, estrai) {
   return (req, res, next) => {
-    const chiave = nome + '|' + req.ip;
+    const valore = estrai ? estrai(req) : req.ip;
+    if (!valore) return next();
+    const chiave = nome + '|' + valore;
     const ora = Date.now();
     const rec = tentativi.get(chiave);
     if (!rec || ora - rec.primoTs > finestraMs) {
@@ -121,10 +140,31 @@ function limitaTentativi(nome, max, finestraMs) {
     next();
   };
 }
+
+// Un accesso riuscito azzera il conto di quell'account: solo i tentativi
+// falliti di fila devono avvicinare al blocco, altrimenti chi entra e riesce
+// più volte nella stessa mattina si sbarrerebbe la porta da solo.
+function azzeraTentativi(nome, valore) {
+  if (valore) tentativi.delete(nome + '|' + valore);
+}
+
+// Restituisce il gettone consumato da una richiesta andata a buon fine: sul
+// tetto per IP devono pesare solo i fallimenti. Senza questo, duecento allievi
+// che accedono regolarmente dalla stessa rete esaurirebbero il budget pur non
+// avendo sbagliato nulla — cioè proprio il caso che il limite non deve colpire.
+function scalaTentativo(nome, valore) {
+  const rec = valore && tentativi.get(nome + '|' + valore);
+  if (rec && rec.n > 0) rec.n--;
+}
+
+// Come il server legge username ed email dalle richieste, normalizzati così
+// che "Mario" e " mario " finiscano nello stesso conteggio.
+const chiaveUtente = req => String(req.body?.username || '').trim().toLowerCase();
+const chiaveEmail  = req => String(req.body?.email    || '').trim().toLowerCase();
 // pulizia periodica della mappa
 setInterval(() => {
   const ora = Date.now();
-  for (const [ip, rec] of tentativi) if (ora - rec.primoTs > 30 * 60 * 1000) tentativi.delete(ip);
+  for (const [chiave, rec] of tentativi) if (ora - rec.primoTs > 30 * 60 * 1000) tentativi.delete(chiave);
 }, 10 * 60 * 1000).unref();
 
 // Opzioni cookie di sessione: non leggibile da JS, solo stesso sito, HTTPS in produzione
@@ -619,7 +659,8 @@ function canWriteComunicazioni(user) {
 }
 
 // ── SETUP ─────────────────────────────────────────────────────
-app.post('/api/setup', limitaTentativi('setup', 5, 15 * 60 * 1000), async (req, res) => {
+// Il setup crea il primo amministratore e funziona una volta sola: resta stretto.
+app.post('/api/setup', limitaTentativi('setup', 5, QUARTO_DORA), async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute('SELECT COUNT(*) AS n FROM users');
@@ -636,7 +677,11 @@ app.post('/api/setup', limitaTentativi('setup', 5, 15 * 60 * 1000), async (req, 
 });
 
 // ── AUTH ──────────────────────────────────────────────────────
-app.post('/api/auth/register', limitaTentativi('registrazione', 10, 15 * 60 * 1000), async (req, res) => {
+// Registrazione: qui non c'è un'identità da proteggere, l'unico asse è l'IP.
+// Il tetto è però largo, perché un intero corso può iscriversi in un pomeriggio
+// dalla stessa rete. Gli account nascono senza alcun permesso e l'admin può
+// cancellarli, quindi qualche iscrizione di troppo non fa danno.
+app.post('/api/auth/register', limitaTentativi('registrazione-ip', 40, QUARTO_DORA), async (req, res) => {
   const { username, email, password, nome, cognome } = req.body;
   if (!username || !email || !password)
     return res.status(400).json({ error: 'Username, email e password sono obbligatori' });
@@ -652,6 +697,8 @@ app.post('/api/auth/register', limitaTentativi('registrazione', 10, 15 * 60 * 10
       "INSERT INTO users (username,email,password_hash,full_name,nome,cognome,role) VALUES (?,?,?,?,?,?,'none')",
       [username.trim(), email.trim().toLowerCase(), hash, full_name, nome.trim(), cognome.trim()]
     );
+    // Iscrizione riuscita: non deve consumare il budget della rete condivisa
+    scalaTentativo('registrazione-ip', req.ip);
     res.json({ ok: true, id: result.insertId });
   } catch (e) {
     if (e.code === 'ER_DUP_ENTRY')
@@ -660,7 +707,16 @@ app.post('/api/auth/register', limitaTentativi('registrazione', 10, 15 * 60 * 10
   }
 });
 
-app.post('/api/auth/login', limitaTentativi('login', 15, 15 * 60 * 1000), async (req, res) => {
+// Login: il limite stretto è sull'account preso di mira (10 tentativi falliti
+// di fila), quello per IP è largo e serve solo a fermare chi prova a raffica
+// account diversi. Un accesso riuscito azzera il conto dell'account.
+// L'ordine conta: prima il controllo sull'account, poi quello sulla rete. Chi
+// insiste su un account già bloccato viene fermato subito e non intacca il
+// budget dell'IP, che è condiviso con tutti gli altri allievi.
+app.post('/api/auth/login',
+  limitaTentativi('login-utente', 10, QUARTO_DORA, chiaveUtente),
+  limitaTentativi('login-ip', 120, QUARTO_DORA),
+  async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password)
     return res.status(400).json({ error: 'Credenziali mancanti' });
@@ -685,6 +741,11 @@ app.post('/api/auth/login', limitaTentativi('login', 15, 15 * 60 * 1000), async 
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('token', token, cookieSessione(req));
+    // Accesso riuscito: il conto di questo account riparte da zero e il
+    // gettone consumato sul tetto per IP viene restituito. Così a pesare sono
+    // solo i fallimenti, e una rete condivisa non si esaurisce da sola.
+    azzeraTentativi('login-utente', chiaveUtente(req));
+    scalaTentativo('login-ip', req.ip);
     res.json({ token, user: payload });
   } catch (e) { errServer(res, e); }
 });
@@ -741,7 +802,13 @@ function linkReset(req, token) {
 // Passo 1 — l'utente chiede il link.
 // La risposta è sempre la stessa, esista o no l'indirizzo: altrimenti questa
 // rotta diventerebbe uno strumento per scoprire chi è registrato.
-app.post('/api/auth/password/forgot', limitaTentativi('reset-richiesta', 8, 15 * 60 * 1000), async (req, res) => {
+// Recupero password: da difendere è la casella di posta di chi riceve, non la
+// rete da cui parte la richiesta. Tre link ogni quarto d'ora per indirizzo
+// sono abbondanti, visto che ognuno vale un'ora.
+app.post('/api/auth/password/forgot',
+  limitaTentativi('reset-email', 3, QUARTO_DORA, chiaveEmail),
+  limitaTentativi('reset-ip', 60, QUARTO_DORA),
+  async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const rispostaGenerica = {
     ok: true,
@@ -780,7 +847,10 @@ app.post('/api/auth/password/forgot', limitaTentativi('reset-richiesta', 8, 15 *
 
 // Passo 2 — il frontend controlla se il link è ancora buono prima di mostrare
 // il modulo, così l'utente non digita una password per niente.
-app.get('/api/auth/password/reset/:token', limitaTentativi('reset-verifica', 30, 15 * 60 * 1000), async (req, res) => {
+// Verifica e conferma del link: il token è da 256 bit, indovinarlo non è una
+// minaccia concreta. Il tetto per IP resta solo per non far girare a vuoto il
+// database, ed è largo perché la pagina si apre da rete condivisa.
+app.get('/api/auth/password/reset/:token', limitaTentativi('reset-verifica-ip', 100, QUARTO_DORA), async (req, res) => {
   try {
     const c = await db();
     const [righe] = await c.execute(
@@ -796,7 +866,7 @@ app.get('/api/auth/password/reset/:token', limitaTentativi('reset-verifica', 30,
 
 // Passo 3 — la nuova password. Il token viene consumato nello stesso UPDATE
 // che lo verifica: due richieste in parallelo non possono usarlo due volte.
-app.post('/api/auth/password/reset', limitaTentativi('reset-conferma', 15, 15 * 60 * 1000), async (req, res) => {
+app.post('/api/auth/password/reset', limitaTentativi('reset-conferma-ip', 60, QUARTO_DORA), async (req, res) => {
   const token = String(req.body?.token || '');
   const password = String(req.body?.password || '');
   if (!token) return res.status(400).json({ error: 'Link di reimpostazione mancante' });
