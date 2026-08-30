@@ -1,6 +1,12 @@
 'use strict';
 
-const API = 'https://sito-allievi-accademia-militare.onrender.com';
+// Il portale e le sue API sono serviti dallo stesso indirizzo: usare percorsi
+// relativi toglie di mezzo un dominio scritto a mano (e con esso una possibile
+// fonte di errori CORS/DNS quando il sito cambia indirizzo). L'indirizzo di
+// produzione resta come ripiego se la pagina venisse aperta fuori dal web,
+// per esempio da file://.
+const API_PRODUZIONE = 'https://sito-allievi-accademia-militare.onrender.com';
+const API = /^https?:$/.test(location.protocol) ? '' : API_PRODUZIONE;
 const DOC_TITLE_APP = 'Portale AU';
 const DOC_TITLE_PUBLIC = 'Portale Allievi Ufficiali';
 const SECTION_DOC_TITLES = {
@@ -83,15 +89,28 @@ let uniAperte = new Set();
 
 // Liste di libera uscita: hanno opzioni proprie e un modulo Excel dedicato.
 // Aggiungere un tipo qui e nel registro del server lo abilita ovunque.
-const LISTE_LIBERA_USCITA = ['liberi_sab_pom','liberi_sab_sera','liberi_dom_pom'];
+const LISTE_LIBERA_USCITA = [
+  'liberi_sab_pom','liberi_sab_sera','liberi_dom_pom',
+  'salto_pranzo_sab','salto_cena_sab','salto_pranzo_dom','salto_cena_dom'
+];
 function eLiberaUscita(t){ return LISTE_LIBERA_USCITA.includes(t); }
 
+// Liste di solo salto pasto: l'iscrizione non chiede opzioni, perché la
+// crocetta del modulo la decide già il tipo di lista (salto pranzo → J,
+// salto cena → R). Stesso elenco del registro lato server.
+const LISTE_SALTO_PASTO = ['salto_pranzo_sab','salto_cena_sab','salto_pranzo_dom','salto_cena_dom'];
+function eSaltoPasto(t){ return LISTE_SALTO_PASTO.includes(t); }
+
 const LIST_LABELS = {
-  liberi_sab_pom:  'Liberi Uscenti Sabato Pomeriggio',
-  liberi_sab_sera: 'Liberi Uscenti Sabato Sera',
-  liberi_dom_pom:  'Liberi Uscenti Domenica Pomeriggio',
-  messa:           'Lista Messa',
-  parlatorio:      'Lista Parlatorio'
+  liberi_sab_pom:   'Liberi Uscenti Sabato Pomeriggio',
+  liberi_sab_sera:  'Liberi Uscenti Sabato Sera',
+  liberi_dom_pom:   'Liberi Uscenti Domenica Pomeriggio',
+  salto_pranzo_sab: 'Salto Pranzo Sabato',
+  salto_cena_sab:   'Salto Cena Sabato',
+  salto_pranzo_dom: 'Salto Pranzo Domenica',
+  salto_cena_dom:   'Salto Cena Domenica',
+  messa:            'Lista Messa',
+  parlatorio:       'Lista Parlatorio'
 };
 
 function parseListCustomFieldLabels(l) {
@@ -199,12 +218,37 @@ document.querySelectorAll('.modal-overlay').forEach(o=>{
 });
 
 // ── API ────────────────────────────────────────────────────────────
+// Ogni errore deve arrivare all'utente con un messaggio comprensibile:
+//  • rete irraggiungibile → "Failed to fetch" del browser, che non dice nulla
+//  • risposta non JSON (pagina di errore dell'hosting, 502, 404 HTML)
+//    → prima esplodeva con "Unexpected token '<'"
+// In entrambi i casi si spiega cosa è successo invece di riportare il
+// messaggio grezzo del browser.
 async function api(method, path, body){
   const opts={method,headers:{'Content-Type':'application/json',...(token?{'Authorization':'Bearer '+token}:{})},credentials:'include'};
   if(body) opts.body=JSON.stringify(body);
-  const r=await fetch(API+path,opts);
-  const data=await r.json();
-  if(!r.ok) throw new Error(data.error||'Errore server');
+  let r;
+  try {
+    r = await fetch(API+path, opts);
+  } catch(e){
+    throw new Error('Impossibile contattare il server. Controlla la connessione e riprova tra qualche istante.');
+  }
+  const testo = await r.text();
+  let data = null;
+  if(testo){
+    try { data = JSON.parse(testo); } catch(e){ data = null; }
+  }
+  if(data === null){
+    if(r.ok && !testo) return {};             // corpo vuoto: niente da leggere
+    // Le API rispondono sempre in JSON: un 200 con dentro dell'HTML vuol dire
+    // che ha risposto qualcos'altro (la pagina del sito servita al posto della
+    // rotta, oppure una pagina di errore dell'hosting).
+    if(r.ok) throw new Error('Risposta inattesa dal server. Aggiorna la pagina e riprova.');
+    if(r.status === 502 || r.status === 503 || r.status === 504)
+      throw new Error('Server momentaneamente non disponibile. Riprova tra qualche istante.');
+    throw new Error(`Errore del server (${r.status}). Riprova più tardi.`);
+  }
+  if(!r.ok) throw new Error(data.error || `Errore server (${r.status})`);
   return data;
 }
 
@@ -257,6 +301,23 @@ async function showApp(){
   loadBacheca();
   startBachecaPolling();
   startChatBadgePolling();
+  await apriSezioneRichiesta();
+}
+
+// Le scorciatoie dell'app installata (manifest → shortcuts) aprono il portale
+// con ?sezione=…: qui si va sulla pagina chiesta e si ripulisce l'indirizzo.
+// Se la sezione non esiste o è bloccata dai permessi, resta la bacheca.
+async function apriSezioneRichiesta(){
+  let sezione = null;
+  try { sezione = new URLSearchParams(location.search).get('sezione'); } catch(e){}
+  if(!sezione) return;
+  try { history.replaceState(null, '', location.pathname); } catch(e){}
+  if(!document.getElementById('page-'+sezione)) return;
+  // Le voci di menu sono identificate dal loro onclick: nessun attributo
+  // nuovo da aggiungere al markup.
+  const link = [...document.querySelectorAll('.sb-link')].find(a =>
+    (a.getAttribute('onclick') || '').includes(`showPage('${sezione}'`));
+  await showPage(sezione, link || null);
 }
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
@@ -484,6 +545,89 @@ async function doRegister(){
   } catch(e){ showAuthError(e.message) }
 }
 function showAuthError(msg){ const el=document.getElementById('authError');el.textContent='⚠ '+msg;el.style.display='block' }
+
+// ── RECUPERO PASSWORD ──────────────────────────────────────────────
+// Il token arriva nel frammento dell'indirizzo (#reset=…): così non finisce
+// nei log del server né viene passato ai siti esterni con il Referer.
+function openPasswordDimenticata(){
+  document.getElementById('pdEmail').value = document.getElementById('loginUser').value.includes('@')
+    ? document.getElementById('loginUser').value.trim() : '';
+  const esito = document.getElementById('pdEsito');
+  esito.classList.add('hidden'); esito.textContent = '';
+  document.getElementById('pdInvia').disabled = false;
+  openModal('passwordDimenticataModal');
+}
+
+async function inviaLinkRecupero(){
+  const email = document.getElementById('pdEmail').value.trim();
+  const esito = document.getElementById('pdEsito');
+  if(!email){ esito.textContent = '⚠ Inserisci il tuo indirizzo email'; esito.classList.remove('hidden'); return; }
+  const bottone = document.getElementById('pdInvia');
+  bottone.disabled = true;
+  try {
+    const r = await api('POST','/api/auth/password/forgot',{email});
+    // La risposta è volutamente identica che l'indirizzo esista o no
+    esito.textContent = '✓ ' + (r.message || 'Se l\'indirizzo è registrato riceverai a breve un\'email.');
+    esito.classList.remove('hidden');
+  } catch(e){
+    esito.textContent = '⚠ ' + e.message;
+    esito.classList.remove('hidden');
+    bottone.disabled = false;
+  }
+}
+
+function tokenResetDaUrl(){
+  const m = /(?:^|[#&])reset=([A-Za-z0-9_-]+)/.exec(location.hash || '');
+  return m ? m[1] : null;
+}
+
+function puliscInidirizzoReset(){
+  // Toglie il token dalla barra degli indirizzi senza ricaricare la pagina
+  try { history.replaceState(null, '', location.pathname + location.search); }
+  catch(e){ location.hash = ''; }
+}
+
+function annullaNuovaPassword(){
+  closeModal('nuovaPasswordModal');
+  puliscInidirizzoReset();
+}
+
+// Se la pagina è stata aperta da un link di reimpostazione, il modulo compare
+// solo dopo aver verificato che il link sia ancora valido.
+async function controllaLinkReset(){
+  const token = tokenResetDaUrl();
+  if(!token) return false;
+  puliscInidirizzoReset();
+  showAuth('login');
+  try {
+    const r = await api('GET','/api/auth/password/reset/'+encodeURIComponent(token));
+    document.getElementById('npToken').value = token;
+    document.getElementById('npPass').value = '';
+    document.getElementById('npPass2').value = '';
+    document.getElementById('npIntro').textContent =
+      'Stai reimpostando la password dell\'account ' + (r.username || '') + '.';
+    openModal('nuovaPasswordModal');
+  } catch(e){
+    showAuthError(e.message);
+  }
+  return true;
+}
+
+async function confermaNuovaPassword(){
+  const token = document.getElementById('npToken').value;
+  const p1 = document.getElementById('npPass').value;
+  const p2 = document.getElementById('npPass2').value;
+  if(p1.length < 6){ toast('Password troppo corta (min 6 caratteri)','err'); return; }
+  if(p1 !== p2){ toast('Le password non coincidono','err'); return; }
+  try {
+    await api('POST','/api/auth/password/reset',{token, password:p1});
+    closeModal('nuovaPasswordModal');
+    toast('Password aggiornata: ora puoi accedere.');
+    switchAuthTab('login');
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginUser').focus();
+  } catch(e){ toast(e.message,'err') }
+}
 async function doLogout(){ try{ fetch('/api/auth/logout',{method:'POST',credentials:'include'}) }catch(e){} token='';localStorage.removeItem('jwt');currentUser=null;stopBachecaPolling();stopChatBadgePolling();showLanding() }
 async function tryAutoLogin(){
   if(!token) return;
@@ -972,7 +1116,8 @@ function renderSignupButton(l, isSignedUp, mySignup, isAdmin){
       return `<button class="btn btn-gold" onclick="openMessaModal('${l.id}')">✋ Iscriviti alla Messa</button>`;
     if(isCustom)
       return `<button class="btn btn-gold" onclick="openCustomSignupModal('${l.id}')">✋ Iscriviti</button>`;
-    if(eLiberaUscita(l.list_type))
+    // Le liste di solo salto pasto non hanno opzioni da scegliere
+    if(eLiberaUscita(l.list_type) && !eSaltoPasto(l.list_type))
       return `<button class="btn btn-gold" onclick="openLiberaUscitaModal('${l.id}')">✋ Iscriviti</button>`;
     return `<button class="btn btn-gold" onclick="signupList('${l.id}')">✋ Iscriviti</button>`;
   }
@@ -2099,6 +2244,7 @@ async function loadAdminUsers(){
         <td><div class="perm-summary">${permSummaryBadges(u)}</div></td>
         <td style="white-space:nowrap">
           <button class="btn btn-sm btn-gold" onclick="openUserPermModal(${u.id})">⚙ &nbsp;Permessi</button>
+          <button class="btn btn-sm btn-blue" onclick="generaLinkReset(${u.id},'${escHtml(u.username)}')" title="Genera un link per reimpostare la password">🔑</button>
           <button class="btn btn-sm btn-red" onclick="deleteUser(${u.id},'${escHtml(u.username)}')">🗑</button>
         </td>
       </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--text3);font-family:var(--font-mono);font-size:.7rem;padding:1.6rem">${q?'Nessun utente trovato per «'+escHtml(q)+'»':'Nessun utente registrato'}</td></tr>`;
@@ -2176,6 +2322,23 @@ async function saveUserPermissions(){
     closeModal('userPermModal');
     await loadAdminUsers();
     toast("Permessi aggiornati — effettivi immediatamente per l'utente",'ok');
+  } catch(e){ toast(e.message,'err') }
+}
+
+// Link di reimpostazione generato a mano dall'admin: serve quando l'allievo
+// non riceve l'email o non ha più accesso alla casella con cui si è iscritto.
+// È lo stesso token del percorso via email: usa e getta, scade in un'ora.
+async function generaLinkReset(id, username){
+  if(!confirm(`Generare un link di reimpostazione password per ${username}?\n\nIl link vale un'ora, si usa una volta sola e annulla eventuali link precedenti.`)) return;
+  try {
+    const r = await api('POST','/api/admin/users/'+id+'/reset-link',{});
+    let copiato = false;
+    try { await navigator.clipboard.writeText(r.link); copiato = true; } catch(e){}
+    prompt(
+      `Link per ${username} — valido ${r.minuti} minuti, un solo uso.` +
+      (copiato ? '\nGià copiato negli appunti.' : '\nCopialo da qui:'),
+      r.link
+    );
   } catch(e){ toast(e.message,'err') }
 }
 
@@ -2313,9 +2476,18 @@ document.addEventListener('visibilitychange', () => {
   if (!pg || !pg.classList.contains('active') || currentComTab !== 'chat') return;
   loadComChat();
 });
-window.addEventListener('DOMContentLoaded',()=>{
+window.addEventListener('DOMContentLoaded', async ()=>{
   // Inizializza etichetta mese calendario
   const lbl = document.getElementById('calMonthLabel');
   if(lbl) lbl.textContent = MESI[calMonth]+' '+calYear;
+  // Un link di reimpostazione password ha la precedenza sull'accesso
+  // automatico: chi lo apre deve poter scegliere la nuova password anche
+  // se sul telefono era rimasta una sessione aperta.
+  if(await controllaLinkReset()) return;
   if(token){ tryAutoLogin() } else { showLanding() }
 });
+
+// Se l'app è già aperta e il link arriva nella stessa scheda, il browser
+// cambia solo il frammento: la pagina non si ricarica e DOMContentLoaded non
+// scatta più. Qui il link viene raccolto lo stesso.
+window.addEventListener('hashchange', () => { controllaLinkReset(); });

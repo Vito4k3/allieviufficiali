@@ -611,6 +611,8 @@ body,aside,.card,.modal,.auth-box,.land-nav,.sb-header,
 
 .auth-back{font-family:var(--font-m);font-size:.6rem;color:var(--text3);text-align:center;margin-top:1.2rem;cursor:pointer;letter-spacing:.1em}
 .auth-back:hover{color:var(--gold)}
+.auth-link{font-family:var(--font-m);font-size:.6rem;color:var(--text3);text-align:center;margin-top:.9rem;cursor:pointer;letter-spacing:.08em;text-decoration:underline;text-underline-offset:3px}
+.auth-link:hover{color:var(--gold)}
 .auth-error{
   background:var(--red-a12);border:1px solid var(--red);border-left:3px solid var(--red-l);
   border-radius:var(--r);padding:.58rem .88rem;
@@ -1580,6 +1582,7 @@ canvas{max-height:220px}
       <div class="form-group"><label>Username o Email</label><input type="text" id="loginUser" placeholder="nome.cognome" autocomplete="username"></div>
       <div class="form-group"><label>Password</label><input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn btn-gold w-full" style="margin-top:.6rem;justify-content:center;letter-spacing:.12em" onclick="doLogin()">→ &nbsp;Entra nel Portale</button>
+      <div class="auth-link" onclick="openPasswordDimenticata()">Password dimenticata?</div>
     </div>
     <div id="formRegister" class="hidden">
       <div class="form-row-2">
@@ -1809,13 +1812,17 @@ canvas{max-height:220px}
     <!-- ── LISTE ── -->
     <div class="page" id="page-liste">
       <div class="page-title">Liste <em>Ufficiali</em></div>
-      <div class="page-desc">Liberi Uscenti · Messa · Parlatorio · Personalizzate</div>
+      <div class="page-desc">Liberi Uscenti · Salto Pasto · Messa · Parlatorio · Personalizzate</div>
       <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap">
         <div class="tabs" style="flex:1;margin-bottom:0;border-bottom:none;min-width:0">
           <button class="tab-btn active" onclick="switchListTab('custom',this)">🎯 Personalizzata</button>
           <button class="tab-btn" onclick="switchListTab('liberi_sab_pom',this)">🚶 Sab. Pom.</button>
           <button class="tab-btn" onclick="switchListTab('liberi_sab_sera',this)">🌙 Sab. Sera</button>
           <button class="tab-btn" onclick="switchListTab('liberi_dom_pom',this)">☀ Dom. Pom.</button>
+          <button class="tab-btn" onclick="switchListTab('salto_pranzo_sab',this)">🍝 Salto Pranzo Sab.</button>
+          <button class="tab-btn" onclick="switchListTab('salto_cena_sab',this)">🍽 Salto Cena Sab.</button>
+          <button class="tab-btn" onclick="switchListTab('salto_pranzo_dom',this)">🍝 Salto Pranzo Dom.</button>
+          <button class="tab-btn" onclick="switchListTab('salto_cena_dom',this)">🍽 Salto Cena Dom.</button>
           <button class="tab-btn" onclick="switchListTab('messa',this)">⛪ Messa</button>
           <button class="tab-btn" onclick="switchListTab('parlatorio',this)">👥 Parlatorio</button>
         </div>
@@ -1833,6 +1840,10 @@ canvas{max-height:220px}
               <option value="liberi_sab_pom">Liberi Uscenti Sabato Pomeriggio</option>
               <option value="liberi_sab_sera">Liberi Uscenti Sabato Sera</option>
               <option value="liberi_dom_pom">Liberi Uscenti Domenica Pomeriggio</option>
+              <option value="salto_pranzo_sab">Salto Pranzo Sabato</option>
+              <option value="salto_cena_sab">Salto Cena Sabato</option>
+              <option value="salto_pranzo_dom">Salto Pranzo Domenica</option>
+              <option value="salto_cena_dom">Salto Cena Domenica</option>
               <option value="messa">Lista Messa</option>
               <option value="parlatorio">Lista Parlatorio</option>
               <option value="custom">🎯 Lista Personalizzata</option>
@@ -2212,6 +2223,39 @@ canvas{max-height:220px}
         <select id="luPernotto"><option value="no">No</option><option value="si">Sì</option></select></div>
     </div>
     <div class="modal-footer"><button class="btn" onclick="closeModal('liberaUscitaModal')">Annulla</button><button class="btn btn-gold" onclick="confirmLiberaUscitaSignup()">✓ &nbsp;Iscriviti</button></div>
+  </div>
+</div>
+<!-- RECUPERO PASSWORD -->
+<div class="modal-overlay" id="passwordDimenticataModal">
+  <div class="modal" style="max-width:430px">
+    <div class="modal-title">🔑 Password dimenticata</div>
+    <div class="alert alert-info">Inserisci l'email con cui ti sei registrato: riceverai un link per scegliere una nuova password. Il link vale 60 minuti.</div>
+    <div class="form-group"><label>Email</label>
+      <input type="email" id="pdEmail" placeholder="mario@mail.it" autocomplete="email"
+             onkeydown="if(event.key==='Enter')inviaLinkRecupero()"></div>
+    <div id="pdEsito" class="alert alert-info hidden" style="margin-top:.2rem"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('passwordDimenticataModal')">Chiudi</button>
+      <button class="btn btn-gold" id="pdInvia" onclick="inviaLinkRecupero()">✉ &nbsp;Invia il link</button>
+    </div>
+  </div>
+</div>
+
+<!-- NUOVA PASSWORD (aperta dal link ricevuto per email) -->
+<div class="modal-overlay" id="nuovaPasswordModal">
+  <div class="modal" style="max-width:430px">
+    <div class="modal-title">🔒 Scegli una nuova password</div>
+    <div id="npIntro" class="alert alert-info">Imposta la nuova password del tuo account.</div>
+    <input type="hidden" id="npToken">
+    <div class="form-group"><label>Nuova password *</label>
+      <input type="password" id="npPass" placeholder="min 6 caratteri" autocomplete="new-password"></div>
+    <div class="form-group"><label>Conferma password *</label>
+      <input type="password" id="npPass2" placeholder="••••••••" autocomplete="new-password"
+             onkeydown="if(event.key==='Enter')confermaNuovaPassword()"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="annullaNuovaPassword()">Annulla</button>
+      <button class="btn btn-gold" onclick="confermaNuovaPassword()">✓ &nbsp;Salva password</button>
+    </div>
   </div>
 </div>
 <div class="modal-overlay" id="customSignupModal">

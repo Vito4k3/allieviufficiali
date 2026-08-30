@@ -11,8 +11,10 @@ const bcrypt       = require('bcrypt');
 const jwt          = require('jsonwebtoken');
 const cors         = require('cors');
 const cookieParser = require('cookie-parser');
+const crypto       = require('crypto');
 const path         = require('path');
 const excelLU = require('./lib/excel-libere-uscite');
+const mailer  = require('./lib/email');
 
 const app = express();
 app.disable('x-powered-by');
@@ -30,15 +32,37 @@ const PORT       = parseInt(process.env.PORT || '3000');
 const PKG_VERSION = require('./package.json').version;
 
 const DB_CONFIG = {
- host              : process.env.DB_HOST,
-port              : parseInt(process.env.DB_PORT || '3306'),
-user              : process.env.DB_USER,
-password          : process.env.DB_PASS,
-database          : process.env.DB_NAME,
-  waitForConnections : true,
-  connectionLimit   : 52,
-  charset           : 'utf8mb4'
+  host              : process.env.DB_HOST,
+  port              : parseInt(process.env.DB_PORT || '3306'),
+  user              : process.env.DB_USER,
+  password          : process.env.DB_PASS,
+  database          : process.env.DB_NAME,
+  waitForConnections: true,
+  // Il database sta dietro il proxy TCP di Railway, che chiude le connessioni
+  // rimaste inattive. Un pool grande e senza scadenza accumulava socket ormai
+  // morti e la query successiva falliva con
+  //   "Connection lost: The server closed the connection".
+  // Poche connessioni, chiuse prima che sia il proxy a tagliarle, piu' il
+  // keep-alive che tiene viva quella in uso.
+  connectionLimit      : 10,
+  maxIdle              : 4,
+  idleTimeout          : 60000,        // 60 s, sotto la soglia del proxy
+  enableKeepAlive      : true,
+  keepAliveInitialDelay: 10000,
+  charset              : 'utf8mb4'
 };
+
+// Codici che significano "la connessione e' caduta", non "la query e'
+// sbagliata": su questi conviene riprovare una volta con una connessione
+// nuova invece di restituire un 500 all'utente.
+const ERRORI_CONNESSIONE = new Set([
+  'PROTOCOL_CONNECTION_LOST', 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
+  'PROTOCOL_SEQUENCE_TIMEOUT', 'ECONNRESET', 'EPIPE', 'ETIMEDOUT',
+  'ECONNREFUSED', 'ER_CON_COUNT_ERROR', 'ER_SERVER_SHUTDOWN'
+]);
+function eErroreDiConnessione(e) {
+  return !!e && (ERRORI_CONNESSIONE.has(e.code) || e.fatal === true);
+}
 
 // ── MIDDLEWARE ────────────────────────────────────────────────
 app.use(compression()); // risposte compresse: pagine più veloci
@@ -71,14 +95,22 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 
 // ── ANTI BRUTE-FORCE ──────────────────────────────────────────
-// Limita i tentativi per IP sulle rotte sensibili (login/registrazione)
-const tentativi = new Map(); // ip → { n, primoTs }
-function limitaTentativi(max, finestraMs) {
+// Limita i tentativi per IP sulle rotte sensibili (login, registrazione,
+// recupero password).
+//
+// Il contatore è per (rotta, IP), non per solo IP: prima era condiviso, così
+// i tentativi di login consumavano anche il budget della registrazione e del
+// recupero password, e chi sbagliava qualche password si ritrovava bloccato
+// pure il "Password dimenticata". Ogni rotta ha già il suo `max`: teneva
+// senso solo con contatori separati.
+const tentativi = new Map(); // "nome|ip" → { n, primoTs }
+function limitaTentativi(nome, max, finestraMs) {
   return (req, res, next) => {
+    const chiave = nome + '|' + req.ip;
     const ora = Date.now();
-    const rec = tentativi.get(req.ip);
+    const rec = tentativi.get(chiave);
     if (!rec || ora - rec.primoTs > finestraMs) {
-      tentativi.set(req.ip, { n: 1, primoTs: ora });
+      tentativi.set(chiave, { n: 1, primoTs: ora });
       return next();
     }
     rec.n++;
@@ -101,16 +133,230 @@ function cookieSessione(req) {
 }
 
 // ── DB POOL ───────────────────────────────────────────────────
+// db() non restituisce il pool nudo ma un involucro con lo stesso metodo
+// execute(): se la connessione presa dal pool era già stata chiusa dal proxy,
+// la query viene ripetuta una sola volta su una connessione nuova. Così tutte
+// le rotte restano invariate e smettono di rispondere 500 per un socket morto.
 let pool;
-async function db() {
+function poolAttivo() {
   if (!pool) pool = mysql.createPool(DB_CONFIG);
   return pool;
+}
+
+async function eseguiConRitentativo(metodo, sql, params) {
+  const p = poolAttivo();
+  try {
+    return params === undefined ? await p[metodo](sql) : await p[metodo](sql, params);
+  } catch (e) {
+    if (!eErroreDiConnessione(e)) throw e;
+    console.warn('   DB: connessione caduta, riprovo una volta —', e.code || e.message);
+    // Il pool scarta da solo la connessione fallita: il secondo tentativo
+    // ne apre una nuova.
+    return params === undefined ? await p[metodo](sql) : await p[metodo](sql, params);
+  }
+}
+
+const clienteDb = {
+  execute: (sql, params) => eseguiConRitentativo('execute', sql, params),
+  query:   (sql, params) => eseguiConRitentativo('query',   sql, params),
+  getConnection: () => poolAttivo().getConnection()
+};
+
+async function db() {
+  return clienteDb;
+}
+
+// ── RIPARAZIONE CHIAVI (migrazione da freesqldatabase a Railway) ──────
+// Il dump importato su Railway conteneva tabelle e dati ma nessuna chiave:
+// niente PRIMARY KEY, niente UNIQUE, niente AUTO_INCREMENT. Su MySQL 5.5
+// molti effetti restavano nascosti, su MySQL 8 no. Conseguenze osservate:
+//   • registrazione utente → "Field 'id' doesn't have a default value"
+//   • invio annuncio       → "Field 'id' doesn't have a default value"
+//   • doppie iscrizioni alle liste (ER_DUP_ENTRY non scattava più)
+// Lo stesso contenuto è in db/ripristina-chiavi-railway.sql, ma affidarsi a
+// un'esecuzione manuale significa restare rotti finché qualcuno non la lancia:
+// qui il server verifica e ripara da solo all'avvio. Tutto è idempotente e non
+// tocca nessun dato, solo la struttura.
+
+// Tabelle con id numerico che il codice NON valorizza negli INSERT:
+// senza AUTO_INCREMENT ogni inserimento fallisce.
+const TABELLE_AUTOINCREMENT = ['users', 'announcements', 'schedule_entries'];
+
+// Tabelle con id proprio che devono avere la PRIMARY KEY
+const TABELLE_CHIAVE_ID = [
+  'users', 'announcements', 'schedule_entries', 'lists', 'list_signups',
+  'list_relatives', 'subjects', 'grades', 'penalties', 'notes',
+  'finance_transactions', 'calendar_events', 'comunicazioni_chat',
+  'comunicazioni_posts'
+];
+
+// Vincoli di unicità su cui il codice si appoggia per i messaggi d'errore
+// ("Username o email già registrati", "Già iscritto a questa lista") e per
+// l'ON DUPLICATE KEY UPDATE dell'orario.
+const VINCOLI_UNICI = [
+  { tabella: 'users',            nome: 'uq_users_username', colonne: ['username'] },
+  { tabella: 'users',            nome: 'uq_users_email',    colonne: ['email'] },
+  { tabella: 'list_signups',     nome: 'unique_signup',     colonne: ['list_id', 'user_id'] },
+  { tabella: 'schedule_entries', nome: 'uq_schedule_slot',  colonne: ['user_id', 'day_index', 'hour'] }
+];
+
+// Indici di sola ricerca: senza, ogni query fa una scansione completa
+const INDICI_RICERCA = [
+  { tabella: 'subjects',             nome: 'idx_subjects_user',  colonne: ['user_id'] },
+  { tabella: 'grades',               nome: 'idx_grades_user',    colonne: ['user_id'] },
+  { tabella: 'grades',               nome: 'idx_grades_subject', colonne: ['subject_id'] },
+  { tabella: 'penalties',            nome: 'idx_penalties_user', colonne: ['user_id'] },
+  { tabella: 'notes',                nome: 'idx_notes_user',     colonne: ['user_id'] },
+  { tabella: 'finance_transactions', nome: 'idx_finance_user',   colonne: ['user_id'] },
+  { tabella: 'announcements',        nome: 'idx_ann_user',       colonne: ['user_id'] },
+  { tabella: 'list_signups',         nome: 'idx_signups_list',   colonne: ['list_id'] },
+  { tabella: 'list_relatives',       nome: 'idx_relatives_list', colonne: ['list_id', 'user_id'] },
+  { tabella: 'calendar_events',      nome: 'idx_cal_date',       colonne: ['event_date'] },
+  { tabella: 'comunicazioni_posts',  nome: 'idx_posts_created',  colonne: ['created_at'] }
+];
+
+// Esito dell'ultima riparazione, rileggibile da GET /api/admin/db-stato
+let statoSchema = { eseguita: false, riparazioni: [], problemi: [] };
+
+function nomeSicuro(x) {           // solo identificatori del codice, mai input utente
+  if (!/^[A-Za-z0-9_]+$/.test(x)) throw new Error('Identificatore non valido: ' + x);
+  return '`' + x + '`';
+}
+
+async function riparaChiaviDatabase(c) {
+  const riparazioni = [], problemi = [];
+
+  // Una sola lettura di information_schema per tabelle, colonne e indici
+  const [tabelle] = await c.execute(
+    'SELECT TABLE_NAME AS t FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
+  const esistenti = new Set(tabelle.map(r => r.t));
+
+  const [colonne] = await c.execute(
+    `SELECT TABLE_NAME AS t, COLUMN_NAME AS col, EXTRA AS extra, COLUMN_TYPE AS tipo
+     FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()`);
+  const infoColonna = new Map(colonne.map(r => [r.t + '.' + r.col, r]));
+
+  const [indici] = await c.execute(
+    `SELECT TABLE_NAME AS t, INDEX_NAME AS idx FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE()`);
+  const indiciPresenti = new Set(indici.map(r => r.t + '.' + r.idx));
+
+  // ── 1. PRIMARY KEY su id ────────────────────────────────────
+  for (const t of TABELLE_CHIAVE_ID) {
+    if (!esistenti.has(t) || indiciPresenti.has(t + '.PRIMARY')) continue;
+    if (!infoColonna.has(t + '.id')) continue;
+    try {
+      // Righe con id duplicato renderebbero impossibile la chiave: meglio
+      // dirlo che fallire in silenzio.
+      const [dup] = await c.execute(
+        `SELECT COUNT(*) AS n FROM (SELECT id FROM ${nomeSicuro(t)}
+          GROUP BY id HAVING COUNT(*) > 1) AS d`);
+      if (Number(dup[0].n) > 0) {
+        problemi.push(`${t}: ${dup[0].n} id duplicati, PRIMARY KEY non applicabile`);
+        continue;
+      }
+      await c.execute(`ALTER TABLE ${nomeSicuro(t)} ADD PRIMARY KEY (id)`);
+      riparazioni.push(`${t}: PRIMARY KEY (id)`);
+    } catch (e) {
+      problemi.push(`${t}: PRIMARY KEY non aggiunta — ${e.message}`);
+    }
+  }
+
+  // grade_settings è l'unica con la chiave su un'altra colonna: una riga di
+  // impostazioni per utente, non un id proprio.
+  if (esistenti.has('grade_settings') && !indiciPresenti.has('grade_settings.PRIMARY')
+      && infoColonna.has('grade_settings.user_id')) {
+    try {
+      const [dup] = await c.execute(
+        'SELECT COUNT(*) AS n FROM (SELECT user_id FROM `grade_settings` GROUP BY user_id HAVING COUNT(*) > 1) AS d');
+      if (Number(dup[0].n) > 0) {
+        problemi.push(`grade_settings: ${dup[0].n} utenti con impostazioni duplicate`);
+      } else {
+        await c.execute('ALTER TABLE `grade_settings` ADD PRIMARY KEY (`user_id`)');
+        riparazioni.push('grade_settings: PRIMARY KEY (user_id)');
+      }
+    } catch (e) {
+      problemi.push(`grade_settings: PRIMARY KEY non aggiunta — ${e.message}`);
+    }
+  }
+
+  // ── 2. AUTO_INCREMENT (richiede che id sia già chiave) ──────
+  for (const t of TABELLE_AUTOINCREMENT) {
+    const col = infoColonna.get(t + '.id');
+    if (!esistenti.has(t) || !col) continue;
+    if (String(col.extra || '').toLowerCase().includes('auto_increment')) continue;
+    try {
+      const tipo = /int/i.test(col.tipo) ? col.tipo : 'int';
+      await c.execute(
+        `ALTER TABLE ${nomeSicuro(t)} MODIFY \`id\` ${tipo} NOT NULL AUTO_INCREMENT`);
+      riparazioni.push(`${t}: id AUTO_INCREMENT`);
+    } catch (e) {
+      problemi.push(`${t}: AUTO_INCREMENT non applicato — ${e.message}`);
+    }
+  }
+
+  // ── 3. Vincoli di unicità ───────────────────────────────────
+  for (const v of VINCOLI_UNICI) {
+    if (!esistenti.has(v.tabella)) continue;
+    if (indiciPresenti.has(v.tabella + '.' + v.nome)) continue;
+    if (v.colonne.some(col => !infoColonna.has(v.tabella + '.' + col))) continue;
+    const elenco = v.colonne.map(nomeSicuro).join(',');
+    try {
+      const [dup] = await c.execute(
+        `SELECT COUNT(*) AS n FROM (SELECT 1 FROM ${nomeSicuro(v.tabella)}
+          GROUP BY ${elenco} HAVING COUNT(*) > 1) AS d`);
+      if (Number(dup[0].n) > 0) {
+        problemi.push(`${v.tabella}.${v.nome}: ${dup[0].n} gruppi duplicati da ripulire prima`);
+        continue;
+      }
+      await c.execute(
+        `ALTER TABLE ${nomeSicuro(v.tabella)} ADD UNIQUE KEY ${nomeSicuro(v.nome)} (${elenco})`);
+      riparazioni.push(`${v.tabella}: UNIQUE ${v.nome}`);
+    } catch (e) {
+      problemi.push(`${v.tabella}.${v.nome}: non aggiunto — ${e.message}`);
+    }
+  }
+
+  // ── 4. Indici di ricerca ────────────────────────────────────
+  for (const i of INDICI_RICERCA) {
+    if (!esistenti.has(i.tabella)) continue;
+    if (indiciPresenti.has(i.tabella + '.' + i.nome)) continue;
+    if (i.colonne.some(col => !infoColonna.has(i.tabella + '.' + col))) continue;
+    try {
+      await c.execute(`ALTER TABLE ${nomeSicuro(i.tabella)} ADD KEY ${nomeSicuro(i.nome)} `
+        + `(${i.colonne.map(nomeSicuro).join(',')})`);
+      riparazioni.push(`${i.tabella}: indice ${i.nome}`);
+    } catch (e) {
+      problemi.push(`${i.tabella}.${i.nome}: non aggiunto — ${e.message}`);
+    }
+  }
+
+  statoSchema = { eseguita: true, quando: new Date().toISOString(), riparazioni, problemi };
+  if (riparazioni.length) {
+    console.log('   DB: chiavi ripristinate →\n     - ' + riparazioni.join('\n     - '));
+  } else {
+    console.log('   DB: chiavi già a posto, nessuna riparazione necessaria');
+  }
+  if (problemi.length) {
+    console.warn('   DB: da sistemare a mano →\n     - ' + problemi.join('\n     - '));
+  }
+  return statoSchema;
 }
 
 // ── DB INIT ───────────────────────────────────────────────────
 async function initDB() {
   try {
     const c = await db();
+
+    // Prima di tutto: le chiavi perse nella migrazione a Railway. Senza
+    // AUTO_INCREMENT su users e announcements, registrazione e bacheca
+    // falliscono e nessuna delle migrazioni che seguono serve a niente.
+    try {
+      await riparaChiaviDatabase(c);
+    } catch (e) {
+      console.error('   DB: riparazione chiavi non riuscita:', e.message);
+      statoSchema = { eseguita: false, riparazioni: [], problemi: [e.message] };
+    }
 
     // Aggiungi colonna role se non esiste
     try {
@@ -233,21 +479,10 @@ async function initDB() {
       console.warn('   DB: controllo colonne list_signups non riuscito:', e.message);
     }
 
-    // Vincolo anti doppia iscrizione: una migrazione può averlo perso.
-    // Il codice si affida a ER_DUP_ENTRY per dire "Già iscritto a questa lista".
-    try {
-      const [idx] = await c.execute(`
-        SELECT COUNT(*) AS n FROM information_schema.STATISTICS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'list_signups'
-          AND INDEX_NAME = 'unique_signup'
-      `);
-      if (Number(idx[0].n) === 0) {
-        await c.execute("ALTER TABLE list_signups ADD UNIQUE KEY unique_signup (list_id, user_id)");
-        console.log('   DB: ripristinato vincolo unique_signup su list_signups');
-      }
-    } catch(e) {
-      console.warn('   DB: vincolo unique_signup non ripristinabile (probabili iscrizioni duplicate):', e.message);
-    }
+    // Il vincolo anti doppia iscrizione (unique_signup) è tra quelli che
+    // riparaChiaviDatabase controlla e ripristina: qui non serve più, e
+    // tenerlo in due punti significava provare ad aggiungerlo anche quando
+    // le iscrizioni duplicate lo rendono impossibile.
 
     // Liste personalizzate: nome + definizione campi (JSON array di etichette)
     try {
@@ -297,6 +532,26 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // ── RECUPERO PASSWORD ───────────────────────────────────────
+    // Del token si conserva solo l'impronta SHA-256: chi legge il database
+    // non può ricostruire il link, esattamente come per le password.
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        token_hash CHAR(64) NOT NULL PRIMARY KEY,
+        user_id    INT NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used_at    DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_reset_user (user_id),
+        KEY idx_reset_scadenza (expires_at)
+      )
+    `);
+    // Pulizia dei token scaduti o già usati da più di un giorno
+    try {
+      await c.execute(
+        'DELETE FROM password_resets WHERE expires_at < NOW() - INTERVAL 1 DAY OR used_at < NOW() - INTERVAL 1 DAY');
+    } catch(e) { /* tabella appena creata: niente da pulire */ }
 
     // Tabella calendario eventi
     await c.execute(`
@@ -364,7 +619,7 @@ function canWriteComunicazioni(user) {
 }
 
 // ── SETUP ─────────────────────────────────────────────────────
-app.post('/api/setup', limitaTentativi(5, 15 * 60 * 1000), async (req, res) => {
+app.post('/api/setup', limitaTentativi('setup', 5, 15 * 60 * 1000), async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute('SELECT COUNT(*) AS n FROM users');
@@ -381,7 +636,7 @@ app.post('/api/setup', limitaTentativi(5, 15 * 60 * 1000), async (req, res) => {
 });
 
 // ── AUTH ──────────────────────────────────────────────────────
-app.post('/api/auth/register', limitaTentativi(10, 15 * 60 * 1000), async (req, res) => {
+app.post('/api/auth/register', limitaTentativi('registrazione', 10, 15 * 60 * 1000), async (req, res) => {
   const { username, email, password, nome, cognome } = req.body;
   if (!username || !email || !password)
     return res.status(400).json({ error: 'Username, email e password sono obbligatori' });
@@ -405,7 +660,7 @@ app.post('/api/auth/register', limitaTentativi(10, 15 * 60 * 1000), async (req, 
   }
 });
 
-app.post('/api/auth/login', limitaTentativi(15, 15 * 60 * 1000), async (req, res) => {
+app.post('/api/auth/login', limitaTentativi('login', 15, 15 * 60 * 1000), async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password)
     return res.status(400).json({ error: 'Credenziali mancanti' });
@@ -437,6 +692,139 @@ app.post('/api/auth/login', limitaTentativi(15, 15 * 60 * 1000), async (req, res
 app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('token');
   res.json({ ok: true });
+});
+
+// ── RECUPERO PASSWORD ─────────────────────────────────────────
+// Il token viaggia solo nel link inviato per email e vive in chiaro solo lì:
+// nel database ne resta l'impronta SHA-256, come per le password. Il link usa
+// il frammento (#reset=…) invece della query string, così il token non finisce
+// nei log del server né nell'intestazione Referer verso terzi.
+const RESET_VALIDITA_MINUTI = 60;
+
+function impronta(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+// Base pubblica del sito: su Render la variabile non è automatica, quindi si
+// ripiega sull'host della richiesta, che per il portale è già quello giusto.
+function baseSito(req) {
+  const configurata = (process.env.APP_URL || '').trim().replace(/\/+$/, '');
+  if (configurata) return configurata;
+  const proto = req.secure ? 'https' : (req.headers['x-forwarded-proto'] || req.protocol);
+  return `${proto}://${req.get('host')}`;
+}
+
+// Crea un token nuovo e invalida quelli ancora aperti dello stesso utente:
+// vale sempre e solo l'ultimo link richiesto.
+async function creaTokenReset(c, userId) {
+  const token = crypto.randomBytes(32).toString('base64url'); // 256 bit
+  await c.execute(
+    'UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL',
+    [userId]
+  );
+  // La scadenza la calcola il database, non Node: così il confronto con NOW()
+  // usa sempre lo stesso orologio e non può sfasarsi per differenze di fuso
+  // fra l'hosting e il server MySQL. I minuti sono una costante del codice,
+  // scritta nella query come per i LIMIT: nessun input utente qui dentro.
+  await c.execute(
+    `INSERT INTO password_resets (token_hash,user_id,expires_at)
+     VALUES (?,?,NOW() + INTERVAL ${RESET_VALIDITA_MINUTI} MINUTE)`,
+    [impronta(token), userId]
+  );
+  return token;
+}
+
+function linkReset(req, token) {
+  return `${baseSito(req)}/#reset=${token}`;
+}
+
+// Passo 1 — l'utente chiede il link.
+// La risposta è sempre la stessa, esista o no l'indirizzo: altrimenti questa
+// rotta diventerebbe uno strumento per scoprire chi è registrato.
+app.post('/api/auth/password/forgot', limitaTentativi('reset-richiesta', 8, 15 * 60 * 1000), async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const rispostaGenerica = {
+    ok: true,
+    message: 'Se l\'indirizzo è registrato riceverai a breve un\'email con il link per reimpostare la password.'
+  };
+  if (!email) return res.status(400).json({ error: 'Inserisci il tuo indirizzo email' });
+  try {
+    const c = await db();
+    const [righe] = await c.execute('SELECT id,nome,full_name,email FROM users WHERE email=?', [email]);
+    if (!righe.length) return res.json(rispostaGenerica);
+    const utente = righe[0];
+
+    if (!mailer.emailConfigurata()) {
+      // Nessuna credenziale SMTP: si dice all'utente la stessa frase, ma nei
+      // log resta scritto perché non è partito niente.
+      console.warn('   reset password: SMTP non configurato, email non inviata a', email);
+      return res.json(rispostaGenerica);
+    }
+
+    const token = await creaTokenReset(c, utente.id);
+    const { oggetto, testo, html } = mailer.emailReimpostaPassword({
+      nome: (utente.nome || utente.full_name || '').trim().split(/\s+/)[0] || '',
+      link: linkReset(req, token),
+      minutiValidita: RESET_VALIDITA_MINUTI
+    });
+    try {
+      await mailer.inviaEmail({ a: utente.email, oggetto, testo, html });
+    } catch (e) {
+      // L'invio fallito non deve rivelare nulla all'esterno, ma va tracciato.
+      console.error('   reset password: invio email fallito —', e.message);
+    }
+    res.json(rispostaGenerica);
+  } catch (e) { errServer(res, e); }
+});
+
+// Passo 2 — il frontend controlla se il link è ancora buono prima di mostrare
+// il modulo, così l'utente non digita una password per niente.
+app.get('/api/auth/password/reset/:token', limitaTentativi('reset-verifica', 30, 15 * 60 * 1000), async (req, res) => {
+  try {
+    const c = await db();
+    const [righe] = await c.execute(
+      `SELECT r.user_id, u.username FROM password_resets r JOIN users u ON u.id = r.user_id
+       WHERE r.token_hash = ? AND r.used_at IS NULL AND r.expires_at > NOW()`,
+      [impronta(String(req.params.token || ''))]
+    );
+    if (!righe.length)
+      return res.status(400).json({ error: 'Link non valido o scaduto. Richiedine uno nuovo.' });
+    res.json({ ok: true, username: righe[0].username });
+  } catch (e) { errServer(res, e); }
+});
+
+// Passo 3 — la nuova password. Il token viene consumato nello stesso UPDATE
+// che lo verifica: due richieste in parallelo non possono usarlo due volte.
+app.post('/api/auth/password/reset', limitaTentativi('reset-conferma', 15, 15 * 60 * 1000), async (req, res) => {
+  const token = String(req.body?.token || '');
+  const password = String(req.body?.password || '');
+  if (!token) return res.status(400).json({ error: 'Link di reimpostazione mancante' });
+  if (password.length < 6)
+    return res.status(400).json({ error: 'La password deve avere almeno 6 caratteri' });
+  try {
+    const c = await db();
+    const hashToken = impronta(token);
+    const [consumato] = await c.execute(
+      `UPDATE password_resets SET used_at = NOW()
+       WHERE token_hash = ? AND used_at IS NULL AND expires_at > NOW()`,
+      [hashToken]
+    );
+    if (!consumato.affectedRows)
+      return res.status(400).json({ error: 'Link non valido, già usato o scaduto. Richiedine uno nuovo.' });
+
+    const [righe] = await c.execute('SELECT user_id FROM password_resets WHERE token_hash=?', [hashToken]);
+    if (!righe.length) return res.status(400).json({ error: 'Link non valido' });
+
+    // Stesso costo bcrypt della registrazione: nessun percorso meno sicuro.
+    const hash = await bcrypt.hash(password, 12);
+    await c.execute('UPDATE users SET password_hash=? WHERE id=?', [hash, righe[0].user_id]);
+    // Eventuali altri link aperti per lo stesso utente decadono subito.
+    await c.execute(
+      'UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL',
+      [righe[0].user_id]
+    );
+    res.json({ ok: true, message: 'Password aggiornata. Ora puoi accedere.' });
+  } catch (e) { errServer(res, e); }
 });
 
 app.get('/api/auth/me', auth, async (req, res) => {
@@ -486,6 +874,53 @@ app.put('/api/profile', auth, async (req, res) => {
   } catch(e) { errServer(res, e); }
 });
 
+// ── TETTO MESSAGGI (chat e bacheca annunci) ───────────────────
+// Chat e bacheca conservano solo gli ultimi 50 messaggi: senza un tetto le
+// tabelle crescono indefinitamente. Il limite è applicato sul database, non
+// nascondendo righe nel frontend.
+//
+// Il limite è netto: appena entra il 51° messaggio esce il più vecchio, così
+// in tabella restano sempre e solo i 50 più recenti. La potatura tocca una
+// tabella che per costruzione non supera le ~51 righe, quindi resta
+// trascurabile anche con molti utenti insieme; due inserimenti concorrenti
+// possono potare nello stesso momento senza danno, perché l'operazione è
+// idempotente (al massimo il secondo non trova più nulla da eliminare) e
+// perché il criterio è sempre "tieni i 50 più recenti", mai "cancella N righe".
+const MAX_MESSAGGI = 50;
+
+// Le tabelle potabili sono elencate qui: il nome non arriva mai dall'esterno.
+const TABELLE_CON_TETTO = new Set(['comunicazioni_chat', 'announcements']);
+
+async function potaMessaggi(c, tabella) {
+  if (!TABELLE_CON_TETTO.has(tabella)) throw new Error('Tabella non potabile: ' + tabella);
+  const [[{ n }]] = await c.execute(`SELECT COUNT(*) AS n FROM \`${tabella}\``);
+  if (n <= MAX_MESSAGGI) return 0;
+  // Il numero nella LIMIT è una costante del codice, mai input utente.
+  // La derivata `recenti` serve perché MySQL non accetta una sottoquery
+  // sulla stessa tabella che sta cancellando.
+  const [r] = await c.execute(`
+    DELETE FROM \`${tabella}\`
+    WHERE id NOT IN (
+      SELECT id FROM (
+        SELECT id FROM \`${tabella}\`
+        ORDER BY created_at DESC, id DESC
+        LIMIT ${MAX_MESSAGGI}
+      ) AS recenti
+    )
+  `);
+  return r.affectedRows;
+}
+
+// Il tetto non deve mai far fallire l'invio: se la potatura va storta si
+// logga e il messaggio resta comunque salvato.
+async function potaturaSicura(c, tabella) {
+  try {
+    await potaMessaggi(c, tabella);
+  } catch (e) {
+    console.warn(`   ${tabella}: potatura non riuscita:`, e.message);
+  }
+}
+
 // ── ANNUNCI ───────────────────────────────────────────────────
 app.get('/api/announcements', auth, async (req, res) => {
   try {
@@ -495,7 +930,7 @@ app.get('/api/announcements', auth, async (req, res) => {
              u.id AS author_id, u.username, u.full_name, u.military_rank, u.role, u.is_admin
       FROM announcements a
       JOIN users u ON a.user_id = u.id
-      ORDER BY a.created_at DESC LIMIT 100
+      ORDER BY a.created_at DESC, a.id DESC LIMIT ${MAX_MESSAGGI}
     `);
     res.json(rows);
   } catch (e) { errServer(res, e); }
@@ -510,6 +945,7 @@ app.post('/api/announcements', auth, async (req, res) => {
       'INSERT INTO announcements (user_id,content) VALUES (?,?)',
       [req.user.id, content.trim()]
     );
+    await potaturaSicura(c, 'announcements');
     res.json({ ok: true, id: result.insertId });
   } catch (e) { errServer(res, e); }
 });
@@ -527,32 +963,6 @@ app.delete('/api/announcements/:id', auth, async (req, res) => {
 });
 
 // ── COMUNICAZIONI: CHAT ───────────────────────────────────────
-// La chat conserva solo gli ultimi messaggi: senza un tetto la tabella
-// cresce indefinitamente. Il limite è applicato qui sul database, non
-// nascondendo righe nel frontend.
-const CHAT_MAX_MESSAGGI = 50;
-// Si pota solo dopo aver superato il limite di questo margine, così la
-// cancellazione non gira a ogni singolo messaggio ma una volta ogni SLACK.
-const CHAT_SLACK = 10;
-
-async function potaChat(c) {
-  const [[{ n }]] = await c.execute('SELECT COUNT(*) AS n FROM comunicazioni_chat');
-  if (n <= CHAT_MAX_MESSAGGI + CHAT_SLACK) return 0;
-  // Il numero nella LIMIT è una costante del codice, mai input utente.
-  // Due inserimenti concorrenti possono potare insieme: l'operazione è
-  // idempotente, al massimo la seconda non trova più nulla da eliminare.
-  const [r] = await c.execute(`
-    DELETE FROM comunicazioni_chat
-    WHERE id NOT IN (
-      SELECT id FROM (
-        SELECT id FROM comunicazioni_chat
-        ORDER BY created_at DESC, id DESC
-        LIMIT ${CHAT_MAX_MESSAGGI}
-      ) AS recenti
-    )
-  `);
-  return r.affectedRows;
-}
 app.get('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
@@ -563,7 +973,7 @@ app.get('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => {
         FROM comunicazioni_chat m
         JOIN users u ON m.user_id = u.id
         ORDER BY m.created_at DESC, m.id DESC
-        LIMIT ${CHAT_MAX_MESSAGGI}
+        LIMIT ${MAX_MESSAGGI}
       ) AS ultimi
       ORDER BY ultimi.created_at ASC, ultimi.id ASC
     `);
@@ -580,8 +990,7 @@ app.post('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => 
     const c = await db();
     await c.execute('INSERT INTO comunicazioni_chat (id,user_id,content) VALUES (?,?,?)',
       [id, req.user.id, content.trim()]);
-    // Il tetto non deve far fallire l'invio: se la potatura va storta si logga
-    try { await potaChat(c); } catch(e) { console.warn('   chat: potatura non riuscita:', e.message); }
+    await potaturaSicura(c, 'comunicazioni_chat');
     res.json({ ok: true });
   } catch(e) { errServer(res, e); }
 });
@@ -1164,11 +1573,55 @@ app.put('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
+// Rete di sicurezza: l'admin genera a mano un link di reimpostazione da
+// consegnare all'utente. Serve quando l'email non è ancora configurata o
+// quando l'allievo non ha più accesso alla casella con cui si è registrato.
+// Stesso token, stessa scadenza, stesso uso singolo del percorso via email.
+app.post('/api/admin/users/:id/reset-link', auth, requireAdmin, async (req, res) => {
+  try {
+    const c = await db();
+    const [righe] = await c.execute('SELECT id,username,full_name FROM users WHERE id=?', [req.params.id]);
+    if (!righe.length) return res.status(404).json({ error: 'Utente non trovato' });
+    const token = await creaTokenReset(c, righe[0].id);
+    res.json({
+      ok: true,
+      username: righe[0].username,
+      link: linkReset(req, token),
+      minuti: RESET_VALIDITA_MINUTI
+    });
+  } catch (e) { errServer(res, e); }
+});
+
+// Stato dello schema: dice se le chiavi perse nella migrazione a Railway sono
+// state ripristinate e cosa resta eventualmente da sistemare a mano. Senza
+// questo, l'unico modo di saperlo è leggere i log di avvio di Render.
+app.get('/api/admin/db-stato', auth, requireAdmin, async (req, res) => {
+  try {
+    const c = await db();
+    const [chiavi] = await c.execute(`
+      SELECT TABLE_NAME AS tabella, COLUMN_NAME AS colonna, EXTRA AS extra
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'id'
+        AND TABLE_NAME IN ('users','announcements','schedule_entries')
+    `);
+    const autoIncrement = {};
+    chiavi.forEach(r => {
+      autoIncrement[r.tabella] = String(r.extra || '').toLowerCase().includes('auto_increment');
+    });
+    res.json({
+      riparazione: statoSchema,
+      auto_increment: autoIncrement,
+      email_configurata: mailer.emailConfigurata()
+    });
+  } catch (e) { errServer(res, e); }
+});
+
 app.delete('/api/admin/users/:id', auth, requireAdmin, async (req, res) => {
   if (String(req.params.id) === String(req.user.id))
     return res.status(400).json({ error: 'Non puoi eliminare il tuo stesso account' });
   try {
     const c = await db();
+    await c.execute('DELETE FROM password_resets WHERE user_id=?', [req.params.id]);
     await c.execute('DELETE FROM users WHERE id=?', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { errServer(res, e); }
@@ -1194,6 +1647,32 @@ app.get('/installa', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'installa.html'));
 });
 
+// ── COLLEGAMENTO CON L'APP ANDROID (Digital Asset Links) ──────
+// Serve solo se in futuro si pubblica un vero pacchetto Android (TWA) al
+// posto della sola installazione da Chrome: Android scarica questo file per
+// verificare che l'app e il sito appartengano alla stessa persona, e senza
+// la verifica l'app mostra la barra del browser.
+// Si attiva impostando due variabili d'ambiente, niente da cambiare nel
+// codice; finché non ci sono, la rotta risponde 404 come prima.
+//   ANDROID_PACKAGE_NAME  → es. it.accademia.portaleau
+//   ANDROID_SHA256_CERT   → impronta SHA-256 del certificato di firma
+//                           (più impronte separate da virgola)
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  const pacchetto = (process.env.ANDROID_PACKAGE_NAME || '').trim();
+  const impronte  = (process.env.ANDROID_SHA256_CERT || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+  if (!pacchetto || !impronte.length)
+    return res.status(404).json({ error: 'App Android non configurata' });
+  res.json([{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: {
+      namespace: 'android_app',
+      package_name: pacchetto,
+      sha256_cert_fingerprints: impronte
+    }
+  }]);
+});
+
 // ── FALLBACK SPA ──────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -1205,7 +1684,9 @@ app.listen(PORT, async () => {
   if (JWT_SECRET === 'portale_au_jwt_secret_CAMBIA_IN_PROD')
     console.warn('⚠  ATTENZIONE: JWT_SECRET di default. Imposta la variabile d\'ambiente JWT_SECRET in produzione!');
   if (!process.env.DB_PASS)
-    console.warn('⚠  ATTENZIONE: credenziali database prese dal codice. Imposta DB_HOST/DB_USER/DB_PASS/DB_NAME come variabili d\'ambiente!');
+    console.warn('⚠  ATTENZIONE: credenziali database mancanti. Imposta DB_HOST/DB_USER/DB_PASS/DB_NAME come variabili d\'ambiente!');
+  if (!mailer.emailConfigurata())
+    console.warn('⚠  Recupero password: SMTP non configurato. Imposta SMTP_USER e SMTP_PASS per l\'invio delle email.');
   console.log(`   URL:  http://localhost:${PORT}`);
   console.log(`   DB:   ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}\n`);
   await initDB();

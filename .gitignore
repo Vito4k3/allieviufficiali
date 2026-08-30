@@ -4,6 +4,12 @@ node_modules/
 # File locali di Claude Code
 .claude/
 
+# Variabili d'ambiente: contengono password e chiavi, non vanno mai su GitHub.
+# L'elenco delle variabili da impostare sta in .env.example (senza valori).
+.env
+.env.*
+!.env.example
+
 # File di sistema
 .DS_Store
 Thumbs.db

@@ -13,7 +13,15 @@
 --  MySQL 8 accetta "GROUP BY l.id" con "SELECT l.*" solo se id e'
 --  PRIMARY KEY (dipendenza funzionale). Senza chiave, rifiuta.
 --
---  COME USARLO
+--  NON SERVE PIU' ESEGUIRLO A MANO
+--  Dalla versione 1.1.0 il server fa da solo questo lavoro a ogni avvio
+--  (riparaChiaviDatabase in server.js): controlla quali chiavi mancano,
+--  aggiunge solo quelle e scrive nei log cosa ha sistemato. Lo stato si
+--  legge anche da GET /api/admin/db-stato con un account amministratore.
+--  Questo file resta come documentazione e come rete di sicurezza, per
+--  esempio se una ALTER va rifatta a mano dopo aver ripulito dei duplicati.
+--
+--  COME USARLO (solo se serve intervenire a mano)
 --  1. Esegui prima la SEZIONE 0 e controlla che NON restituisca righe.
 --  2. Se e' tutto vuoto, esegui le sezioni 1 -> 4.
 --  3. Verifica con la SEZIONE 5.
