@@ -22,7 +22,9 @@ app.set('trust proxy', 1); // dietro il proxy dell'hosting (per HTTPS e IP reali
 
 // Errori interni: log completo sul server, messaggio generico al client
 function errServer(res, e) {
-  console.error('[ERRORE SERVER]', e.message);
+  // Lo stack va nei log (serve per capire DOVE è nato l'errore), al client
+  // arriva solo un messaggio generico: mai dettagli interni.
+  console.error('[ERRORE SERVER]', e.stack || e.message);
   res.status(500).json({ error: 'Errore interno del server. Riprova più tardi.' });
 }
 
@@ -66,7 +68,25 @@ function eErroreDiConnessione(e) {
 
 // ── MIDDLEWARE ────────────────────────────────────────────────
 app.use(compression()); // risposte compresse: pagine più veloci
-app.use(cors({ origin: true, credentials: true }));
+
+// CORS chiuso: sito e API vivono sullo stesso indirizzo, quindi il browser
+// non ha bisogno di CORS per il funzionamento normale. Prima qui c'era
+// `origin: true` con credenziali: rifletteva QUALSIASI origine, cioè una
+// pagina ostile su un altro dominio poteva leggere le risposte delle API
+// usando il cookie di sessione del visitatore. Restano ammessi solo
+// l'indirizzo pubblico configurato e localhost per lo sviluppo.
+const ORIGINI_AMMESSE = new Set(
+  [(process.env.APP_URL || '').trim().replace(/\/+$/, '')].filter(Boolean)
+);
+app.use(cors({
+  credentials: true,
+  origin(origin, cb) {
+    if (!origin) return cb(null, true);                       // stessa origine / curl
+    if (ORIGINI_AMMESSE.has(origin)) return cb(null, true);
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true);
+    return cb(null, false);                                    // niente intestazioni CORS
+  }
+}));
 
 // Header di sicurezza su ogni risposta
 app.use((req, res, next) => {
@@ -80,7 +100,16 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '10mb' }));
+// Limite del corpo: 10 MB servono SOLO ai comunicati con allegato. Tenere
+// quel limite su tutte le rotte significava accettare 10 MB anche su un
+// login. Il resto dell'API viaggia con un tetto normale.
+const jsonNormale = express.json({ limit: '256kb' });
+const jsonAllegati = express.json({ limit: '10mb' });
+app.use((req, res, next) => {
+  if (req.path === '/api/comunicazioni/posts' && req.method === 'POST')
+    return jsonAllegati(req, res, next);
+  return jsonNormale(req, res, next);
+});
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders(res, filePath) {
@@ -249,6 +278,7 @@ const INDICI_RICERCA = [
   { tabella: 'notes',                nome: 'idx_notes_user',     colonne: ['user_id'] },
   { tabella: 'finance_transactions', nome: 'idx_finance_user',   colonne: ['user_id'] },
   { tabella: 'announcements',        nome: 'idx_ann_user',       colonne: ['user_id'] },
+  { tabella: 'announcements',        nome: 'idx_ann_created',    colonne: ['created_at'] },
   { tabella: 'list_signups',         nome: 'idx_signups_list',   colonne: ['list_id'] },
   { tabella: 'list_relatives',       nome: 'idx_relatives_list', colonne: ['list_id', 'user_id'] },
   { tabella: 'calendar_events',      nome: 'idx_cal_date',       colonne: ['event_date'] },
@@ -631,9 +661,20 @@ function requireFinance(req, res, next) {
   return res.status(403).json({ error: 'Strumento Gestione Finanze non sbloccato per il tuo account' });
 }
 
-function requireAdmin(req, res, next) {
-  if (req.user.is_admin) return next();
-  return res.status(403).json({ error: 'Solo gli amministratori possono eseguire questa operazione' });
+// Il token dichiara i permessi ma vale 7 giorni: un admin revocato resterebbe
+// admin fino alla scadenza. Per le operazioni amministrative (le più
+// delicate: utenti, permessi, cancellazioni) il flag si riverifica sul
+// database a ogni richiesta — una query su chiave primaria, costo irrisorio.
+async function requireAdmin(req, res, next) {
+  if (!req.user.is_admin)
+    return res.status(403).json({ error: 'Solo gli amministratori possono eseguire questa operazione' });
+  try {
+    const c = await db();
+    const [righe] = await c.execute('SELECT is_admin FROM users WHERE id=?', [req.user.id]);
+    if (!righe.length || !Number(righe[0].is_admin))
+      return res.status(403).json({ error: 'Permessi amministratore revocati. Esci e accedi di nuovo.' });
+    next();
+  } catch (e) { errServer(res, e); }
 }
 
 function requireCompagnia(req, res, next) {
@@ -689,6 +730,15 @@ app.post('/api/auth/register', limitaTentativi('registrazione-ip', 40, QUARTO_DO
     return res.status(400).json({ error: 'Nome e cognome sono obbligatori' });
   if (password.length < 6)
     return res.status(400).json({ error: 'La password deve avere almeno 6 caratteri' });
+  // bcrypt considera solo i primi 72 byte: oltre, la parte in più non conta
+  // e l'utente crederebbe di avere una password più lunga di quella reale
+  if (Buffer.byteLength(password, 'utf8') > 72)
+    return res.status(400).json({ error: 'Password troppo lunga (massimo 72 caratteri)' });
+  if (String(username).trim().length > 50 || String(email).trim().length > 100
+      || String(nome).trim().length > 100 || String(cognome).trim().length > 100)
+    return res.status(400).json({ error: 'Uno dei campi supera la lunghezza massima' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email).trim()))
+    return res.status(400).json({ error: 'Indirizzo email non valido' });
   try {
     const c    = await db();
     const hash = await bcrypt.hash(password, 12);
@@ -762,6 +812,13 @@ app.post('/api/auth/logout', (req, res) => {
 // nei log del server né nell'intestazione Referer verso terzi.
 const RESET_VALIDITA_MINUTI = 60;
 
+// Nei log un indirizzo email va mascherato: "mario.rossi@mail.it" → "ma***@mail.it"
+function mascheraEmail(email) {
+  const [locale, dominio] = String(email).split('@');
+  if (!dominio) return '***';
+  return locale.slice(0, 2) + '***@' + dominio;
+}
+
 function impronta(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
@@ -824,7 +881,7 @@ app.post('/api/auth/password/forgot',
     if (!mailer.emailConfigurata()) {
       // Nessuna credenziale SMTP: si dice all'utente la stessa frase, ma nei
       // log resta scritto perché non è partito niente.
-      console.warn('   reset password: SMTP non configurato, email non inviata a', email);
+      console.warn('   reset password: servizio email non configurato, invio saltato per', mascheraEmail(email));
       return res.json(rispostaGenerica);
     }
 
@@ -1007,9 +1064,13 @@ app.get('/api/announcements', auth, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
+const MAX_LUNGHEZZA_MESSAGGIO = 4000;   // caratteri: oltre non è un messaggio, è un documento
+
 app.post('/api/announcements', auth, async (req, res) => {
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Il messaggio non può essere vuoto' });
+  if (content.length > MAX_LUNGHEZZA_MESSAGGIO)
+    return res.status(400).json({ error: `Messaggio troppo lungo (massimo ${MAX_LUNGHEZZA_MESSAGGIO} caratteri)` });
   try {
     const c = await db();
     const [result] = await c.execute(
@@ -1057,6 +1118,8 @@ app.post('/api/comunicazioni/chat', auth, requireCompagnia, async (req, res) => 
     return res.status(403).json({ error: 'Non hai i permessi per scrivere in Comunicazioni' });
   const { id, content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Messaggio vuoto' });
+  if (content.length > MAX_LUNGHEZZA_MESSAGGIO)
+    return res.status(400).json({ error: `Messaggio troppo lungo (massimo ${MAX_LUNGHEZZA_MESSAGGIO} caratteri)` });
   try {
     const c = await db();
     await c.execute('INSERT INTO comunicazioni_chat (id,user_id,content) VALUES (?,?,?)',
@@ -1811,4 +1874,19 @@ app.listen(PORT, async () => {
   console.log(`   URL:  http://localhost:${PORT}`);
   console.log(`   DB:   ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}\n`);
   await initDB();
+
+  // Sonda SMTP all'avvio: scrive nei log quali porte del server di posta sono
+  // raggiungibili da QUESTO ambiente. Così la risposta a "l'hosting blocca la
+  // 465?" sta nei log di ogni deploy, senza dover fare prove a mano.
+  // Non parte niente: solo connessioni TCP aperte e richiuse.
+  if (mailer.emailConfigurata() && !process.env.BREVO_API_KEY) {
+    mailer.diagnosticaRete().then(d => {
+      const righe = d.porte.map(p => `${p.porta}:${p.esito === 'raggiungibile' ? 'OK' : p.esito}`).join('  ');
+      console.log(`   SMTP: porte di ${d.host} → ${righe}  (https di controllo: ${d.controllo_https.esito})`);
+      if (!d.aperte.length)
+        console.warn('   SMTP: NESSUNA porta raggiungibile — l\'hosting blocca la posta in uscita. Usa BREVO_API_KEY (invio via HTTPS).');
+      else if (!d.aperte.includes(d.porta_configurata))
+        console.warn(`   SMTP: la porta configurata ${d.porta_configurata} è chiusa, ma la ${d.aperte[0]} è aperta — l'invio ripiegherà da solo, oppure imposta SMTP_PORT=${d.aperte[0]}.`);
+    }).catch(e => console.warn('   SMTP: sonda non riuscita —', e.message));
+  }
 });

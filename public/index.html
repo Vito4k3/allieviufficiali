@@ -1305,6 +1305,52 @@ canvas{max-height:220px}
   width:150px;height:1px;background:linear-gradient(90deg,transparent,#d4af58,transparent);
   animation:splashLinea 1s .35s ease both;
 }
+/* ═══════════════════════════════════════════════════
+   RIFINITURE v6 — accessibilità, mobile, stati di caricamento
+   ═══════════════════════════════════════════════════ */
+
+/* Navigazione da tastiera: il focus si deve VEDERE, su tutto */
+.btn:focus-visible, .tab-btn:focus-visible, .auth-tab:focus-visible,
+a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible{
+  outline:2px solid var(--gold);outline-offset:2px;border-radius:var(--r2);
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset:0}
+
+/* Feedback tattile sui pulsanti */
+.btn:active:not(:disabled){transform:translateY(1px)}
+
+/* Intestazioni delle tabelle che restano visibili durante lo scorrimento */
+.data-table thead th{position:sticky;top:0;background:var(--surface2);z-index:2}
+
+/* Spinner di caricamento unico per tutta l'app */
+.caricamento{
+  display:flex;flex-direction:column;align-items:center;gap:.8rem;
+  padding:3rem 1rem;color:var(--text3);
+  font-family:var(--font-m);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+}
+.caricamento::before{
+  content:'';width:26px;height:26px;border-radius:50%;
+  border:2px solid var(--border2);border-top-color:var(--gold);
+  animation:giroCarico .8s linear infinite;
+}
+@keyframes giroCarico{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.caricamento::before{animation:none;border-top-color:var(--border2)}}
+
+/* Barre di scorrimento sottili e coerenti col tema */
+*{scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* Mobile: bersagli più comodi per il pollice */
+@media(max-width:600px){
+  .tab-btn{padding:.85rem 1rem;font-size:.64rem}
+  .modal{padding:1.4rem 1.1rem;max-height:92vh}
+  .btn{padding:.65rem 1.15rem}
+  .data-table th,.data-table td{padding:.6rem .5rem;font-size:.72rem}
+  #toast{left:1rem;right:1rem;max-width:none}
+}
+
 @keyframes splashEmb{from{opacity:0;transform:scale(.82) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
 @keyframes splashTxt{from{opacity:0;transform:translateY(6px);letter-spacing:.5em}to{opacity:1;transform:translateY(0)}}
 @keyframes splashLinea{from{width:0;opacity:0}to{width:150px;opacity:1}}
@@ -1776,7 +1822,7 @@ canvas{max-height:220px}
         <div class="form-group" style="margin-bottom:.8rem"><label>Nuovo Annuncio</label><textarea id="postContent" placeholder="Scrivi qui il tuo annuncio per i commilitoni..." rows="3"></textarea></div>
         <div style="display:flex;justify-content:flex-end"><button class="btn btn-gold" onclick="postAnnouncement()">📢 &nbsp;Pubblica</button></div>
       </div>
-      <div class="feed" id="feedList"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-m);font-size:.68rem">Caricamento…</div></div>
+      <div class="feed" id="feedList"><div class="caricamento">Caricamento</div></div>
     </div>
 
     <!-- ── COMUNICAZIONI ── -->
@@ -1792,7 +1838,7 @@ canvas{max-height:220px}
       </div>
       <div class="com-tab-panel active" id="com-chat">
         <div class="chat-container">
-          <div class="chat-messages" id="chatMessages"><div class="chat-empty">Caricamento…</div></div>
+          <div class="chat-messages" id="chatMessages"><div class="caricamento">Caricamento</div></div>
           <div class="chat-input-area" id="chatInputArea">
             <textarea id="chatInput" placeholder="Scrivi un messaggio ufficiale…" rows="1"
               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendComMsg()}"
@@ -1807,7 +1853,7 @@ canvas{max-height:220px}
           <div style="font-family:var(--font-m);font-size:.62rem;color:var(--text3)">Comunicati, ordini del giorno e documenti ufficiali</div>
           <button class="btn btn-gold hidden" id="btnNewComPost" onclick="openComPostModal()">➕ &nbsp;Nuovo Comunicato</button>
         </div>
-        <div id="comPostsList"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-m);font-size:.68rem">Caricamento…</div></div>
+        <div id="comPostsList"><div class="caricamento">Caricamento</div></div>
       </div>
     </div>
 
@@ -1863,7 +1909,7 @@ canvas{max-height:220px}
         <div class="form-group" style="margin-bottom:.7rem"><label>Note aggiuntive</label><input type="text" id="newListNotes" placeholder="Opzionale…"></div>
         <button class="btn btn-gold" onclick="createList()">✓ &nbsp;Crea Lista</button>
       </div>
-      <div id="list-content"><div style="text-align:center;padding:3rem;color:var(--text3);font-family:var(--font-m);font-size:.68rem">Caricamento…</div></div>
+      <div id="list-content"><div class="caricamento">Caricamento</div></div>
     </div>
 
     <!-- ── STRUMENTI (indice) ── -->
@@ -1978,6 +2024,7 @@ canvas{max-height:220px}
             <div class="stat-box top-gold"><div class="stat-value" id="u-arithmetic">—</div><div class="stat-label">Media Esami (arit.)</div><div class="stat-note">Confronto: ignora i CFU</div></div>
             <div class="stat-box top-blue"><div class="stat-value blue" id="u-accert">—</div><div class="stat-label">Media Accertamenti Uni</div><div class="stat-note">Peso uniforme → Media Militare</div></div>
           </div>
+          <div id="u-nota-medie" class="alert alert-info" style="display:none;margin-bottom:1rem"></div>
           <div id="u-list"></div>
           <button class="btn btn-gold" onclick="openAddSubjectModal('university')" style="margin-top:.5rem">+ &nbsp;Aggiungi Materia</button>
         </div>
@@ -2372,7 +2419,7 @@ canvas{max-height:220px}
   </div>
 </div>
 
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script>
 /* ── THEME ── */

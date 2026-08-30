@@ -364,7 +364,7 @@ async function chatCheckUnread(){
 function startChatBadgePolling(){
   stopChatBadgePolling();
   chatCheckUnread();                                         // subito al login
-  chatBadgeInterval = setInterval(chatCheckUnread, 12000);  // poi ogni 12s
+  chatBadgeInterval = setInterval(chatCheckUnread, 25000);  // poi ogni 25s
 }
 function stopChatBadgePolling(){
   if(chatBadgeInterval){ clearInterval(chatBadgeInterval); chatBadgeInterval = null; }
@@ -374,9 +374,18 @@ function stopChatBadgePolling(){
 // Pagine che restano dentro lo schedario "2 Compagnia" (finanze è passata a Strumenti)
 const COMPAGNIA_PAGES = ['comunicazioni','liste','calendario','voti'];
 
-async function showPage(id, link){
-  // Permessi sempre freschi dal server prima di decidere cosa mostrare
+// Il rinfresco dei permessi non serve a OGNI click: una richiesta e una nuova
+// firma del token per ogni cambio pagina erano puro rumore. 30 secondi di
+// tolleranza: i permessi veri li fa comunque rispettare il server a ogni API.
+let _ultimoRefreshUtente = 0;
+async function refreshCurrentUserThrottled(){
+  if(Date.now() - _ultimoRefreshUtente < 30000) return;
+  _ultimoRefreshUtente = Date.now();
   await refreshCurrentUser();
+}
+
+async function showPage(id, link){
+  await refreshCurrentUserThrottled();
   // Blocco accesso sezione 2 Compagnia per utenti non autorizzati
   if(COMPAGNIA_PAGES.includes(id) && !currentUser?.is_admin && !currentUser?.can_access_2compagnia){
     toast('Non hai i permessi per accedere a questa sezione','err');
@@ -416,6 +425,7 @@ async function showPage(id, link){
 
 // Ricarica currentUser dal server (permessi sempre freschi, nessun re-login)
 async function refreshCurrentUser(){
+  _ultimoRefreshUtente = Date.now();   // vale anche per chi chiama la versione diretta
   try {
     const data = await api('GET','/api/auth/me');
     currentUser = data;
@@ -745,7 +755,7 @@ function startBachecaPolling(){
     if(document.getElementById('page-bacheca').classList.contains('active')){
       try { const posts=await api('GET','/api/announcements'); renderFeed(posts) } catch {}
     }
-  },15000);
+  },30000);   // bacheca: 30 s bastano, il refresh manuale resta immediato
 }
 function stopBachecaPolling(){ if(bachecaInterval){ clearInterval(bachecaInterval); bachecaInterval=null } }
  
@@ -759,7 +769,7 @@ function renderFeed(posts){
     <div class="post-card">
       <div class="post-author">
         <span>⚔</span>
-        <span>${p.military_rank?p.military_rank+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
+        <span>${p.military_rank?escHtml(p.military_rank)+' ':''}<strong>${escHtml(p.full_name||p.username)}</strong></span>
         ${roleBadge(p.role, p.is_admin)}
         <span class="post-rank">@${escHtml(p.username)}</span>
         <span class="post-time">${fmtDate(p.created_at?.slice(0,10))}</span>
@@ -1755,8 +1765,13 @@ function meanOf(values){
   if(!v.length) return null;
   return v.reduce((a,b)=>a+b,0)/v.length;
 }
-// Media aritmetica dei voti (nessun peso): usata per il voto di una materia
-function arAvg(grades){ if(!grades||!grades.length) return null; return meanOf(grades.map(g=>Number(g.value))) }
+// Media aritmetica dei voti (nessun peso): usata per il voto di una materia.
+// Un voto senza valore (null o vuoto) viene ESCLUSO: Number(null) fa 0, e uno
+// zero fantasma trascinava in basso la media della materia.
+function arAvg(grades){
+  if(!grades||!grades.length) return null;
+  return meanOf(grades.filter(g=>g && g.value!=null && g.value!=='').map(g=>Number(g.value)));
+}
 // Voto di una materia = media semplice dei suoi voti (di un dato tipo)
 function subjAvg(s,gradeType){
   const gs=gradeType?(s.grades||[]).filter(g=>g.grade_type===gradeType):(s.grades||[]);
@@ -1764,41 +1779,38 @@ function subjAvg(s,gradeType){
 }
 function subjCredits(s){ const c=parseFloat(s.credits); return isNaN(c)?0:c }
 
-// Peso effettivo di un voto: quello inserito sul voto stesso, altrimenti i CFU
-// della materia, altrimenti 1. È il valore che entra nella media ponderata.
-// Il peso di un esame universitario sono i CFU della materia: e' quello che
-// entra nella media ponderata, secondo la formula Sigma(voto x CFU) / Sigma(CFU).
-// Il campo peso del singolo voto resta come ripiego per le materie senza CFU
-// (ginnastica, militare) e per i dati storici privi di crediti.
-function pesoDiVoto(g, s){
-  const cfu = s ? subjCredits(s) : 0;
-  if(cfu > 0) return cfu;
-  const w = Number(g && g.weight);
-  if(!isNaN(w) && w > 0) return w;
-  return 1;
-}
-
-// Elenco piatto dei voti d'esame universitari con il rispettivo peso:
-// base comune alle due medie, così differiscono quando i pesi differiscono.
-function votiEsamiUni(subjects){
+// ── Base comune delle due medie universitarie ──────────────────────
+// L'unità di calcolo è LA MATERIA, non il singolo voto: il voto di una
+// materia è la media semplice dei suoi esami (lo stesso numero mostrato
+// come "Media materia" nella scheda), e nella ponderata ogni materia pesa
+// per i propri CFU UNA volta sola.
+//
+// Prima l'unità era il singolo voto, pesato per l'intero CFU della materia:
+// una materia con due esami vedeva i propri CFU contati due volte al
+// denominatore, sbilanciando la media e rendendo i "CFU conteggiati"
+// mostrati (che contano ogni materia una volta) incoerenti con il calcolo.
+//
+// Materie senza CFU pesano 1, così i dati storici privi di crediti restano
+// dentro invece di sparire dalla media.
+function votiMaterieUni(subjects){
   const out=[];
   (subjects||vdb.subjects.university).forEach(s=>{
-    (s.grades||[]).filter(g=>g.grade_type==='exam').forEach(g=>{
-      const v=Number(g.value);
-      if(!isNaN(v)) out.push({voto:v, peso:pesoDiVoto(g, s)});
-    });
+    const voto=subjAvg(s,'exam');
+    if(voto==null) return;
+    const cfu=subjCredits(s);
+    out.push({voto, peso: cfu>0 ? cfu : 1});
   });
   return out;
 }
 
-// 2 · MEDIA UNIVERSITARIA — solo esami, ponderata per CFU: Σ(voto × CFU) / Σ(CFU)
+// 2 · MEDIA UNIVERSITARIA — solo esami, ponderata per CFU:
+//     Σ(voto materia × CFU) / Σ(CFU), una voce per materia
 function mediaUniversitaria(subjects){
-  const voti=votiEsamiUni(subjects);
-  if(!voti.length) return null;
-  const totPesi=voti.reduce((a,x)=>a+x.peso,0);
-  // Nessun peso valorizzato: si degrada alla media semplice (retrocompatibilità)
-  if(totPesi<=0) return meanOf(voti.map(x=>x.voto));
-  return voti.reduce((a,x)=>a+x.voto*x.peso,0)/totPesi;
+  const materie=votiMaterieUni(subjects);
+  if(!materie.length) return null;
+  const totPesi=materie.reduce((a,x)=>a+x.peso,0);
+  if(totPesi<=0) return meanOf(materie.map(x=>x.voto));
+  return materie.reduce((a,x)=>a+x.voto*x.peso,0)/totPesi;
 }
 // CFU effettivamente conteggiati nella media universitaria
 function cfuConteggiati(subjects){
@@ -1806,9 +1818,24 @@ function cfuConteggiati(subjects){
     .filter(s=>subjAvg(s,'exam')!=null)
     .reduce((a,s)=>a+subjCredits(s),0);
 }
-// Media aritmetica: la normale media dei voti, i CFU non contano
+// Media aritmetica: stessa base (una voce per materia), ma senza pesi.
+// Con CFU tutti uguali le due medie COINCIDONO per matematica: non è un
+// errore, e l'interfaccia lo dice esplicitamente (vedi notaMedieUni).
 function mediaUniversitariaArit(subjects){
-  return meanOf(votiEsamiUni(subjects).map(x=>x.voto));
+  return meanOf(votiMaterieUni(subjects).map(x=>x.voto));
+}
+// Spiega perché le due medie coincidono, quando coincidono
+function notaMedieUni(subjects){
+  const materie=votiMaterieUni(subjects);
+  if(materie.length<2) return '';
+  const pesi=new Set(materie.map(x=>x.peso));
+  if(pesi.size===1){
+    const p=[...pesi][0];
+    return p===1
+      ? 'Le materie non hanno CFU: senza pesi le due medie coincidono. Aggiungi i CFU alle materie per vedere la ponderata.'
+      : `Tutte le materie valgono ${p} CFU: con pesi uguali le due medie coincidono per definizione.`;
+  }
+  return '';
 }
 // Media dei soli accertamenti universitari — peso uniforme, mai per CFU
 function mediaAccertamentiUni(subjects){
@@ -1917,6 +1944,14 @@ function renderSubjectAreaUni(){
   document.getElementById('u-weighted').textContent  = pond!=null?fmt(pond):'—';
   document.getElementById('u-arithmetic').textContent= arit!=null?fmt(arit):'—';
   document.getElementById('u-accert').textContent    = acc!=null?fmt(acc):'—';
+  // Se ponderata e aritmetica coincidono, si spiega il perché invece di
+  // lasciare il dubbio che il calcolo sia rotto
+  const notaEl=document.getElementById('u-nota-medie');
+  if(notaEl){
+    const nota=notaMedieUni(subjects);
+    notaEl.textContent = nota ? 'ℹ ' + nota : '';
+    notaEl.style.display = nota ? '' : 'none';
+  }
   document.getElementById('u-list').innerHTML=subjects.length?subjects.map(s=>buildUniCard(s)).join(''):'<div style="color:var(--text3);font-family:var(--font-mono);font-size:.75rem;padding:1rem">Nessuna materia universitaria aggiunta.</div>';
 }
 // Chiusa mostra solo il nome della materia; al click si apre e rivela i voti.
