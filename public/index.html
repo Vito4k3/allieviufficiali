@@ -2018,10 +2018,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
           <div class="card"><div class="card-header"><div class="card-title">Storico Voti</div></div><div id="g-history" style="max-height:260px;overflow-y:auto"></div></div>
         </div>
         <div class="tab-panel" id="vtab-universita">
-          <div class="alert alert-info" style="margin-bottom:1rem">🎓 La <strong>Media Universitaria</strong> considera i soli <strong>Esami</strong>, ponderati per i CFU della materia: <code>Σ(voto × CFU) / Σ(CFU)</code>. Gli <strong>Accertamenti</strong> non hanno peso CFU e confluiscono nella <strong>Media Militare</strong>.</div>
+          <div class="alert alert-info" style="margin-bottom:1rem">🎓 La <strong>Media Universitaria</strong> considera i soli <strong>Esami</strong>, ponderati per i <strong>CFU del singolo esame</strong> (quelli che inserisci insieme al voto): <code>Σ(voto × CFU) / Σ(CFU)</code>. Gli <strong>Accertamenti</strong> non hanno peso CFU e confluiscono nella <strong>Media Militare</strong>.</div>
           <div class="grid-3" style="margin-bottom:1.5rem">
             <div class="stat-box top-gold"><div class="stat-value" id="u-weighted">—</div><div class="stat-label">Media Esami (pond. CFU)</div><div class="stat-note">Entra nella Media Finale</div></div>
-            <div class="stat-box top-gold"><div class="stat-value" id="u-arithmetic">—</div><div class="stat-label">Media Esami (arit.)</div><div class="stat-note">Confronto: ignora i CFU</div></div>
+            <div class="stat-box top-gold"><div class="stat-value" id="u-arithmetic">—</div><div class="stat-label">Media Esami (arit.)</div><div class="stat-note">Confronto: ogni esame conta 1</div></div>
             <div class="stat-box top-blue"><div class="stat-value blue" id="u-accert">—</div><div class="stat-label">Media Accertamenti Uni</div><div class="stat-note">Peso uniforme → Media Militare</div></div>
           </div>
           <div id="u-nota-medie" class="alert alert-info" style="display:none;margin-bottom:1rem"></div>
@@ -2203,11 +2203,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
 </div>
 <div class="modal-overlay" id="addSubjModal">
   <div class="modal">
-    <div class="modal-title">Aggiungi Materia</div>
-    <input type="hidden" id="addSubjType">
+    <div class="modal-title" id="addSubjTitle">Aggiungi Materia</div>
+    <input type="hidden" id="addSubjType"><input type="hidden" id="addSubjId">
     <div class="form-group" style="margin-bottom:.8rem"><label>Nome *</label><input type="text" id="addSubjName" placeholder="es. Analisi Matematica"></div>
-    <div class="form-group" style="margin-bottom:.8rem"><label id="addSubjCfuLabel">Crediti CFU</label><input type="number" id="addSubjCredits" value="6" min="0.5" step="0.5"></div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('addSubjModal')">Annulla</button><button class="btn btn-gold" onclick="addSubject()">✓ &nbsp;Aggiungi</button></div>
+    <div class="form-group" style="margin-bottom:.4rem"><label id="addSubjCfuLabel">CFU predefiniti</label><input type="number" id="addSubjCredits" value="6" min="0.5" step="0.5"></div>
+    <div id="addSubjCfuNota" class="alert alert-info" style="margin-bottom:.8rem">ℹ Valore solo <strong>proposto</strong> quando aggiungi un esame: i CFU che contano nella media sono quelli che inserisci <strong>insieme al voto</strong>, esame per esame.</div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('addSubjModal')">Annulla</button><button class="btn btn-gold" id="addSubjSalva" onclick="addSubject()">✓ &nbsp;Aggiungi</button></div>
   </div>
 </div>
 <div class="modal-overlay" id="addGradeModal">
@@ -2219,6 +2220,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
       <div class="form-group"><label id="agWeightLabel">Peso</label><input type="number" id="agWeight" value="1" step="0.5" min="0.5"></div>
       <div class="form-group"><label>Data</label><input type="date" id="agDate"></div>
     </div>
+    <div id="agCfuNota" class="alert alert-info" style="display:none;margin-bottom:.8rem">ℹ I <strong>CFU di questo esame</strong> sono ciò che determina il suo peso nella media ponderata. Correggili se l'esame vale diversamente dal valore proposto.</div>
     <div class="form-group"><label>Descrizione</label><input type="text" id="agDesc" placeholder="es. Esame finale..."></div>
     <div class="modal-footer"><button class="btn" onclick="closeModal('addGradeModal')">Annulla</button><button class="btn btn-gold" onclick="saveGrade()">✓ &nbsp;Aggiungi</button></div>
   </div>

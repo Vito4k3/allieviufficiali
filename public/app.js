@@ -1780,60 +1780,69 @@ function subjAvg(s,gradeType){
 function subjCredits(s){ const c=parseFloat(s.credits); return isNaN(c)?0:c }
 
 // ── Base comune delle due medie universitarie ──────────────────────
-// L'unità di calcolo è LA MATERIA, non il singolo voto: il voto di una
-// materia è la media semplice dei suoi esami (lo stesso numero mostrato
-// come "Media materia" nella scheda), e nella ponderata ogni materia pesa
-// per i propri CFU UNA volta sola.
+// I CFU appartengono ALL'ESAME, non alla materia: quanto vale un esame lo
+// si sa quando lo si sostiene, e due esami della stessa materia possono
+// valere numeri di crediti diversi. Il campo CFU compilato insieme al voto
+// è quindi quello che comanda.
 //
-// Prima l'unità era il singolo voto, pesato per l'intero CFU della materia:
-// una materia con due esami vedeva i propri CFU contati due volte al
-// denominatore, sbilanciando la media e rendendo i "CFU conteggiati"
-// mostrati (che contano ogni materia una volta) incoerenti con il calcolo.
+// Prima il calcolo usava solo i CFU fissati alla creazione della materia e
+// ignorava del tutto il numero inserito con il voto: chi scriveva i crediti
+// veri esame per esame non vedeva cambiare niente, e siccome le materie
+// nascono tutte con lo stesso valore predefinito, ponderata e aritmetica
+// risultavano identiche.
 //
-// Materie senza CFU pesano 1, così i dati storici privi di crediti restano
-// dentro invece di sparire dalla media.
-function votiMaterieUni(subjects){
+// I CFU della materia restano come valore PREDEFINITO (proposto quando si
+// aggiunge un esame) e come ripiego per i voti storici salvati prima che il
+// campo contasse davvero.
+function cfuDiVoto(g, s){
+  const w = Number(g && g.weight);
+  if(!isNaN(w) && w > 0) return w;          // i CFU inseriti con il voto
+  const c = s ? subjCredits(s) : 0;
+  return c > 0 ? c : 1;                     // ripiego: CFU della materia, poi 1
+}
+
+// Elenco piatto degli esami universitari con i propri CFU.
+// L'unità di calcolo è il singolo esame: se una materia ha due esami da 6 e
+// 12 CFU, entrambi entrano con il proprio peso.
+function esamiUni(subjects){
   const out=[];
   (subjects||vdb.subjects.university).forEach(s=>{
-    const voto=subjAvg(s,'exam');
-    if(voto==null) return;
-    const cfu=subjCredits(s);
-    out.push({voto, peso: cfu>0 ? cfu : 1});
+    (s.grades||[]).filter(g=>g.grade_type==='exam').forEach(g=>{
+      if(g.value==null || g.value==='') return;
+      const v=Number(g.value);
+      if(isNaN(v)) return;
+      out.push({voto:v, cfu:cfuDiVoto(g, s)});
+    });
   });
   return out;
 }
 
-// 2 · MEDIA UNIVERSITARIA — solo esami, ponderata per CFU:
-//     Σ(voto materia × CFU) / Σ(CFU), una voce per materia
+// 2 · MEDIA UNIVERSITARIA — solo esami, ponderata per i CFU dell'esame:
+//     Σ(voto × CFU) / Σ(CFU)
 function mediaUniversitaria(subjects){
-  const materie=votiMaterieUni(subjects);
-  if(!materie.length) return null;
-  const totPesi=materie.reduce((a,x)=>a+x.peso,0);
-  if(totPesi<=0) return meanOf(materie.map(x=>x.voto));
-  return materie.reduce((a,x)=>a+x.voto*x.peso,0)/totPesi;
+  const esami=esamiUni(subjects);
+  if(!esami.length) return null;
+  const totCfu=esami.reduce((a,x)=>a+x.cfu,0);
+  if(totCfu<=0) return meanOf(esami.map(x=>x.voto));
+  return esami.reduce((a,x)=>a+x.voto*x.cfu,0)/totCfu;
 }
-// CFU effettivamente conteggiati nella media universitaria
+// CFU conteggiati: è esattamente il denominatore della media ponderata,
+// così il numero mostrato e il calcolo raccontano la stessa storia
 function cfuConteggiati(subjects){
-  return (subjects||vdb.subjects.university)
-    .filter(s=>subjAvg(s,'exam')!=null)
-    .reduce((a,s)=>a+subjCredits(s),0);
+  return esamiUni(subjects).reduce((a,x)=>a+x.cfu,0);
 }
-// Media aritmetica: stessa base (una voce per materia), ma senza pesi.
-// Con CFU tutti uguali le due medie COINCIDONO per matematica: non è un
-// errore, e l'interfaccia lo dice esplicitamente (vedi notaMedieUni).
+// Media aritmetica: stessi esami, ma ogni voto conta uno. I CFU non entrano.
 function mediaUniversitariaArit(subjects){
-  return meanOf(votiMaterieUni(subjects).map(x=>x.voto));
+  return meanOf(esamiUni(subjects).map(x=>x.voto));
 }
 // Spiega perché le due medie coincidono, quando coincidono
 function notaMedieUni(subjects){
-  const materie=votiMaterieUni(subjects);
-  if(materie.length<2) return '';
-  const pesi=new Set(materie.map(x=>x.peso));
-  if(pesi.size===1){
-    const p=[...pesi][0];
-    return p===1
-      ? 'Le materie non hanno CFU: senza pesi le due medie coincidono. Aggiungi i CFU alle materie per vedere la ponderata.'
-      : `Tutte le materie valgono ${p} CFU: con pesi uguali le due medie coincidono per definizione.`;
+  const esami=esamiUni(subjects);
+  if(esami.length<2) return '';
+  const cfu=new Set(esami.map(x=>x.cfu));
+  if(cfu.size===1){
+    return `Tutti gli esami valgono ${[...cfu][0]} CFU: con pesi uguali le due medie coincidono per definizione. `
+         + 'Inserisci i CFU reali di ogni esame (campo CFU accanto al voto) per vederle differire.';
   }
   return '';
 }
@@ -1928,12 +1937,22 @@ function renderGraduatoria(){
 // RENDER TABLE VOTI
 function buildGradeTable(grades,type,subj){
   if(!grades.length) return '<div style="color:var(--text3);font-family:var(--font-mono);font-size:.7rem;padding:.4rem 0">Nessun voto inserito</div>';
-  return `<table class="data-table"><thead><tr><th>Data</th><th>Voto</th><th>Peso</th><th>Descrizione</th><th></th></tr></thead><tbody>
+  // Per gli esami universitari la colonna sono i CFU: chiamarla "Peso"
+  // nascondeva proprio il numero che determina la media ponderata.
+  const colonnaPeso = (type==='university' && grades.some(g=>g.grade_type==='exam')) ? 'CFU' : 'Peso';
+  return `<table class="data-table"><thead><tr><th>Data</th><th>Voto</th><th>${colonnaPeso}</th><th>Descrizione</th><th></th></tr></thead><tbody>
   ${grades.map(g=>`<tr><td>${fmtDate(g.date)}</td><td><span class="badge ${badgeGradeClass(g.value)}">${g.value}</span></td><td style="color:var(--text3)">${g.weight}</td><td style="color:var(--text2)">${escHtml(g.description||'—')}</td><td><button class="btn btn-sm btn-red del-btn" onclick="deleteGrade('${g.id}','${type}')">✕</button></td></tr>`).join('')}
   </tbody></table>
   <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--text2);padding:.5rem .3rem;display:flex;gap:1.5rem;flex-wrap:wrap">
     <span>Media materia: <strong style="color:var(--gold)">${fmt(arAvg(grades))}</strong></span>
-    <span style="color:var(--text3)">${grades.length} voto/i${subj && subjCredits(subj)>0 ? ' · '+subjCredits(subj)+' CFU' : ''}</span>
+    <span style="color:var(--text3)">${grades.length} voto/i${(() => {
+      // Somma dei CFU DAVVERO sostenuti in questa tabella, non il valore
+      // predefinito della materia: è il numero che entra nella ponderata.
+      if(type!=='university') return '';
+      const cfu = grades.filter(g=>g.grade_type==='exam')
+                        .reduce((a,g)=>a+cfuDiVoto(g, subj), 0);
+      return cfu>0 ? ' · '+cfu+' CFU' : '';
+    })()}</span>
   </div>`;
 }
 
@@ -1973,7 +1992,12 @@ function buildUniCard(s){
     </div>
     <div class="uni-subject-panel">
     <div class="uni-subject-header">
-      <div><div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3)">${s.credits} CFU — peso solo sugli esami</div></div>
+      <div>
+        <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--text3)">
+          ${esamiUni([s]).reduce((a,x)=>a+x.cfu,0)} CFU sostenuti · ${subjCredits(s)} predefiniti per nuovi esami
+        </div>
+        <button class="btn btn-sm" style="font-size:.55rem;margin-top:.35rem" onclick="openEditSubjectModal('university','${s.id}')">✎ &nbsp;Modifica materia</button>
+      </div>
       <div style="display:flex;gap:.6rem;font-family:var(--font-mono);font-size:.68rem;color:var(--text2)">
         <span>Esami: <strong style="color:var(--gold)">${exams.length?fmt(arAvg(exams)):'—'}</strong></span>
         <span style="color:var(--text3)">|</span>
@@ -2053,9 +2077,11 @@ function openAddGradeModal(type,subjectId,gradeType){
   document.getElementById('agWeight').value=s.credits||1;
   document.getElementById('agDate').value=today();
   document.getElementById('agDesc').value='';
-  // Il peso entra nella media ponderata; se lasciato al valore proposto
-  // (i CFU della materia) la ponderata pesa per CFU.
-  document.getElementById('agWeightLabel').textContent=type==='university'?'Peso / CFU':'Peso';
+  // Per gli esami universitari questo campo sono i CFU dell'esame, ed è il
+  // valore che pesa nella media ponderata: va detto senza ambiguità.
+  const esameUni = type==='university' && gradeType==='exam';
+  document.getElementById('agWeightLabel').textContent = esameUni ? 'CFU esame *' : 'Peso';
+  document.getElementById('agCfuNota').style.display = esameUni ? '' : 'none';
   openModal('addGradeModal');
 }
 async function saveGrade(){
@@ -2085,9 +2111,30 @@ async function deleteGrade(gradeId,type){
 }
 function openAddSubjectModal(type){
   document.getElementById('addSubjType').value=type;
+  document.getElementById('addSubjId').value='';
+  document.getElementById('addSubjTitle').textContent='Aggiungi Materia';
+  document.getElementById('addSubjSalva').innerHTML='✓ &nbsp;Aggiungi';
   document.getElementById('addSubjName').value='';
   document.getElementById('addSubjCredits').value=type==='university'?6:1;
-  document.getElementById('addSubjCfuLabel').textContent=type==='university'?'Crediti CFU':'Peso (1=normale)';
+  document.getElementById('addSubjCfuLabel').textContent=type==='university'?'CFU predefiniti':'Peso (1=normale)';
+  document.getElementById('addSubjCfuNota').style.display=type==='university'?'':'none';
+  openModal('addSubjModal');
+}
+
+// Modifica di una materia già creata: nome e CFU predefiniti. Prima non
+// esisteva alcun modo di correggerli dall'interfaccia, pur essendo la rotta
+// già pronta lato server.
+function openEditSubjectModal(type,id){
+  const s=vdb.subjects[type].find(x=>x.id===id);
+  if(!s) return;
+  document.getElementById('addSubjType').value=type;
+  document.getElementById('addSubjId').value=id;
+  document.getElementById('addSubjTitle').textContent='Modifica Materia';
+  document.getElementById('addSubjSalva').innerHTML='✓ &nbsp;Salva';
+  document.getElementById('addSubjName').value=s.name||'';
+  document.getElementById('addSubjCredits').value=subjCredits(s)||1;
+  document.getElementById('addSubjCfuLabel').textContent=type==='university'?'CFU predefiniti':'Peso (1=normale)';
+  document.getElementById('addSubjCfuNota').style.display=type==='university'?'':'none';
   openModal('addSubjModal');
 }
 async function addSubject(){
@@ -2095,7 +2142,15 @@ async function addSubject(){
   const name=document.getElementById('addSubjName').value.trim();
   const credits=parseFloat(document.getElementById('addSubjCredits').value)||1;
   if(!name){ toast('Inserisci il nome','err'); return }
+  const idEsistente=document.getElementById('addSubjId').value;
   try {
+    if(idEsistente){
+      await api('PUT','/api/grades/subjects/'+idEsistente,{name,credits});
+      const s=vdb.subjects[type].find(x=>x.id===idEsistente);
+      if(s){ s.name=name; s.credits=credits }
+      closeModal('addSubjModal'); refreshVoti(); toast('Materia aggiornata');
+      return;
+    }
     const id=uid();
     await api('POST','/api/grades/subjects',{id,type,name,credits,anno:annoRegistro});
     vdb.subjects[type].push({id,type,name,credits,grades:[],academic_year:annoRegistro});
@@ -2457,8 +2512,14 @@ async function _emailDopoDiagnostica(erroreInvio, d){
   const alternative = d.aperte.filter(p => p !== d.porta_configurata);
   if(!alternative.length){
     _emailEsito(intestazione
-      + '<strong>Nessuna porta SMTP raggiungibile</strong>: l\'hosting blocca la posta in uscita. '
-      + 'Serve un servizio email che passi da HTTPS (per esempio Brevo o Resend).', 'warn');
+      + '<strong>Nessuna porta SMTP raggiungibile</strong>: l\'hosting blocca la posta in uscita, '
+      + 'e nessuna configurazione SMTP potrà funzionare da qui.<br><br>'
+      + '<strong>Soluzione: invio via HTTPS con Brevo</strong> (gratuito, 300 email/giorno)<br>'
+      + '&nbsp;&nbsp;1. Registrati su <strong>brevo.com</strong><br>'
+      + '&nbsp;&nbsp;2. In <em>Senders &amp; IP</em> aggiungi e conferma il tuo indirizzo mittente<br>'
+      + '&nbsp;&nbsp;3. In <em>SMTP &amp; API → API Keys</em> crea una chiave<br>'
+      + '&nbsp;&nbsp;4. Su Render aggiungi la variabile <strong>BREVO_API_KEY</strong> con quella chiave<br>'
+      + 'Il portale la usa automaticamente al posto dell\'SMTP, e questo tasto tornerà verde.', 'warn');
     return;
   }
   _emailEsito(intestazione + `⏳ La porta ${alternative[0]} risulta aperta: riprovo l'invio da lì…`, 'info');

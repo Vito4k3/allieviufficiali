@@ -1,6 +1,6 @@
 {
   "name": "accademia-modena-system",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Sistema di Gestione Allievi Ufficiali — Accademia Militare di Modena",
   "main": "server.js",
   "scripts": {
