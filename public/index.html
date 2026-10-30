@@ -1642,7 +1642,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
         <div class="form-group"><label>Cognome *</label><input type="text" id="regCognome" placeholder="Rossi"></div>
       </div>
       <div class="form-row-2">
-        <div class="form-group"><label>Password *</label><input type="password" id="regPass" placeholder="min 6 caratteri"></div>
+        <div class="form-group"><label>Password *</label><input type="password" id="regPass" placeholder="min 12 caratteri" autocomplete="new-password"></div>
         <div class="form-group"><label>Conferma *</label><input type="password" id="regPass2" placeholder="••••••••"></div>
       </div>
       <button class="btn btn-gold w-full" style="margin-top:.6rem;justify-content:center;letter-spacing:.12em" onclick="doRegister()">✦ &nbsp;Crea Account</button>
@@ -2305,7 +2305,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
     <div id="npIntro" class="alert alert-info">Imposta la nuova password del tuo account.</div>
     <input type="hidden" id="npToken">
     <div class="form-group"><label>Nuova password *</label>
-      <input type="password" id="npPass" placeholder="min 6 caratteri" autocomplete="new-password"></div>
+      <input type="password" id="npPass" placeholder="min 12 caratteri" autocomplete="new-password"></div>
     <div class="form-group"><label>Conferma password *</label>
       <input type="password" id="npPass2" placeholder="••••••••" autocomplete="new-password"
              onkeydown="if(event.key==='Enter')confermaNuovaPassword()"></div>

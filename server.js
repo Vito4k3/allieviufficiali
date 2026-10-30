@@ -10,7 +10,6 @@ const mysql        = require('mysql2/promise');
 const bcrypt       = require('bcrypt');
 const jwt          = require('jsonwebtoken');
 const cors         = require('cors');
-const cookieParser = require('cookie-parser');
 const crypto       = require('crypto');
 const path         = require('path');
 const excelLU = require('./lib/excel-libere-uscite');
@@ -29,7 +28,12 @@ function errServer(res, e) {
 }
 
 // ── CONFIG ────────────────────────────────────────────────────
-const JWT_SECRET = process.env.JWT_SECRET || 'portale_au_jwt_secret_CAMBIA_IN_PROD';
+const JWT_SECRET = (process.env.JWT_SECRET || '').trim();
+if (process.env.NODE_ENV === 'production' && JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET deve essere configurato in produzione e contenere almeno 32 caratteri casuali.');
+}
+// In sviluppo una chiave casuale evita il segreto noto e non riutilizzabile tra riavvii.
+const CHIAVE_JWT = JWT_SECRET || crypto.randomBytes(48).toString('base64url');
 const PORT       = parseInt(process.env.PORT || '3000');
 const PKG_VERSION = require('./package.json').version;
 
@@ -94,6 +98,10 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (req.path.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
+  }
   if (req.secure) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
@@ -110,7 +118,6 @@ app.use((req, res, next) => {
     return jsonAllegati(req, res, next);
   return jsonNormale(req, res, next);
 });
-app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders(res, filePath) {
     const nome = path.basename(filePath);
@@ -195,11 +202,6 @@ setInterval(() => {
   const ora = Date.now();
   for (const [chiave, rec] of tentativi) if (ora - rec.primoTs > 30 * 60 * 1000) tentativi.delete(chiave);
 }, 10 * 60 * 1000).unref();
-
-// Opzioni cookie di sessione: non leggibile da JS, solo stesso sito, HTTPS in produzione
-function cookieSessione(req) {
-  return { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 7 * 86400 * 1000 };
-}
 
 // ── DB POOL ───────────────────────────────────────────────────
 // db() non restituisce il pool nudo ma un involucro con lo stesso metodo
@@ -644,12 +646,34 @@ async function initDB() {
 }
 
 // ── AUTH MIDDLEWARE ───────────────────────────────────────────
-function auth(req, res, next) {
+async function auth(req, res, next) {
   const header = req.headers.authorization || '';
-  const token  = header.startsWith('Bearer ') ? header.slice(7) : req.cookies.token;
+  // Solo token Bearer: nessuna autenticazione automatica da cookie, che
+  // consentirebbe richieste cross-site senza consenso esplicito del browser.
+  const token  = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!token) return res.status(401).json({ error: 'Non autenticato' });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(token, CHIAVE_JWT, { algorithms: ['HS256'] });
+    // I permessi nel JWT possono diventare obsoleti dopo una revoca. Ricarica
+    // l'identità e i ruoli correnti dal DB a ogni richiesta autenticata:
+    // account eliminati o permessi revocati hanno effetto immediato.
+    const c = await db();
+    const [utenti] = await c.execute(
+      'SELECT id,username,full_name,military_rank,role,can_access_finance,can_access_2compagnia,is_admin FROM users WHERE id=?',
+      [req.user.id]
+    );
+    if (!utenti.length) return res.status(401).json({ error: 'Account non più disponibile' });
+    const u = utenti[0];
+    Object.assign(req.user, {
+      id: u.id,
+      username: u.username,
+      full_name: u.full_name,
+      military_rank: u.military_rank || 'AU',
+      role: u.role || 'none',
+      can_access_finance: !!Number(u.can_access_finance),
+      can_access_2compagnia: !!Number(u.can_access_2compagnia),
+      is_admin: !!Number(u.is_admin)
+    });
     next();
   } catch {
     return res.status(401).json({ error: 'Token non valido o scaduto' });
@@ -708,6 +732,8 @@ app.post('/api/setup', limitaTentativi('setup', 5, QUARTO_DORA), async (req, res
     if (rows[0].n > 0) return res.status(400).json({ error: 'Setup già completato. Usa il login.' });
     const { username, email, password, full_name } = req.body;
     if (!username || !email || !password) return res.status(400).json({ error: 'Campi obbligatori mancanti' });
+    if (String(password).length < 12 || Buffer.byteLength(String(password), 'utf8') > 72)
+      return res.status(400).json({ error: 'La password deve avere almeno 12 caratteri e non superare 72 byte' });
     const hash = await bcrypt.hash(password, 12);
     await c.execute(
       "INSERT INTO users (username,email,password_hash,full_name,is_admin,can_access_finance,can_access_2compagnia,role) VALUES (?,?,?,?,1,1,1,'none')",
@@ -728,8 +754,8 @@ app.post('/api/auth/register', limitaTentativi('registrazione-ip', 40, QUARTO_DO
     return res.status(400).json({ error: 'Username, email e password sono obbligatori' });
   if (!nome?.trim() || !cognome?.trim())
     return res.status(400).json({ error: 'Nome e cognome sono obbligatori' });
-  if (password.length < 6)
-    return res.status(400).json({ error: 'La password deve avere almeno 6 caratteri' });
+  if (password.length < 12)
+    return res.status(400).json({ error: 'La password deve avere almeno 12 caratteri' });
   // bcrypt considera solo i primi 72 byte: oltre, la parte in più non conta
   // e l'utente crederebbe di avere una password più lunga di quella reale
   if (Buffer.byteLength(password, 'utf8') > 72)
@@ -789,8 +815,7 @@ app.post('/api/auth/login',
       can_access_2compagnia:  !!Number(user.can_access_2compagnia),
       is_admin: !!Number(user.is_admin)
     };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('token', token, cookieSessione(req));
+    const token = jwt.sign(payload, CHIAVE_JWT, { expiresIn: '7d', algorithm: 'HS256' });
     // Accesso riuscito: il conto di questo account riparte da zero e il
     // gettone consumato sul tetto per IP viene restituito. Così a pesare sono
     // solo i fallimenti, e una rete condivisa non si esaurisce da sola.
@@ -801,7 +826,6 @@ app.post('/api/auth/login',
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('token');
   res.json({ ok: true });
 });
 
@@ -927,8 +951,10 @@ app.post('/api/auth/password/reset', limitaTentativi('reset-conferma-ip', 60, QU
   const token = String(req.body?.token || '');
   const password = String(req.body?.password || '');
   if (!token) return res.status(400).json({ error: 'Link di reimpostazione mancante' });
-  if (password.length < 6)
-    return res.status(400).json({ error: 'La password deve avere almeno 6 caratteri' });
+  if (password.length < 12)
+    return res.status(400).json({ error: 'La password deve avere almeno 12 caratteri' });
+  if (Buffer.byteLength(password, 'utf8') > 72)
+    return res.status(400).json({ error: 'Password troppo lunga (massimo 72 byte)' });
   try {
     const c = await db();
     const hashToken = impronta(token);
@@ -979,8 +1005,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
       can_access_2compagnia: u.can_access_2compagnia,
       is_admin: u.is_admin
     };
-    const newToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('token', newToken, cookieSessione(req));
+    const newToken = jwt.sign(payload, CHIAVE_JWT, { expiresIn: '7d', algorithm: 'HS256' });
     res.json({ ...u, token: newToken });
   } catch (e) { errServer(res, e); }
 });
@@ -1175,6 +1200,26 @@ app.post('/api/comunicazioni/posts', auth, requireCompagnia, async (req, res) =>
   const { id, title, content, file_name, file_data, file_type } = req.body;
   if (!title?.trim() && !content?.trim())
     return res.status(400).json({ error: 'Inserisci almeno un titolo o un contenuto' });
+  if (String(title || '').length > 200 || String(content || '').length > 20000)
+    return res.status(400).json({ error: 'Titolo o contenuto troppo lungo' });
+  if (file_data != null) {
+    const tipiAmmessi = new Set([
+      'application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain', 'image/png', 'image/jpeg'
+    ]);
+    const nome = String(file_name || '');
+    const dati = String(file_data);
+    const bytes = Buffer.from(dati, 'base64');
+    if (!tipiAmmessi.has(file_type) || nome.length > 255 || /[\\/\r\n\0]/.test(nome)
+        || !/^[A-Za-z0-9+/]*={0,2}$/.test(dati) || dati.length % 4 !== 0
+        || bytes.length > 5 * 1024 * 1024 || bytes.toString('base64') !== dati)
+      return res.status(400).json({ error: 'Allegato non valido o non supportato (massimo 5 MB)' });
+  }
   try {
     const c = await db();
     await c.execute(
@@ -1865,8 +1910,8 @@ app.get('*', (req, res) => {
 // ── START ─────────────────────────────────────────────────────
 app.listen(PORT, async () => {
   console.log(`\n⚔  Portale AU — Server avviato`);
-  if (JWT_SECRET === 'portale_au_jwt_secret_CAMBIA_IN_PROD')
-    console.warn('⚠  ATTENZIONE: JWT_SECRET di default. Imposta la variabile d\'ambiente JWT_SECRET in produzione!');
+  if (!JWT_SECRET)
+    console.warn('⚠  JWT_SECRET non impostato: è stata generata una chiave temporanea, le sessioni scadranno al riavvio.');
   if (!process.env.DB_PASS)
     console.warn('⚠  ATTENZIONE: credenziali database mancanti. Imposta DB_HOST/DB_USER/DB_PASS/DB_NAME come variabili d\'ambiente!');
   if (!mailer.emailConfigurata())

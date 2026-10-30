@@ -546,7 +546,7 @@ async function doRegister(){
   const password2= document.getElementById('regPass2').value;
   if(!username||!email||!nome||!cognome||!password){ showAuthError('Compila tutti i campi obbligatori'); return }
   if(password!==password2){ showAuthError('Le password non coincidono'); return }
-  if(password.length<6){ showAuthError('Password troppo corta (min 6 caratteri)'); return }
+  if(password.length<12){ showAuthError('Password troppo corta (min 12 caratteri)'); return }
   try {
     await api('POST','/api/auth/register',{username,email,password,nome,cognome});
     toast('Account creato! Ora accedi.','info');
@@ -665,7 +665,7 @@ async function confermaNuovaPassword(){
   const token = document.getElementById('npToken').value;
   const p1 = document.getElementById('npPass').value;
   const p2 = document.getElementById('npPass2').value;
-  if(p1.length < 6){ toast('Password troppo corta (min 6 caratteri)','err'); return; }
+  if(p1.length < 12){ toast('Password troppo corta (min 12 caratteri)','err'); return; }
   if(p1 !== p2){ toast('Le password non coincidono','err'); return; }
   const bottone = document.getElementById('npSalva');
   if(bottone.disabled) return;
@@ -944,7 +944,7 @@ function renderComPosts(posts){
       ${p.file_name?`
         <div class="com-post-file">
           <span>📎 ${escHtml(p.file_name)}</span>
-          <button class="btn btn-sm btn-gold" onclick="downloadComFile('${p.id}','${escHtml(p.file_name)}')">⬇ Scarica</button>
+          <button class="btn btn-sm btn-gold com-file-download" data-post-id="${escHtml(p.id)}">⬇ Scarica</button>
         </div>`:''
       }
     </div>`).join('');
@@ -1004,17 +1004,25 @@ async function deleteComPost(id){
   } catch(e){ toast(e.message,'err') }
 }
  
-async function downloadComFile(postId, fileName){
+async function downloadComFile(postId){
   try {
     const data = await api('GET','/api/comunicazioni/posts/'+postId+'/file');
+    const tipiAmmessi = new Set(['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/plain','image/png','image/jpeg']);
+    if(!tipiAmmessi.has(data.file_type) || !/^[^\\/\r\n\0]{1,255}$/.test(data.file_name||''))
+      throw new Error('Allegato non valido');
     const link = document.createElement('a');
     link.href = 'data:'+data.file_type+';base64,'+data.file_data;
-    link.download = fileName;
+    link.download = data.file_name;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   } catch(e){ toast(e.message,'err') }
 }
+
+document.addEventListener('click', e=>{
+  const btn = e.target.closest('.com-file-download');
+  if(btn) downloadComFile(btn.dataset.postId);
+});
  
 // ── LISTE ──────────────────────────────────────────────────────────
 
