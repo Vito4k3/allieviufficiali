@@ -90,7 +90,7 @@ let uniAperte = new Set();
 // Liste di libera uscita: hanno opzioni proprie e un modulo Excel dedicato.
 // Aggiungere un tipo qui e nel registro del server lo abilita ovunque.
 const LISTE_LIBERA_USCITA = [
-  'liberi_sab_pom','liberi_sab_sera','liberi_dom_pom',
+  'liberi_sab_pom','liberi_sab_sera','liberi_dom_mattina','liberi_dom_pom','liberi_dom_sera',
   'salto_pranzo_sab','salto_cena_sab','salto_pranzo_dom','salto_cena_dom'
 ];
 function eLiberaUscita(t){ return LISTE_LIBERA_USCITA.includes(t); }
@@ -104,7 +104,9 @@ function eSaltoPasto(t){ return LISTE_SALTO_PASTO.includes(t); }
 const LIST_LABELS = {
   liberi_sab_pom:   'Liberi Uscenti Sabato Pomeriggio',
   liberi_sab_sera:  'Liberi Uscenti Sabato Sera',
+  liberi_dom_mattina: 'Liberi Uscenti Domenica Mattina',
   liberi_dom_pom:   'Liberi Uscenti Domenica Pomeriggio',
+  liberi_dom_sera:  'Liberi Uscenti Domenica Sera',
   salto_pranzo_sab: 'Salto Pranzo Sabato',
   salto_cena_sab:   'Salto Cena Sabato',
   salto_pranzo_dom: 'Salto Pranzo Domenica',
