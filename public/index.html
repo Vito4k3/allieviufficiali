@@ -1932,16 +1932,19 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
     <!-- ── RAPPORTINI PASTI ── -->
     <div class="page" id="page-rapportini-pasti">
       <div class="page-title">Rapportini <em>Pasti</em></div>
-      <div class="page-desc">Riservato agli amministratori · personale autorizzato della 2ª Compagnia · regole automatiche settimanali; le eccezioni si azzerano quando riapri la data</div>
+      <div class="page-desc">Accesso per gli utenti registrati · ogni esportazione costa 1 credito · gli amministratori gestiscono le variazioni del prospetto</div>
       <div class="card" style="margin-bottom:1rem">
         <div style="display:flex;gap:.8rem;align-items:end;justify-content:space-between;flex-wrap:wrap">
           <div class="form-group" style="margin:0;min-width:190px"><label for="mealDate">Data</label><input type="date" id="mealDate" onchange="cambiaDataPasti(this.value)"></div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap">
             <button class="btn btn-gold" id="mealTabDay" onclick="cambiaVistaPasti('day')">Giornata</button>
             <button class="btn" id="mealTabForecast" onclick="cambiaVistaPasti('forecast')">Previsionale domani</button>
-            <button class="btn" id="mealExportButton" onclick="esportaRapportinoPasti()">⬇ Esporta Excel</button>
+            <span id="mealCreditBalance" class="btn" aria-live="polite">Crediti: …</span>
+            <button class="btn" id="mealBuyCreditsButton" onclick="acquistaCreditiPasti()">1 € · 3 esportazioni</button>
+            <button class="btn btn-gold" id="mealExportButton" onclick="esportaRapportinoPasti()">⬇ Esporta Excel</button>
           </div>
         </div>
+        <div class="text-muted" style="font-size:.68rem;margin-top:.6rem">Acquista un pacchetto da 3 crediti a 1 €; ogni file Excel scaricato consuma 1 credito. PayPal e Apple Pay sono disponibili quando attivati sul conto pagamenti.</div>
       </div>
       <div id="mealCounts" class="grid-3" style="margin-bottom:1rem"></div>
       <div id="mealMessage"></div>

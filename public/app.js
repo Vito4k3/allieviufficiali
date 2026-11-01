@@ -69,6 +69,7 @@ let vdb = {
 };
 let allLists = [], currentListTab = 'custom', openListId = null;
 let mealView = 'day', mealDateValue = '', mealDayData = null, mealForecastData = null;
+let mealCredits = 0, mealPaymentsReady = false;
 let bachecaInterval = null;
 let chatBadgeInterval = null;
 let comChatInterval = null;
@@ -390,10 +391,6 @@ async function refreshCurrentUserThrottled(){
 
 async function showPage(id, link){
   await refreshCurrentUserThrottled();
-  if(id==='rapportini-pasti' && !currentUser?.is_admin){
-    toast('Non hai il permesso per accedere ai Rapportini pasti','err');
-    return;
-  }
   // Blocco accesso sezione 2 Compagnia per utenti non autorizzati
   if(COMPAGNIA_PAGES.includes(id) && !currentUser?.is_admin && !currentUser?.can_access_2compagnia){
     toast('Non hai i permessi per accedere a questa sezione','err');
@@ -789,13 +786,50 @@ async function loadRapportiniPasti(resetOverrides=true){
     // sole eccezioni temporanee, così il reset non può sovrapporsi a un PUT.
     await mealSaveQueue;
     const reset=resetOverrides?'&reset=1':'';
+    const creditiPromise=aggiornaCreditiPasti().catch(()=>{
+      mealCredits=0; mealPaymentsReady=false;
+    });
     const forecast=await api('GET',`/api/rapportini-pasti/previsionale?data=${encodeURIComponent(mealDateValue)}${reset}`);
     const day=await api('GET',`/api/rapportini-pasti?data=${encodeURIComponent(mealDateValue)}${reset}`);
+    await creditiPromise;
     mealDayData=day; mealForecastData=forecast;
     renderMealPage();
   }catch(e){
     box.innerHTML=`<div class="alert alert-warn">${escHtml(e.message)}</div>`;
   }
+}
+async function aggiornaCreditiPasti(){
+  const params=new URLSearchParams(location.search);
+  const pagamento=params.get('pagamento');
+  const sessionId=params.get('session_id');
+  if(pagamento==='successo'&&sessionId){
+    try{
+      let verifica={pending:true};
+      for(let tentativo=0;tentativo<6&&verifica.pending;tentativo++){
+        verifica=await api('GET',`/api/rapportini-pasti/crediti/conferma?session_id=${encodeURIComponent(sessionId)}`);
+        if(verifica.pending) await new Promise(resolve=>setTimeout(resolve,1200));
+      }
+      toast(verifica.pending?'Pagamento in verifica; i crediti appariranno appena confermato':'Pagamento confermato: 3 crediti aggiunti',verifica.pending?'info':'ok');
+      if(verifica.pending) setTimeout(()=>aggiornaCreditiPasti().catch(()=>{}),3000);
+    }catch(e){toast(e.message,'err')}
+    params.delete('pagamento');params.delete('session_id');
+    const query=params.toString();
+    history.replaceState({},'',`${location.pathname}${query?`?${query}`:''}${location.hash}`);
+  }else if(pagamento==='annullato'){
+    toast('Pagamento annullato','err');
+    params.delete('pagamento');
+    const query=params.toString();
+    history.replaceState({},'',`${location.pathname}${query?`?${query}`:''}${location.hash}`);
+  }
+  const info=await api('GET','/api/rapportini-pasti/crediti');
+  mealCredits=Math.max(0,Number(info.credits)||0);
+  mealPaymentsReady=!!info.paymentsReady;
+  const balance=document.getElementById('mealCreditBalance');
+  if(balance) balance.textContent=`Crediti: ${mealCredits}`;
+  const buy=document.getElementById('mealBuyCreditsButton');
+  if(buy){buy.disabled=!mealPaymentsReady;buy.title=mealPaymentsReady?'Acquista 3 esportazioni per 1 €':'Pagamenti in configurazione';}
+  const exp=document.getElementById('mealExportButton');
+  if(exp) exp.disabled=mealCredits<1;
 }
 function cambiaDataPasti(value){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
@@ -810,8 +844,8 @@ function renderMealPage(){
   document.getElementById('mealTabForecast').className=mealView==='forecast'?'btn btn-gold':'btn';
   const canEdit=!!currentUser?.is_admin;
   const exportButton=document.getElementById('mealExportButton');
-  exportButton.disabled=!canEdit;
-  exportButton.title=canEdit?'':'Solo gli amministratori possono usare i rapportini pasti';
+  exportButton.disabled=mealCredits<1;
+  exportButton.title=mealCredits>0?'Consuma 1 credito per scaricare l’Excel':'Acquista crediti per esportare il rapportino';
   if(!data) return;
   const dateLabel=new Date(`${data.date}T12:00:00`).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('mealListTitle').textContent=`${mealView==='forecast'?'Previsionale':'Rapporto'} · ${dateLabel}`;
@@ -824,10 +858,11 @@ function renderMealPage(){
   const noWeekend=weekday>=6;
   const alerts=[];
   if(noWeekend) alerts.push('<div class="alert alert-info" style="margin-bottom:.6rem">Per sabato e domenica non è stata fornita una configurazione settimanale.</div>');
+  if(!mealPaymentsReady) alerts.push('<div class="alert alert-info" style="margin-bottom:.6rem">Pagamenti non ancora configurati: l’acquisto dei crediti sarà disponibile dopo il collegamento del conto Stripe.</div>');
   const people=data.students||[];
   const withoutCourse=people.filter(p=>!p.courseCode).length;
   if(withoutCourse) alerts.push(`<div class="alert alert-info" style="margin-bottom:.6rem">${withoutCourse} allievi non hanno un corso assegnato nel profilo, necessario per applicare l’orario automatico.</div>`);
-  if(!canEdit) alerts.push('<div class="alert alert-warn" style="margin-bottom:1rem">Solo gli amministratori possono accedere e modificare i rapportini.</div>');
+  if(!canEdit) alerts.push('<div class="alert alert-info" style="margin-bottom:1rem">Visualizzazione in sola lettura. Gli amministratori gestiscono le variazioni; puoi esportare il prospetto usando 1 credito.</div>');
   document.getElementById('mealMessage').innerHTML=alerts.join('');
   if(!people.length){ document.getElementById('mealStudents').innerHTML='<div class="text-muted" style="padding:1rem">Nessun allievo AU con accesso alla 2ª Compagnia da inserire nel rapportino.</div>'; return; }
   const groups=new Map();
@@ -886,7 +921,8 @@ function aggiornaPasto(control){
   }).catch(e=>{toast(e.message,'err');document.getElementById('mealSaveState').textContent='Errore di salvataggio';});
 }
 async function esportaRapportinoPasti(){
-  if(!mealDateValue||!currentUser?.is_admin) return;
+  if(!mealDateValue) return;
+  if(mealCredits<1){toast('Acquista il pacchetto da 1 € per 3 esportazioni','err');return}
   const button=document.getElementById('mealExportButton');
   const labelOriginale=button.textContent;
   button.disabled=true;
@@ -895,14 +931,33 @@ async function esportaRapportinoPasti(){
   try{
     await mealSaveQueue;
     const r=await fetch(`${API}/api/rapportini-pasti/export?data=${encodeURIComponent(mealDateValue)}`,{headers:{Authorization:`Bearer ${token}`}});
-    if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.error||'Esportazione non riuscita')}
+    if(!r.ok){let d={};try{d=await r.json()}catch{}if(r.status===402) await aggiornaCreditiPasti();throw new Error(d.error||'Esportazione non riuscita')}
     const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');
     a.href=url;a.download=`RAPPORTINO_PASTI_${mealDateValue}.xlsx`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    const residui=r.headers.get('X-Meal-Report-Credits');
+    if(residui!==null){mealCredits=Math.max(0,Number(residui)||0);document.getElementById('mealCreditBalance').textContent=`Crediti: ${mealCredits}`}
   }catch(e){toast(e.message,'err')}
   finally{
-    button.disabled=false;
+    button.disabled=mealCredits<1;
     button.removeAttribute('aria-busy');
     button.textContent=labelOriginale;
+  }
+}
+
+async function acquistaCreditiPasti(){
+  const button=document.getElementById('mealBuyCreditsButton');
+  if(!mealPaymentsReady){toast('Pagamenti non ancora configurati','err');return}
+  button.disabled=true;
+  const label=button.textContent;
+  button.textContent='⏳ Apertura pagamento…';
+  try{
+    const result=await api('POST','/api/rapportini-pasti/crediti/acquista',{});
+    if(!result.url) throw new Error('Link di pagamento non disponibile');
+    window.location.assign(result.url);
+  }catch(e){
+    toast(e.message,'err');
+    button.disabled=false;
+    button.textContent=label;
   }
 }
 

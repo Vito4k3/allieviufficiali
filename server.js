@@ -110,6 +110,69 @@ app.use((req, res, next) => {
   next();
 });
 
+function verificaFirmaStripe(body, header, secret) {
+  if (!Buffer.isBuffer(body) || !secret || !header) return false;
+  const fields = String(header).split(',').map(v => v.split('=', 2));
+  const timestamp = fields.find(([key]) => key === 't')?.[1];
+  const signatures = fields.filter(([key]) => key === 'v1').map(([, value]) => value);
+  if (!timestamp || !signatures.length || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false;
+  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.`).update(body).digest();
+  return signatures.some(signature => {
+    if (!/^[a-f0-9]{64}$/i.test(signature)) return false;
+    const received = Buffer.from(signature, 'hex');
+    return received.length === expected.length && crypto.timingSafeEqual(received, expected);
+  });
+}
+
+async function accreditaCreditiStripe(session) {
+  if (session?.payment_status !== 'paid'
+      || session.mode !== 'payment'
+      || session.currency !== 'eur'
+      || Number(session.amount_total) !== 100
+      || session.metadata?.purpose !== 'meal_pasti_credit_pack'
+      || Number(session.metadata?.credits) !== 3) return;
+  const userId = Number(session.metadata?.user_id);
+  if (!Number.isInteger(userId) || userId <= 0 || !session.id) return;
+  const c = await db();
+  const connection = await c.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [insert] = await connection.execute(
+      `INSERT IGNORE INTO meal_credit_payments
+       (stripe_session_id,user_id,amount_cents,credits) VALUES (?,?,100,3)`,
+      [session.id, userId]
+    );
+    if (insert.affectedRows) {
+      const [update] = await connection.execute(
+        'UPDATE users SET meal_export_credits=meal_export_credits+3 WHERE id=?', [userId]
+      );
+      if (!update.affectedRows) throw new Error('Utente del pagamento non trovato');
+    }
+    await connection.commit();
+  } catch (e) {
+    try { await connection.rollback(); } catch {}
+    throw e;
+  } finally {
+    connection.release();
+  }
+}
+
+// Stripe richiede il corpo originale per verificare la firma del webhook; la
+// rotta è registrata prima del parser JSON generale.
+app.post('/api/payments/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
+  if (!verificaFirmaStripe(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET))
+    return res.status(400).send('Firma Stripe non valida');
+  try {
+    const event = JSON.parse(req.body.toString('utf8'));
+    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded')
+      await accreditaCreditiStripe(event.data?.object);
+    res.json({ received: true });
+  } catch (e) {
+    console.error('[STRIPE WEBHOOK]', e.stack || e.message);
+    res.status(500).json({ error: 'Elaborazione pagamento non riuscita' });
+  }
+});
+
 // Limite del corpo: 10 MB servono SOLO ai comunicati con allegato. Tenere
 // quel limite su tutte le rotte significava accettare 10 MB anche su un
 // login. Il resto dell'API viaggia con un tetto normale.
@@ -583,6 +646,9 @@ async function initDB() {
     try {
       await c.execute('ALTER TABLE users ADD COLUMN course_code VARCHAR(60) NULL');
     } catch(e) { /* già presente */ }
+    try {
+      await c.execute('ALTER TABLE users ADD COLUMN meal_export_credits INT NOT NULL DEFAULT 0');
+    } catch(e) { /* già presente */ }
     await c.execute('UPDATE users SET company_id=2 WHERE company_id IS NULL OR company_id=0');
 
     await c.execute(`
@@ -593,6 +659,16 @@ async function initDB() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
     await c.execute("INSERT IGNORE INTO meal_companies (id,code,name) VALUES (2,'2cp','2ª Compagnia')");
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS meal_credit_payments (
+        stripe_session_id VARCHAR(191) NOT NULL PRIMARY KEY,
+        user_id INT NOT NULL,
+        amount_cents INT NOT NULL,
+        credits INT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_meal_credit_user (user_id,created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
     await c.execute(`
       CREATE TABLE IF NOT EXISTS meal_weekly_rules (
         company_id INT NOT NULL,
@@ -1930,11 +2006,78 @@ function dataRapporto(req) {
   return value;
 }
 
-app.get('/api/rapportini-pasti', auth, requireAdmin, async (req, res) => {
+app.get('/api/rapportini-pasti/crediti', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute('SELECT meal_export_credits FROM users WHERE id=?', [req.user.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
+    const paymentsReady = !!(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET && process.env.APP_URL);
+    res.json({ credits: Number(rows[0].meal_export_credits || 0), paymentsReady });
+  } catch (e) { errServer(res, e); }
+});
+
+app.post('/api/rapportini-pasti/crediti/acquista', auth, async (req, res) => {
+  const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '').trim();
+  const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+  const appUrl = String(process.env.APP_URL || '').trim().replace(/\/+$/, '');
+  if (!stripeSecret || !webhookSecret || !appUrl)
+    return res.status(503).json({ error: 'Acquisto crediti non ancora configurato' });
+  try {
+    const form = new URLSearchParams();
+    form.set('mode', 'payment');
+    form.set('payment_method_types[0]', 'card');
+    form.set('payment_method_types[1]', 'paypal');
+    form.set('line_items[0][price_data][currency]', 'eur');
+    form.set('line_items[0][price_data][unit_amount]', '100');
+    form.set('line_items[0][price_data][product_data][name]', 'Pacchetto Rapportini pasti · 3 esportazioni');
+    form.set('line_items[0][quantity]', '1');
+    form.set('client_reference_id', String(req.user.id));
+    form.set('metadata[purpose]', 'meal_pasti_credit_pack');
+    form.set('metadata[user_id]', String(req.user.id));
+    form.set('metadata[credits]', '3');
+    form.set('success_url', `${appUrl}/?pagamento=successo&session_id={CHECKOUT_SESSION_ID}`);
+    form.set('cancel_url', `${appUrl}/?pagamento=annullato`);
+    const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${stripeSecret}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form
+    });
+    const session = await response.json();
+    if (!response.ok || !session.url) {
+      console.error('[STRIPE CHECKOUT]', session.error?.message || `HTTP ${response.status}`);
+      return res.status(502).json({ error: 'Non è stato possibile avviare il pagamento. Riprova più tardi.' });
+    }
+    res.json({ url: session.url });
+  } catch (e) { errServer(res, e); }
+});
+
+app.get('/api/rapportini-pasti/crediti/conferma', auth, async (req, res) => {
+  const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '').trim();
+  const sessionId = String(req.query.session_id || '');
+  if (!stripeSecret) return res.status(503).json({ error: 'Pagamenti non configurati' });
+  if (!/^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(sessionId))
+    return res.status(400).json({ error: 'Riferimento pagamento non valido' });
+  try {
+    const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
+      headers: { Authorization: `Bearer ${stripeSecret}` }
+    });
+    const session = await response.json();
+    if (!response.ok) return res.status(502).json({ error: 'Verifica del pagamento non riuscita' });
+    if (Number(session.metadata?.user_id) !== Number(req.user.id))
+      return res.status(403).json({ error: 'Pagamento associato a un altro account' });
+    if (session.payment_status !== 'paid') return res.json({ pending: true });
+    await accreditaCreditiStripe(session);
+    const c = await db();
+    const [rows] = await c.execute('SELECT meal_export_credits FROM users WHERE id=?', [req.user.id]);
+    res.json({ credits: Number(rows[0]?.meal_export_credits || 0) });
+  } catch (e) { errServer(res, e); }
+});
+
+app.get('/api/rapportini-pasti', auth, async (req, res) => {
   try {
     const date = dataRapporto(req);
     const c = await db();
-    if (req.query.reset === '1') {
+    if (req.query.reset === '1' && req.user.is_admin) {
       await resetEccezioniPastoAllaRiapertura(c, Number(req.user.company_id || 2), date);
       await resetEccezioniPastoAllaRiapertura(c, Number(req.user.company_id || 2), date, true);
     }
@@ -1957,11 +2100,11 @@ app.put('/api/rapportini-pasti', auth, requireAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/rapportini-pasti/previsionale', auth, requireAdmin, async (req, res) => {
+app.get('/api/rapportini-pasti/previsionale', auth, async (req, res) => {
   try {
     const date = pasti.giornoSuccessivo(dataRapporto(req));
     const c = await db();
-    if (req.query.reset === '1')
+    if (req.query.reset === '1' && req.user.is_admin)
       await resetEccezioniPastoAllaRiapertura(c, Number(req.user.company_id || 2), date, true);
     res.json(await preparaVociPasto(c, Number(req.user.company_id || 2), date, true));
   } catch (e) {
@@ -1983,7 +2126,7 @@ app.put('/api/rapportini-pasti/previsionale', auth, requireAdmin, async (req, re
   }
 });
 
-app.get('/api/rapportini-pasti/export', auth, requireAdmin, async (req, res) => {
+app.get('/api/rapportini-pasti/export', auth, async (req, res) => {
   try {
     const date = dataRapporto(req);
     const nextDate = pasti.giornoSuccessivo(date);
@@ -1992,6 +2135,14 @@ app.get('/api/rapportini-pasti/export', auth, requireAdmin, async (req, res) => 
     const day = await preparaVociPasto(c, companyId, date);
     const forecast = await preparaVociPasto(c, companyId, nextDate, true);
     const file = await excelPasti.compilaRapportino({ date, students: day.students, forecast: forecast.students });
+    const [debit] = await c.execute(
+      'UPDATE users SET meal_export_credits=meal_export_credits-1 WHERE id=? AND meal_export_credits>0',
+      [req.user.id]
+    );
+    if (!debit.affectedRows)
+      return res.status(402).json({ error: 'Non hai crediti sufficienti. Acquista il pacchetto da 1 € per 3 esportazioni.' });
+    const [balance] = await c.execute('SELECT meal_export_credits FROM users WHERE id=?', [req.user.id]);
+    res.setHeader('X-Meal-Report-Credits', String(Number(balance[0]?.meal_export_credits || 0)));
     const filename = `RAPPORTINO_PASTI_${date}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
