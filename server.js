@@ -2025,8 +2025,6 @@ app.post('/api/rapportini-pasti/crediti/acquista', auth, async (req, res) => {
   try {
     const form = new URLSearchParams();
     form.set('mode', 'payment');
-    form.set('payment_method_types[0]', 'card');
-    form.set('payment_method_types[1]', 'paypal');
     form.set('line_items[0][price_data][currency]', 'eur');
     form.set('line_items[0][price_data][unit_amount]', '100');
     form.set('line_items[0][price_data][product_data][name]', 'Pacchetto Rapportini pasti · 3 esportazioni');
