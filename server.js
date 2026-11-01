@@ -731,8 +731,17 @@ async function auth(req, res, next) {
   // consentirebbe richieste cross-site senza consenso esplicito del browser.
   const token  = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!token) return res.status(401).json({ error: 'Non autenticato' });
+
+  // Solo gli errori di firma/scadenza del JWT devono essere mostrati come
+  // token non valido. Gli errori di connessione o query al DB sono errori
+  // server e vanno registrati come tali.
   try {
     req.user = jwt.verify(token, CHIAVE_JWT, { algorithms: ['HS256'] });
+  } catch {
+    return res.status(401).json({ error: 'Token non valido o scaduto' });
+  }
+
+  try {
     // I permessi nel JWT possono diventare obsoleti dopo una revoca. Ricarica
     // l'identità e i ruoli correnti dal DB a ogni richiesta autenticata:
     // account eliminati o permessi revocati hanno effetto immediato.
@@ -756,9 +765,7 @@ async function auth(req, res, next) {
       course_code: u.course_code || ''
     });
     next();
-  } catch {
-    return res.status(401).json({ error: 'Token non valido o scaduto' });
-  }
+  } catch (e) { errServer(res, e); }
 }
 
 function requireFinance(req, res, next) {
@@ -2195,17 +2202,17 @@ app.get('*', (req, res) => {
 });
 
 // ── START ─────────────────────────────────────────────────────
-app.listen(PORT, async () => {
-  console.log(`\n⚔  Portale AU — Server avviato`);
+async function avviaServer() {
   if (!JWT_SECRET)
     console.warn('⚠  JWT_SECRET non impostato: è stata generata una chiave temporanea, le sessioni scadranno al riavvio.');
   if (!process.env.DB_PASS)
     console.warn('⚠  ATTENZIONE: credenziali database mancanti. Imposta DB_HOST/DB_USER/DB_PASS/DB_NAME come variabili d\'ambiente!');
   if (!mailer.emailConfigurata())
     console.warn('⚠  Recupero password: SMTP non configurato. Imposta SMTP_USER e SMTP_PASS per l\'invio delle email.');
-  console.log(`   URL:  http://localhost:${PORT}`);
-  console.log(`   DB:   ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}\n`);
+  console.log(`   Avvio: http://localhost:${PORT}`);
+  console.log(`   DB:    ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}`);
   await initDB();
+  app.listen(PORT, () => console.log(`⚔  Portale AU — Server avviato sulla porta ${PORT}\n`));
 
   // Sonda SMTP all'avvio: scrive nei log quali porte del server di posta sono
   // raggiungibili da QUESTO ambiente. Così la risposta a "l'hosting blocca la
@@ -2232,4 +2239,9 @@ app.listen(PORT, async () => {
         console.warn(`   SMTP: la porta configurata ${d.porta_configurata} è chiusa, ma la ${d.aperte[0]} è aperta — l'invio ripiegherà da solo, oppure imposta SMTP_PORT=${d.aperte[0]}.`);
     }).catch(e => console.warn('   SMTP: sonda non riuscita —', e.message));
   }
+}
+
+avviaServer().catch(e => {
+  console.error('   Avvio server non riuscito:', e.stack || e.message);
+  process.exitCode = 1;
 });
