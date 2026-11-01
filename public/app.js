@@ -961,6 +961,16 @@ async function acquistaCreditiPasti(){
   }
 }
 
+// Quando si torna dal Checkout con il tasto Indietro, il browser può
+// ripristinare la pagina dalla cache con il pulsante ancora in caricamento.
+window.addEventListener('pageshow',()=>{
+  const button=document.getElementById('mealBuyCreditsButton');
+  if(!button) return;
+  button.textContent='1 € · 3 esportazioni';
+  button.disabled=!mealPaymentsReady;
+  button.removeAttribute('aria-busy');
+});
+
 // ── BACHECA + POLLING ──────────────────────────────────────────────
 function startBachecaPolling(){
   stopBachecaPolling();
