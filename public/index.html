@@ -1700,6 +1700,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
         <a class="sb-link" onclick="showPage('comunicazioni',this);closeDrawer()"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
         <a class="sb-link" onclick="showPage('voti',this);closeDrawer()"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
         <a class="sb-link" onclick="showPage('liste',this);closeDrawer()"><span class="sb-icon">📋</span>Liste</a>
+        <a class="sb-link" onclick="showPage('rapportini-pasti',this);closeDrawer()"><span class="sb-icon">🍽</span>Rapportini pasti</a>
         <a class="sb-link" onclick="showPage('calendario',this);closeDrawer()"><span class="sb-icon">📅</span>Calendario</a>
       </nav>
       <div class="sb-section" id="drawer-section-strumenti">Strumenti</div>
@@ -1749,6 +1750,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
         <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
         <a class="sb-link" onclick="showPage('voti',this)"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
         <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
+        <a class="sb-link" onclick="showPage('rapportini-pasti',this)"><span class="sb-icon">🍽</span>Rapportini pasti</a>
         <a class="sb-link" onclick="showPage('calendario',this)"><span class="sb-icon">📅</span>Calendario</a>
       </nav>
       <div class="sb-section" id="sb-section-strumenti">Strumenti</div>
@@ -1806,6 +1808,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
             <div style="font-family:var(--font-m);font-size:.52rem;color:var(--text3);margin-top:.2rem">Assegnato automaticamente — non modificabile dall'utente</div>
           </div>
           <div class="form-group"><label>Reparto / Plotone</label><input type="text" id="prof-platoon" placeholder="es. 3° Plotone Alpha"></div>
+        </div>
+        <div class="form-group"><label>Corso di laurea</label>
+          <select id="prof-course">
+            <option value="">Seleziona il corso</option>
+            <option value="TRAMAT">Meccanica / TRAMAT</option>
+            <option value="MECCANICA">Meccanica</option>
+            <option value="INFORMATICA">Informatica</option>
+            <option value="TCL.">Telecomunicazioni</option>
+            <option value="ELETTRONICA">Elettronica</option>
+            <option value="CIVILE">Civile</option>
+          </select>
         </div>
         <div class="form-group"><label>Anno di Corso</label>
           <select id="prof-year"><option>1° Anno</option><option>2° Anno</option><option>3° Anno</option><option>4° Anno</option><option>5° Anno</option></select>
@@ -1914,6 +1927,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
         <button class="btn btn-gold" onclick="createList()">✓ &nbsp;Crea Lista</button>
       </div>
       <div id="list-content"><div class="caricamento">Caricamento</div></div>
+    </div>
+
+    <!-- ── RAPPORTINI PASTI ── -->
+    <div class="page" id="page-rapportini-pasti">
+      <div class="page-title">Rapportini <em>Pasti</em></div>
+      <div class="page-desc">Pasti della 2ª Compagnia · configurazione settimanale, riposi e previsionali</div>
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;gap:.8rem;align-items:end;justify-content:space-between;flex-wrap:wrap">
+          <div class="form-group" style="margin:0;min-width:190px"><label for="mealDate">Data</label><input type="date" id="mealDate" onchange="cambiaDataPasti(this.value)"></div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-gold" id="mealTabDay" onclick="cambiaVistaPasti('day')">Giornata</button>
+            <button class="btn" id="mealTabForecast" onclick="cambiaVistaPasti('forecast')">Previsionale domani</button>
+            <button class="btn" id="mealExportButton" onclick="esportaRapportinoPasti()">⬇ Esporta Excel</button>
+          </div>
+        </div>
+      </div>
+      <div id="mealCounts" class="grid-3" style="margin-bottom:1rem"></div>
+      <div id="mealMessage"></div>
+      <div class="card" style="overflow:hidden">
+        <div class="card-header"><div class="card-title" id="mealListTitle">Allievi</div><div id="mealSaveState" class="text-muted" style="font-size:.75rem"></div></div>
+        <div id="mealStudents"><div class="caricamento">Seleziona una data</div></div>
+      </div>
     </div>
 
     <!-- ── STRUMENTI (indice) ── -->

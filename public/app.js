@@ -11,6 +11,7 @@ const DOC_TITLE_APP = 'Portale AU';
 const DOC_TITLE_PUBLIC = 'Portale Allievi Ufficiali';
 const SECTION_DOC_TITLES = {
   bacheca:'Bacheca annunci', comunicazioni:'Comunicazioni', calendario:'Calendario', liste:'Liste',
+  'rapportini-pasti':'Rapportini pasti',
   strumenti:'Strumenti', 'strumento-locked':'Strumento bloccato',
   finanze:'Gestione finanze', voti:'Voti e registro', profilo:'Profilo', admin:'Gestione utenti'
 };
@@ -67,6 +68,7 @@ let vdb = {
   settings: { weight_uni:50, weight_acad:50, weight_gym:50, weight_mil:50, pen_consegna_rate:0.5 }
 };
 let allLists = [], currentListTab = 'custom', openListId = null;
+let mealView = 'day', mealDateValue = '', mealDayData = null, mealForecastData = null;
 let bachecaInterval = null;
 let chatBadgeInterval = null;
 let comChatInterval = null;
@@ -374,7 +376,7 @@ function stopChatBadgePolling(){
 // ─────────────────────────────────────────────────────────────────
 
 // Pagine che restano dentro lo schedario "2 Compagnia" (finanze è passata a Strumenti)
-const COMPAGNIA_PAGES = ['comunicazioni','liste','calendario','voti'];
+const COMPAGNIA_PAGES = ['comunicazioni','liste','calendario','voti','rapportini-pasti'];
 
 // Il rinfresco dei permessi non serve a OGNI click: una richiesta e una nuova
 // firma del token per ogni cambio pagina erano puro rumore. 30 secondi di
@@ -422,6 +424,7 @@ async function showPage(id, link){
   if(id==='admin')          loadAdminUsers();
   if(id==='comunicazioni')  loadComunicazioni();
   if(id==='calendario')    loadCalendario();
+  if(id==='rapportini-pasti') loadRapportiniPasti();
   if(id==='profilo')        loadProfile();
 }
 
@@ -709,6 +712,7 @@ async function loadProfile(){
   document.getElementById('prof-rank-display').textContent = currentUser.military_rank||'AU';
   document.getElementById('prof-platoon').value  = currentUser.platoon||'';
   document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
+  document.getElementById('prof-course').value   = currentUser.course_code||'';
   const has2c = userHasPerm('can_access_2compagnia');
   document.getElementById('prof-perm-2comp').textContent  = has2c ? '✓ Abilitato' : '✗ Non abilitato';
   document.getElementById('prof-perm-2comp').className    = 'perm-indicator '+(has2c?'perm-ok':'perm-no');
@@ -740,14 +744,139 @@ async function saveProfile(){
   const cognome       = document.getElementById('prof-cognome').value.trim();
   const platoon       = document.getElementById('prof-platoon').value.trim();
   const academic_year = document.getElementById('prof-year').value;
+  const course_code   = document.getElementById('prof-course').value;
   if(!nome || !cognome){ toast('Nome e cognome obbligatori','err'); return; }
   try {
-    await api('PUT','/api/profile',{nome,cognome,platoon,academic_year});
+    await api('PUT','/api/profile',{nome,cognome,platoon,academic_year,course_code});
     const full_name = `${nome} ${cognome}`;
-    Object.assign(currentUser, {nome,cognome,full_name,platoon,academic_year});
+    Object.assign(currentUser, {nome,cognome,full_name,platoon,academic_year,course_code});
     applyPermissions();
     toast('Profilo aggiornato');
   } catch(e){ toast(e.message,'err') }
+}
+
+// ── RAPPORTINI PASTI ────────────────────────────────────────────────
+let mealSaveQueue = Promise.resolve();
+function dataLocaleISO(d=new Date()){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function mealDataCorrente(){ return mealView==='day' ? mealDayData : mealForecastData; }
+function pastoLabel(type){
+  return ({servito:'Servito',sacchetto:'Sacchetto',self:'Self',buono_pasto:'Buono pasto'})[type]||'Da definire';
+}
+function mealTotals(data, meal){
+  const counts={servito:0,sacchetto:0,self:0,buono_pasto:0};
+  (data?.students||[]).forEach(s=>{ const t=s.meals?.[meal]?.type; if(t in counts) counts[t]++; });
+  return counts;
+}
+async function loadRapportiniPasti(){
+  const input=document.getElementById('mealDate');
+  if(!mealDateValue) mealDateValue=dataLocaleISO();
+  if(input) input.value=mealDateValue;
+  const box=document.getElementById('mealStudents');
+  box.innerHTML='<div class="caricamento">Caricamento dei pasti…</div>';
+  document.getElementById('mealMessage').innerHTML='';
+  try{
+    const [day,forecast]=await Promise.all([
+      api('GET',`/api/rapportini-pasti?data=${encodeURIComponent(mealDateValue)}`),
+      api('GET',`/api/rapportini-pasti/previsionale?data=${encodeURIComponent(mealDateValue)}`)
+    ]);
+    mealDayData=day; mealForecastData=forecast;
+    renderMealPage();
+  }catch(e){
+    box.innerHTML=`<div class="alert alert-warn">${escHtml(e.message)}</div>`;
+  }
+}
+function cambiaDataPasti(value){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+  mealDateValue=value; mealDayData=null; mealForecastData=null; loadRapportiniPasti();
+}
+function cambiaVistaPasti(view){
+  mealView=view==='forecast'?'forecast':'day'; renderMealPage();
+}
+function renderMealPage(){
+  const data=mealDataCorrente();
+  document.getElementById('mealTabDay').className=mealView==='day'?'btn btn-gold':'btn';
+  document.getElementById('mealTabForecast').className=mealView==='forecast'?'btn btn-gold':'btn';
+  const canEdit=canWriteCom();
+  const exportButton=document.getElementById('mealExportButton');
+  exportButton.disabled=!canEdit;
+  exportButton.title=canEdit?'':'Solo il personale responsabile può esportare il rapportino';
+  if(!data) return;
+  const dateLabel=new Date(`${data.date}T12:00:00`).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('mealListTitle').textContent=`${mealView==='forecast'?'Previsionale':'Rapporto'} · ${dateLabel}`;
+  document.getElementById('mealSaveState').textContent='';
+  document.getElementById('mealCounts').innerHTML=['colazione','pranzo','cena'].map(meal=>{
+    const c=mealTotals(data,meal);
+    return `<div class="stat-box"><div class="stat-label">${meal[0].toUpperCase()+meal.slice(1)}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:.28rem;margin-top:.5rem;font-family:var(--font-m);font-size:.66rem"><span>Servito <strong>${c.servito}</strong></span><span>Sacchetto <strong>${c.sacchetto}</strong></span><span>Self <strong>${c.self}</strong></span><span>Buoni <strong>${c.buono_pasto}</strong></span></div></div>`;
+  }).join('');
+  const weekday=data.weekday;
+  const noWeekend=weekday>=6;
+  const alerts=[];
+  if(noWeekend) alerts.push('<div class="alert alert-info" style="margin-bottom:.6rem">Per sabato e domenica non è stata fornita una configurazione settimanale.</div>');
+  if(!canEdit) alerts.push('<div class="alert alert-warn" style="margin-bottom:1rem">Visualizzazione in sola lettura. Solo il personale responsabile può modificare ed esportare i rapportini.</div>');
+  document.getElementById('mealMessage').innerHTML=alerts.join('');
+  const people=data.students||[];
+  if(!people.length){ document.getElementById('mealStudents').innerHTML='<div class="text-muted" style="padding:1rem">Nessun allievo AU associato a questa compagnia.</div>'; return; }
+  const groups=new Map();
+  people.forEach(p=>{if(!groups.has(p.course))groups.set(p.course,[]);groups.get(p.course).push(p)});
+  const meals=['colazione','pranzo','cena'];
+  const optionsFor=meal=>['servito','sacchetto','self',...(meal==='pranzo'?['buono_pasto']:[])];
+  const renderMeal=(student,meal)=>{
+    const value=student.meals[meal]||{};
+    const opts=optionsFor(meal).map(t=>`<option value="${t}" ${value.type===t?'selected':''}>${pastoLabel(t)}</option>`).join('');
+    const note=value.serviceTime?`<div style="color:var(--amber-l);font-size:.62rem;margin-top:.15rem">Anticipo ${escHtml(value.serviceTime)}</div>`:'';
+    const extra=value.note?`<div class="text-muted" style="font-size:.62rem;margin-top:.15rem">${escHtml(value.note)}</div>`:'';
+    return `<div style="min-width:116px"><select aria-label="${mealLabel(meal)} per ${escHtml(student.name)}" data-user="${student.id}" data-meal="${meal}" data-kind="type" onchange="aggiornaPasto(this)" ${canEdit?'':'disabled'} style="width:100%;padding:.4rem;font-size:.72rem"><option value="">Da definire</option>${opts}</select><label style="display:flex;align-items:center;gap:.3rem;color:var(--text2);font-size:.65rem;margin-top:.25rem"><input type="checkbox" data-user="${student.id}" data-meal="${meal}" data-kind="rest" ${value.atRest?'checked':''} ${canEdit?'':'disabled'} onchange="aggiornaPasto(this)"> A riposo</label>${note}${extra}</div>`;
+  };
+  let html='<div style="overflow-x:auto"><div style="min-width:680px"><div style="display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(125px,1fr));gap:.6rem;padding:.55rem;border-bottom:1px solid var(--border2);font-size:.65rem;color:var(--text3);font-family:var(--font-m)"><div>ALLIEVO</div><div>COLAZIONE</div><div>PRANZO</div><div>CENA</div></div>';
+  for(const [course,roster] of groups){
+    html+=`<div style="padding:.45rem .55rem;color:var(--gold);font-family:var(--font-m);font-size:.68rem;border-bottom:1px solid var(--border)">${escHtml(course)} <span style="color:var(--text3)">· ${roster.length}</span></div>`;
+    for(const p of roster){
+      html+=`<div style="display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(125px,1fr));gap:.6rem;align-items:center;padding:.62rem .55rem;border-bottom:1px solid var(--border)"><div style="font-size:.9rem">${escHtml(p.name)}<div style="font-size:.62rem;color:var(--text3);font-family:var(--font-m)">${escHtml(p.courseCode||'Corso da assegnare')}${!p.courseCode?' · <a href="#" onclick="showPage(\'profilo\',null);return false">Imposta nel profilo</a>':''}</div></div>${meals.map(m=>renderMeal(p,m)).join('')}</div>`;
+    }
+  }
+  html+='</div></div>';
+  document.getElementById('mealStudents').innerHTML=html;
+  // Assegna il valore dopo aver costruito i select, per gestire anche il valore vuoto.
+  document.querySelectorAll('#mealStudents select[data-kind="type"]').forEach(el=>{
+    const p=people.find(x=>String(x.id)===el.dataset.user);
+    if(p) el.value=p.meals[el.dataset.meal]?.type||'';
+  });
+}
+function mealLabel(meal){ return meal[0].toUpperCase()+meal.slice(1); }
+function aggiornaPasto(control){
+  const data=mealDataCorrente(); if(!data) return;
+  const student=data.students.find(p=>String(p.id)===control.dataset.user);
+  if(!student) return;
+  const meal=control.dataset.meal, current=student.meals[meal];
+  if(control.dataset.kind==='rest'){
+    current.atRest=control.checked;
+    current.type=control.checked?'sacchetto':(current.defaultType||'');
+  }else{
+    current.type=control.value||null;
+    current.atRest=false;
+  }
+  renderMealPage();
+  const entry={userId:student.id,meal,type:current.type||null,atRest:current.atRest};
+  const endpoint=mealView==='forecast'?'/api/rapportini-pasti/previsionale':'/api/rapportini-pasti';
+  const payload=mealView==='forecast'
+    ? {forecastDate:data.date,entries:[entry]}
+    : {data:data.date,entries:[entry]};
+  const state=document.getElementById('mealSaveState');
+  state.textContent='Salvataggio…';
+  mealSaveQueue=mealSaveQueue.then(()=>api('PUT',endpoint,payload)).then(()=>{
+    if(mealDataCorrente()?.date===data.date) document.getElementById('mealSaveState').textContent='Salvato';
+  }).catch(e=>{toast(e.message,'err');document.getElementById('mealSaveState').textContent='Errore di salvataggio';});
+}
+async function esportaRapportinoPasti(){
+  if(!mealDateValue||!canWriteCom()) return;
+  try{
+    const r=await fetch(`${API}/api/rapportini-pasti/export?data=${encodeURIComponent(mealDateValue)}`,{headers:{Authorization:`Bearer ${token}`}});
+    if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.error||'Esportazione non riuscita')}
+    const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=`RAPPORTINO_PASTI_${mealDateValue}.xlsx`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  }catch(e){toast(e.message,'err')}
 }
 
 // ── BACHECA + POLLING ──────────────────────────────────────────────

@@ -18,6 +18,7 @@ Il progetto unisce sviluppo full stack e attenzione ai flussi d’uso: gli acces
 - **Liste:** iscrizioni a liste di reparto, libere uscite, messa, parlatorio e liste personalizzate; esportazione Excel delle libere uscite con gli iscritti riuniti per giornata.
 - **Registro:** voti universitari, militari e di ginnastica, medie e graduatoria, punizioni, orario e note, organizzati per anno di corso.
 - **Calendario:** consultazione e gestione degli eventi.
+- **Rapportini pasti:** configurazione automatica per giorno e corso, correzioni per i riposi, previsionale del giorno successivo e generazione Excel dal modello della compagnia.
 - **Finanze personali:** registrazione e riepilogo di entrate, spese, investimenti e ricavi, con grafici e storico.
 - **Amministrazione:** gestione degli account, dei ruoli e dei permessi di accesso alle sezioni.
 - **Esperienza mobile:** interfaccia responsive e installabile come Progressive Web App; le risorse essenziali dell’interfaccia possono essere disponibili anche offline.
