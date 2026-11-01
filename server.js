@@ -640,13 +640,20 @@ async function initDB() {
         KEY idx_meal_forecast_date (company_id,forecast_date)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+    // Elettronica e Telecomunicazioni condividono la stessa frequenza delle
+    // lezioni: elimina le vecchie righe separate e ricrea la regola comune.
+    await c.execute(
+      "DELETE FROM meal_weekly_rules WHERE company_id=2 AND course_code IN ('elettronica','telecomunicazioni')"
+    );
     for (let i = 0; i < pasti.REGOLE_INIZIALI.length; i += 50) {
       const batch = pasti.REGOLE_INIZIALI.slice(i, i + 50);
       const placeholders = batch.map(() => '(2,?,?,?,?,?,?)').join(',');
       await c.execute(
-        `INSERT IGNORE INTO meal_weekly_rules
+        `INSERT INTO meal_weekly_rules
          (company_id,weekday,course_code,meal,meal_type,service_time,note)
-         VALUES ${placeholders}`,
+         VALUES ${placeholders}
+         ON DUPLICATE KEY UPDATE meal_type=VALUES(meal_type),
+           service_time=VALUES(service_time),note=VALUES(note)`,
         batch.flatMap(r => [r.weekday, r.course, r.meal, r.mealType, r.serviceTime, r.note])
       );
     }
@@ -797,8 +804,8 @@ function requireCompagnia(req, res, next) {
 function labelCorsoPasti(corso) {
   const c = pasti.corsoNormalizzato(corso);
   if (c === pasti.CORSI.MECCANICA_TRAMAT) return 'Meccanica / TRAMAT';
-  if (c === pasti.CORSI.INFORMATICA || c === pasti.CORSI.TELECOMUNICAZIONI) return 'Informatica / Telecomunicazioni';
-  if (c === pasti.CORSI.ELETTRONICA) return 'Elettronica';
+  if (c === pasti.CORSI.INFORMATICA) return 'Informatica';
+  if (c === pasti.CORSI.ELETTRONICA_TELECOMUNICAZIONI) return 'Elettronica / Telecomunicazioni';
   if (c === pasti.CORSI.CIVILE) return 'Civile';
   return 'Corso da assegnare';
 }
@@ -809,9 +816,9 @@ async function preparaVociPasto(c, companyId, data, forecast = false) {
   const colonnaData = forecast ? 'forecast_date' : 'report_date';
   const [users] = await c.execute(
     `SELECT id,username,full_name,nome,cognome,military_rank,course_code
-     FROM users WHERE company_id=?
+     FROM users WHERE company_id=? AND can_access_2compagnia=1
        AND UPPER(TRIM(COALESCE(military_rank,'AU'))) IN ('AU','A.U.')
-     ORDER BY course_code,cognome,nome,full_name`,
+     ORDER BY cognome,nome,full_name,course_code`,
     [companyId]
   );
   const [rules] = weekday <= 5
@@ -843,9 +850,14 @@ async function preparaVociPasto(c, companyId, data, forecast = false) {
     const batch = insertRows.slice(i, i + 50);
     const placeholders = batch.map(() => '(?,?,?,?,?,?,?,?,?)').join(',');
     await c.execute(
-      `INSERT IGNORE INTO ${nomeTabella}
+      `INSERT INTO ${nomeTabella}
         (company_id,${colonnaData},user_id,meal,default_type,meal_type,service_time,at_rest,note)
-       VALUES ${placeholders}`,
+       VALUES ${placeholders}
+       ON DUPLICATE KEY UPDATE
+         default_type=VALUES(default_type),
+         meal_type=IF(at_rest=1,'sacchetto',IF(updated_by IS NULL,VALUES(meal_type),meal_type)),
+         service_time=VALUES(service_time),
+         note=IF(updated_by IS NULL,VALUES(note),note)`,
       batch.flat()
     );
   }
@@ -933,11 +945,6 @@ const ROLES_WITH_COM_WRITE = ['allievo_servizio', 'capo_compagnia', 'vice_capo_c
 
 function canWriteComunicazioni(user) {
   return user.is_admin || ROLES_WITH_COM_WRITE.includes(user.role);
-}
-
-function requireResponsabilePasti(req, res, next) {
-  if (canWriteComunicazioni(req.user)) return next();
-  return res.status(403).json({ error: 'Solo il personale responsabile può modificare i rapportini pasti' });
 }
 
 // ── SETUP ─────────────────────────────────────────────────────
@@ -1912,7 +1919,7 @@ function dataRapporto(req) {
   return value;
 }
 
-app.get('/api/rapportini-pasti', auth, requireCompagnia, async (req, res) => {
+app.get('/api/rapportini-pasti', auth, requireAdmin, async (req, res) => {
   try {
     const date = dataRapporto(req);
     const c = await db();
@@ -1923,7 +1930,7 @@ app.get('/api/rapportini-pasti', auth, requireCompagnia, async (req, res) => {
   }
 });
 
-app.put('/api/rapportini-pasti', auth, requireCompagnia, requireResponsabilePasti, async (req, res) => {
+app.put('/api/rapportini-pasti', auth, requireAdmin, async (req, res) => {
   try {
     const date = dataRapporto(req);
     const c = await db();
@@ -1935,7 +1942,7 @@ app.put('/api/rapportini-pasti', auth, requireCompagnia, requireResponsabilePast
   }
 });
 
-app.get('/api/rapportini-pasti/previsionale', auth, requireCompagnia, async (req, res) => {
+app.get('/api/rapportini-pasti/previsionale', auth, requireAdmin, async (req, res) => {
   try {
     const date = pasti.giornoSuccessivo(dataRapporto(req));
     const c = await db();
@@ -1946,7 +1953,7 @@ app.get('/api/rapportini-pasti/previsionale', auth, requireCompagnia, async (req
   }
 });
 
-app.put('/api/rapportini-pasti/previsionale', auth, requireCompagnia, requireResponsabilePasti, async (req, res) => {
+app.put('/api/rapportini-pasti/previsionale', auth, requireAdmin, async (req, res) => {
   try {
     const date = req.body?.forecastDate;
     if (!pasti.dataISOValida(date)) throw Object.assign(new Error('Data previsionale non valida'), { status: 400 });
@@ -1959,7 +1966,7 @@ app.put('/api/rapportini-pasti/previsionale', auth, requireCompagnia, requireRes
   }
 });
 
-app.get('/api/rapportini-pasti/export', auth, requireCompagnia, requireResponsabilePasti, async (req, res) => {
+app.get('/api/rapportini-pasti/export', auth, requireAdmin, async (req, res) => {
   try {
     const date = dataRapporto(req);
     const nextDate = pasti.giornoSuccessivo(date);
@@ -1976,6 +1983,25 @@ app.get('/api/rapportini-pasti/export', auth, requireCompagnia, requireResponsab
     if (e.status) return res.status(e.status).json({ error: e.message });
     errServer(res, e);
   }
+});
+
+app.put('/api/rapportini-pasti/allievi/:id/corso', auth, requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const corso = req.body?.courseCode == null ? '' : String(req.body.courseCode).trim().toUpperCase();
+  const corsiValidi = new Set(['TRAMAT','MECCANICA','INFORMATICA','TCL.','TCL','TELECOMUNICAZIONI','ELETTRONICA','CIVILE']);
+  if (!Number.isInteger(id) || id <= 0 || (corso && !corsiValidi.has(corso)))
+    return res.status(400).json({ error: 'Corso non valido' });
+  try {
+    const c = await db();
+    const [result] = await c.execute(
+      `UPDATE users SET course_code=?
+       WHERE id=? AND company_id=? AND can_access_2compagnia=1
+         AND UPPER(TRIM(COALESCE(military_rank,'AU'))) IN ('AU','A.U.')`,
+      [corso || null, id, Number(req.user.company_id || 2)]
+    );
+    if (!result.affectedRows) return res.status(404).json({ error: 'Allievo non presente nella lista autorizzata' });
+    res.json({ ok: true });
+  } catch (e) { errServer(res, e); }
 });
 
 app.post('/api/calendar', auth, requireCompagnia, async (req, res) => {

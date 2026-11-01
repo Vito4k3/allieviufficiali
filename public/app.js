@@ -376,7 +376,7 @@ function stopChatBadgePolling(){
 // ─────────────────────────────────────────────────────────────────
 
 // Pagine che restano dentro lo schedario "2 Compagnia" (finanze è passata a Strumenti)
-const COMPAGNIA_PAGES = ['comunicazioni','liste','calendario','voti','rapportini-pasti'];
+const COMPAGNIA_PAGES = ['comunicazioni','liste','calendario','voti'];
 
 // Il rinfresco dei permessi non serve a OGNI click: una richiesta e una nuova
 // firma del token per ogni cambio pagina erano puro rumore. 30 secondi di
@@ -390,6 +390,10 @@ async function refreshCurrentUserThrottled(){
 
 async function showPage(id, link){
   await refreshCurrentUserThrottled();
+  if(id==='rapportini-pasti' && !currentUser?.is_admin){
+    toast('Non hai il permesso per accedere ai Rapportini pasti','err');
+    return;
+  }
   // Blocco accesso sezione 2 Compagnia per utenti non autorizzati
   if(COMPAGNIA_PAGES.includes(id) && !currentUser?.is_admin && !currentUser?.can_access_2compagnia){
     toast('Non hai i permessi per accedere a questa sezione','err');
@@ -798,10 +802,10 @@ function renderMealPage(){
   const data=mealDataCorrente();
   document.getElementById('mealTabDay').className=mealView==='day'?'btn btn-gold':'btn';
   document.getElementById('mealTabForecast').className=mealView==='forecast'?'btn btn-gold':'btn';
-  const canEdit=canWriteCom();
+  const canEdit=!!currentUser?.is_admin;
   const exportButton=document.getElementById('mealExportButton');
   exportButton.disabled=!canEdit;
-  exportButton.title=canEdit?'':'Solo il personale responsabile può esportare il rapportino';
+  exportButton.title=canEdit?'':'Solo gli amministratori possono usare i rapportini pasti';
   if(!data) return;
   const dateLabel=new Date(`${data.date}T12:00:00`).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('mealListTitle').textContent=`${mealView==='forecast'?'Previsionale':'Rapporto'} · ${dateLabel}`;
@@ -814,12 +818,17 @@ function renderMealPage(){
   const noWeekend=weekday>=6;
   const alerts=[];
   if(noWeekend) alerts.push('<div class="alert alert-info" style="margin-bottom:.6rem">Per sabato e domenica non è stata fornita una configurazione settimanale.</div>');
-  if(!canEdit) alerts.push('<div class="alert alert-warn" style="margin-bottom:1rem">Visualizzazione in sola lettura. Solo il personale responsabile può modificare ed esportare i rapportini.</div>');
-  document.getElementById('mealMessage').innerHTML=alerts.join('');
   const people=data.students||[];
-  if(!people.length){ document.getElementById('mealStudents').innerHTML='<div class="text-muted" style="padding:1rem">Nessun allievo AU associato a questa compagnia.</div>'; return; }
+  const withoutCourse=people.filter(p=>!p.courseCode).length;
+  if(withoutCourse) alerts.push(`<div class="alert alert-info" style="margin-bottom:.6rem">${withoutCourse} allievi senza corso: assegnalo dal menu sotto il nominativo. Da quel momento i pasti verranno compilati automaticamente secondo il giorno della settimana.</div>`);
+  if(!canEdit) alerts.push('<div class="alert alert-warn" style="margin-bottom:1rem">Solo gli amministratori possono accedere e modificare i rapportini.</div>');
+  document.getElementById('mealMessage').innerHTML=alerts.join('');
+  if(!people.length){ document.getElementById('mealStudents').innerHTML='<div class="text-muted" style="padding:1rem">Nessun allievo AU con accesso alla 2ª Compagnia da inserire nel rapportino.</div>'; return; }
   const groups=new Map();
   people.forEach(p=>{if(!groups.has(p.course))groups.set(p.course,[]);groups.get(p.course).push(p)});
+  for(const roster of groups.values()) roster.sort((a,b)=>
+    (a.lastName||'').localeCompare(b.lastName||'', 'it',{sensitivity:'base'}) ||
+    (a.firstName||a.name||'').localeCompare(b.firstName||b.name||'', 'it',{sensitivity:'base'}));
   const meals=['colazione','pranzo','cena'];
   const optionsFor=meal=>['servito','sacchetto','self',...(meal==='pranzo'?['buono_pasto']:[])];
   const renderMeal=(student,meal)=>{
@@ -833,7 +842,10 @@ function renderMealPage(){
   for(const [course,roster] of groups){
     html+=`<div style="padding:.45rem .55rem;color:var(--gold);font-family:var(--font-m);font-size:.68rem;border-bottom:1px solid var(--border)">${escHtml(course)} <span style="color:var(--text3)">· ${roster.length}</span></div>`;
     for(const p of roster){
-      html+=`<div style="display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(125px,1fr));gap:.6rem;align-items:center;padding:.62rem .55rem;border-bottom:1px solid var(--border)"><div style="font-size:.9rem">${escHtml(p.name)}<div style="font-size:.62rem;color:var(--text3);font-family:var(--font-m)">${escHtml(p.courseCode||'Corso da assegnare')}${!p.courseCode?' · <a href="#" onclick="showPage(\'profilo\',null);return false">Imposta nel profilo</a>':''}</div></div>${meals.map(m=>renderMeal(p,m)).join('')}</div>`;
+      const courseValue=['TCL','TELECOMUNICAZIONI'].includes(String(p.courseCode||'').toUpperCase())?'TCL.':
+        ['TRAMAT'].includes(String(p.courseCode||'').toUpperCase())?'MECCANICA':(p.courseCode||'');
+      const courseCell=`<div style="margin-top:.2rem"><select aria-label="Corso di ${escHtml(p.name)}" onchange="impostaCorsoPasto(this)" style="max-width:190px;padding:.28rem;font-size:.68rem"><option value="" ${!courseValue?'selected':''} ${courseValue?'disabled':''}>Assegna il corso…</option><option value="CIVILE" ${courseValue==='CIVILE'?'selected':''}>Civile</option><option value="ELETTRONICA" ${courseValue==='ELETTRONICA'?'selected':''}>Elettronica</option><option value="TCL." ${courseValue==='TCL.'?'selected':''}>Telecomunicazioni</option><option value="INFORMATICA" ${courseValue==='INFORMATICA'?'selected':''}>Informatica</option><option value="MECCANICA" ${courseValue==='MECCANICA'?'selected':''}>Meccanica / TRAMAT</option></select></div>`;
+      html+=`<div data-user-row="${p.id}" style="display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(125px,1fr));gap:.6rem;align-items:center;padding:.62rem .55rem;border-bottom:1px solid var(--border)"><div style="font-size:.9rem">${escHtml(p.name)}${courseCell}</div>${meals.map(m=>renderMeal(p,m)).join('')}</div>`;
     }
   }
   html+='</div></div>';
@@ -870,13 +882,38 @@ function aggiornaPasto(control){
   }).catch(e=>{toast(e.message,'err');document.getElementById('mealSaveState').textContent='Errore di salvataggio';});
 }
 async function esportaRapportinoPasti(){
-  if(!mealDateValue||!canWriteCom()) return;
+  if(!mealDateValue||!currentUser?.is_admin) return;
+  const button=document.getElementById('mealExportButton');
+  const labelOriginale=button.textContent;
+  button.disabled=true;
+  button.setAttribute('aria-busy','true');
+  button.textContent='⏳ Preparazione Excel…';
   try{
     const r=await fetch(`${API}/api/rapportini-pasti/export?data=${encodeURIComponent(mealDateValue)}`,{headers:{Authorization:`Bearer ${token}`}});
     if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.error||'Esportazione non riuscita')}
     const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');
     a.href=url;a.download=`RAPPORTINO_PASTI_${mealDateValue}.xlsx`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
   }catch(e){toast(e.message,'err')}
+  finally{
+    button.disabled=false;
+    button.removeAttribute('aria-busy');
+    button.textContent=labelOriginale;
+  }
+}
+
+async function impostaCorsoPasto(select){
+  const row=select.closest('[data-user-row]');
+  const userId=Number(row?.dataset.userRow);
+  if(!userId||!select.value) return;
+  select.disabled=true;
+  try{
+    await api('PUT',`/api/rapportini-pasti/allievi/${userId}/corso`,{courseCode:select.value});
+    toast('Corso assegnato; pasti aggiornati automaticamente');
+    await loadRapportiniPasti();
+  }catch(e){
+    toast(e.message,'err');
+    select.disabled=false;
+  }
 }
 
 // ── BACHECA + POLLING ──────────────────────────────────────────────
