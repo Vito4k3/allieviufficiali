@@ -810,6 +810,17 @@ function labelCorsoPasti(corso) {
   return 'Corso da assegnare';
 }
 
+async function resetEccezioniPastoAllaRiapertura(c, companyId, data, forecast = false) {
+  const table = forecast ? 'meal_forecast_entries' : 'meal_day_entries';
+  const dateColumn = forecast ? 'forecast_date' : 'report_date';
+  await c.execute(
+    `UPDATE ${table}
+     SET meal_type=default_type,at_rest=0,updated_by=NULL
+     WHERE company_id=? AND ${dateColumn}=? AND updated_by IS NOT NULL`,
+    [companyId, data]
+  );
+}
+
 async function preparaVociPasto(c, companyId, data, forecast = false) {
   const weekday = pasti.giornoSettimana(data);
   const nomeTabella = forecast ? 'meal_forecast_entries' : 'meal_day_entries';
@@ -1923,6 +1934,10 @@ app.get('/api/rapportini-pasti', auth, requireAdmin, async (req, res) => {
   try {
     const date = dataRapporto(req);
     const c = await db();
+    if (req.query.reset === '1') {
+      await resetEccezioniPastoAllaRiapertura(c, Number(req.user.company_id || 2), date);
+      await resetEccezioniPastoAllaRiapertura(c, Number(req.user.company_id || 2), date, true);
+    }
     res.json(await preparaVociPasto(c, Number(req.user.company_id || 2), date));
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
@@ -1946,6 +1961,8 @@ app.get('/api/rapportini-pasti/previsionale', auth, requireAdmin, async (req, re
   try {
     const date = pasti.giornoSuccessivo(dataRapporto(req));
     const c = await db();
+    if (req.query.reset === '1')
+      await resetEccezioniPastoAllaRiapertura(c, Number(req.user.company_id || 2), date, true);
     res.json(await preparaVociPasto(c, Number(req.user.company_id || 2), date, true));
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });

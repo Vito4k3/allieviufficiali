@@ -773,7 +773,7 @@ function mealTotals(data, meal){
   (data?.students||[]).forEach(s=>{ const t=s.meals?.[meal]?.type; if(t in counts) counts[t]++; });
   return counts;
 }
-async function loadRapportiniPasti(){
+async function loadRapportiniPasti(resetOverrides=true){
   const input=document.getElementById('mealDate');
   if(!mealDateValue) mealDateValue=dataLocaleISO();
   if(input) input.value=mealDateValue;
@@ -781,10 +781,12 @@ async function loadRapportiniPasti(){
   box.innerHTML='<div class="caricamento">Caricamento dei pasti…</div>';
   document.getElementById('mealMessage').innerHTML='';
   try{
-    const [day,forecast]=await Promise.all([
-      api('GET',`/api/rapportini-pasti?data=${encodeURIComponent(mealDateValue)}`),
-      api('GET',`/api/rapportini-pasti/previsionale?data=${encodeURIComponent(mealDateValue)}`)
-    ]);
+    // Attende l’ultimo salvataggio prima di riaprire una data e azzerarne le
+    // sole eccezioni temporanee, così il reset non può sovrapporsi a un PUT.
+    await mealSaveQueue;
+    const reset=resetOverrides?'&reset=1':'';
+    const forecast=await api('GET',`/api/rapportini-pasti/previsionale?data=${encodeURIComponent(mealDateValue)}${reset}`);
+    const day=await api('GET',`/api/rapportini-pasti?data=${encodeURIComponent(mealDateValue)}${reset}`);
     mealDayData=day; mealForecastData=forecast;
     renderMealPage();
   }catch(e){
@@ -889,6 +891,7 @@ async function esportaRapportinoPasti(){
   button.setAttribute('aria-busy','true');
   button.textContent='⏳ Preparazione Excel…';
   try{
+    await mealSaveQueue;
     const r=await fetch(`${API}/api/rapportini-pasti/export?data=${encodeURIComponent(mealDateValue)}`,{headers:{Authorization:`Bearer ${token}`}});
     if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.error||'Esportazione non riuscita')}
     const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -909,7 +912,7 @@ async function impostaCorsoPasto(select){
   try{
     await api('PUT',`/api/rapportini-pasti/allievi/${userId}/corso`,{courseCode:select.value});
     toast('Corso assegnato; pasti aggiornati automaticamente');
-    await loadRapportiniPasti();
+    await loadRapportiniPasti(false);
   }catch(e){
     toast(e.message,'err');
     select.disabled=false;
