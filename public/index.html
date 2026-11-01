@@ -1694,13 +1694,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link" onclick="showPage('bacheca',this);closeDrawer()"><span class="sb-icon">📢</span>Bacheca Annunci</a>
+        <a class="sb-link" onclick="showPage('rapportini-pasti',this);closeDrawer()"><span class="sb-icon">🍽</span>Rapportini pasti</a>
       </nav>
       <div class="sb-section" id="drawer-section-compagnia" style="display:none">2 Compagnia</div>
       <nav id="drawer-nav-compagnia" style="display:none">
         <a class="sb-link" onclick="showPage('comunicazioni',this);closeDrawer()"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
         <a class="sb-link" onclick="showPage('voti',this);closeDrawer()"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
         <a class="sb-link" onclick="showPage('liste',this);closeDrawer()"><span class="sb-icon">📋</span>Liste</a>
-        <a class="sb-link" onclick="showPage('rapportini-pasti',this);closeDrawer()"><span class="sb-icon">🍽</span>Rapportini pasti</a>
         <a class="sb-link" onclick="showPage('calendario',this);closeDrawer()"><span class="sb-icon">📅</span>Calendario</a>
       </nav>
       <div class="sb-section" id="drawer-section-strumenti">Strumenti</div>
@@ -1744,13 +1744,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link active" onclick="showPage('bacheca',this)"><span class="sb-icon">📢</span>Bacheca Annunci</a>
+        <a class="sb-link" onclick="showPage('rapportini-pasti',this)"><span class="sb-icon">🍽</span>Rapportini pasti</a>
       </nav>
       <div class="sb-section" id="sb-section-compagnia" style="display:none">2 Compagnia</div>
       <nav id="sb-nav-compagnia" style="display:none">
         <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
         <a class="sb-link" onclick="showPage('voti',this)"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
         <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
-        <a class="sb-link" onclick="showPage('rapportini-pasti',this)"><span class="sb-icon">🍽</span>Rapportini pasti</a>
         <a class="sb-link" onclick="showPage('calendario',this)"><span class="sb-icon">📅</span>Calendario</a>
       </nav>
       <div class="sb-section" id="sb-section-strumenti">Strumenti</div>
@@ -1932,7 +1932,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible{outline-offset
     <!-- ── RAPPORTINI PASTI ── -->
     <div class="page" id="page-rapportini-pasti">
       <div class="page-title">Rapportini <em>Pasti</em></div>
-      <div class="page-desc">Pasti della 2ª Compagnia · configurazione settimanale, riposi e previsionali</div>
+      <div class="page-desc">Riservato agli amministratori · personale autorizzato della 2ª Compagnia · compilazione automatica da orario settimanale</div>
       <div class="card" style="margin-bottom:1rem">
         <div style="display:flex;gap:.8rem;align-items:end;justify-content:space-between;flex-wrap:wrap">
           <div class="form-group" style="margin:0;min-width:190px"><label for="mealDate">Data</label><input type="date" id="mealDate" onchange="cambiaDataPasti(this.value)"></div>
