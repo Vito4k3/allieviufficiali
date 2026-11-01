@@ -2002,25 +2002,6 @@ app.get('/api/rapportini-pasti/export', auth, requireAdmin, async (req, res) => 
   }
 });
 
-app.put('/api/rapportini-pasti/allievi/:id/corso', auth, requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
-  const corso = req.body?.courseCode == null ? '' : String(req.body.courseCode).trim().toUpperCase();
-  const corsiValidi = new Set(['TRAMAT','MECCANICA','INFORMATICA','TCL.','TCL','TELECOMUNICAZIONI','ELETTRONICA','CIVILE']);
-  if (!Number.isInteger(id) || id <= 0 || (corso && !corsiValidi.has(corso)))
-    return res.status(400).json({ error: 'Corso non valido' });
-  try {
-    const c = await db();
-    const [result] = await c.execute(
-      `UPDATE users SET course_code=?
-       WHERE id=? AND company_id=? AND can_access_2compagnia=1
-         AND UPPER(TRIM(COALESCE(military_rank,'AU'))) IN ('AU','A.U.')`,
-      [corso || null, id, Number(req.user.company_id || 2)]
-    );
-    if (!result.affectedRows) return res.status(404).json({ error: 'Allievo non presente nella lista autorizzata' });
-    res.json({ ok: true });
-  } catch (e) { errServer(res, e); }
-});
-
 app.post('/api/calendar', auth, requireCompagnia, async (req, res) => {
   const { id, title, event_date, event_time, description, color } = req.body;
   if(!title?.trim() || !event_date) return res.status(400).json({ error: 'Titolo e data obbligatori' });
