@@ -13,6 +13,8 @@ const cors         = require('cors');
 const crypto       = require('crypto');
 const path         = require('path');
 const excelLU = require('./lib/excel-libere-uscite');
+const pasti = require('./lib/rapportini-pasti');
+const excelPasti = require('./lib/excel-rapportini-pasti');
 const mailer  = require('./lib/email');
 
 const app = express();
@@ -572,6 +574,83 @@ async function initDB() {
       await c.execute("ALTER TABLE users ADD COLUMN can_access_2compagnia TINYINT(1) NOT NULL DEFAULT 0");
     } catch(e) { /* già presente */ }
 
+    // Identità di compagnia e corso dell'allievo sono dati del profilo,
+    // distinti dai permessi di accesso. Gli account esistenti partono dalla
+    // 2ª Compagnia; il campo può essere riassegnato quando si aggiungono altre.
+    try {
+      await c.execute('ALTER TABLE users ADD COLUMN company_id INT NOT NULL DEFAULT 2');
+    } catch(e) { /* già presente */ }
+    try {
+      await c.execute('ALTER TABLE users ADD COLUMN course_code VARCHAR(60) NULL');
+    } catch(e) { /* già presente */ }
+    await c.execute('UPDATE users SET company_id=2 WHERE company_id IS NULL OR company_id=0');
+
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS meal_companies (
+        id INT NOT NULL PRIMARY KEY,
+        code VARCHAR(30) NOT NULL UNIQUE,
+        name VARCHAR(100) NOT NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await c.execute("INSERT IGNORE INTO meal_companies (id,code,name) VALUES (2,'2cp','2ª Compagnia')");
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS meal_weekly_rules (
+        company_id INT NOT NULL,
+        weekday TINYINT NOT NULL,
+        course_code VARCHAR(60) NOT NULL,
+        meal VARCHAR(20) NOT NULL,
+        meal_type VARCHAR(20) NOT NULL,
+        service_time VARCHAR(5) NULL,
+        note VARCHAR(255) NULL,
+        PRIMARY KEY (company_id,weekday,course_code,meal),
+        KEY idx_meal_rules_company_day (company_id,weekday)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS meal_day_entries (
+        company_id INT NOT NULL,
+        report_date DATE NOT NULL,
+        user_id INT NOT NULL,
+        meal VARCHAR(20) NOT NULL,
+        default_type VARCHAR(20) NULL,
+        meal_type VARCHAR(20) NULL,
+        service_time VARCHAR(5) NULL,
+        at_rest TINYINT(1) NOT NULL DEFAULT 0,
+        note VARCHAR(255) NULL,
+        updated_by INT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (company_id,report_date,user_id,meal),
+        KEY idx_meal_day_date (company_id,report_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS meal_forecast_entries (
+        company_id INT NOT NULL,
+        forecast_date DATE NOT NULL,
+        user_id INT NOT NULL,
+        meal VARCHAR(20) NOT NULL,
+        default_type VARCHAR(20) NULL,
+        meal_type VARCHAR(20) NULL,
+        service_time VARCHAR(5) NULL,
+        at_rest TINYINT(1) NOT NULL DEFAULT 0,
+        note VARCHAR(255) NULL,
+        updated_by INT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (company_id,forecast_date,user_id,meal),
+        KEY idx_meal_forecast_date (company_id,forecast_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    for (let i = 0; i < pasti.REGOLE_INIZIALI.length; i += 50) {
+      const batch = pasti.REGOLE_INIZIALI.slice(i, i + 50);
+      const placeholders = batch.map(() => '(2,?,?,?,?,?,?)').join(',');
+      await c.execute(
+        `INSERT IGNORE INTO meal_weekly_rules
+         (company_id,weekday,course_code,meal,meal_type,service_time,note)
+         VALUES ${placeholders}`,
+        batch.flatMap(r => [r.weekday, r.course, r.meal, r.mealType, r.serviceTime, r.note])
+      );
+    }
+
     // ── ANNO ACCADEMICO DEL REGISTRO VOTI ───────────────────────
     // I voti sono separati per anno di corso (1-5). Le righe già presenti
     // sono per definizione del 1° anno: DEFAULT 1 le preserva senza toccarle.
@@ -659,7 +738,7 @@ async function auth(req, res, next) {
     // account eliminati o permessi revocati hanno effetto immediato.
     const c = await db();
     const [utenti] = await c.execute(
-      'SELECT id,username,full_name,military_rank,role,can_access_finance,can_access_2compagnia,is_admin FROM users WHERE id=?',
+      'SELECT id,username,full_name,military_rank,role,can_access_finance,can_access_2compagnia,is_admin,company_id,course_code FROM users WHERE id=?',
       [req.user.id]
     );
     if (!utenti.length) return res.status(401).json({ error: 'Account non più disponibile' });
@@ -672,7 +751,9 @@ async function auth(req, res, next) {
       role: u.role || 'none',
       can_access_finance: !!Number(u.can_access_finance),
       can_access_2compagnia: !!Number(u.can_access_2compagnia),
-      is_admin: !!Number(u.is_admin)
+      is_admin: !!Number(u.is_admin),
+      company_id: Number(u.company_id || 2),
+      course_code: u.course_code || ''
     });
     next();
   } catch {
@@ -706,6 +787,130 @@ function requireCompagnia(req, res, next) {
   return res.status(403).json({ error: 'Accesso alla sezione 2 Compagnia non autorizzato' });
 }
 
+function labelCorsoPasti(corso) {
+  const c = pasti.corsoNormalizzato(corso);
+  if (c === pasti.CORSI.MECCANICA_TRAMAT) return 'Meccanica / TRAMAT';
+  if (c === pasti.CORSI.INFORMATICA || c === pasti.CORSI.TELECOMUNICAZIONI) return 'Informatica / Telecomunicazioni';
+  if (c === pasti.CORSI.ELETTRONICA) return 'Elettronica';
+  if (c === pasti.CORSI.CIVILE) return 'Civile';
+  return 'Corso da assegnare';
+}
+
+async function preparaVociPasto(c, companyId, data, forecast = false) {
+  const weekday = pasti.giornoSettimana(data);
+  const nomeTabella = forecast ? 'meal_forecast_entries' : 'meal_day_entries';
+  const colonnaData = forecast ? 'forecast_date' : 'report_date';
+  const [users] = await c.execute(
+    `SELECT id,username,full_name,nome,cognome,military_rank,course_code
+     FROM users WHERE company_id=?
+       AND UPPER(TRIM(COALESCE(military_rank,'AU'))) IN ('AU','A.U.')
+     ORDER BY course_code,cognome,nome,full_name`,
+    [companyId]
+  );
+  const [rules] = weekday <= 5
+    ? await c.execute(
+      'SELECT course_code,meal,meal_type,service_time,note FROM meal_weekly_rules WHERE company_id=? AND weekday=?',
+      [companyId, weekday]
+    )
+    : [[]];
+  const [plannedRows] = forecast ? [[]] : await c.execute(
+    `SELECT user_id,meal,meal_type,at_rest FROM meal_forecast_entries
+     WHERE company_id=? AND forecast_date=?`, [companyId, data]
+  );
+  const ruleMap = new Map(rules.map(r => [`${r.course_code}|${r.meal}`, r]));
+  const plannedMap = new Map(plannedRows.map(r => [`${r.user_id}|${r.meal}`, r]));
+  const insertRows = [];
+  for (const u of users) {
+    const course = pasti.corsoNormalizzato(u.course_code);
+    for (const meal of pasti.PASTI) {
+      const rule = course ? ruleMap.get(`${course}|${meal}`) : null;
+      const planned = plannedMap.get(`${u.id}|${meal}`);
+      insertRows.push([companyId, data, u.id, meal, rule?.meal_type || null,
+        planned?.meal_type ?? rule?.meal_type ?? null, rule?.service_time || null,
+        planned?.at_rest ? 1 : 0, rule?.note || null]);
+    }
+  }
+  // Batch piccoli evitano una richiesta SQL per ogni allievo e restano sotto
+  // il limite dei parametri anche quando la compagnia cresce.
+  for (let i = 0; i < insertRows.length; i += 50) {
+    const batch = insertRows.slice(i, i + 50);
+    const placeholders = batch.map(() => '(?,?,?,?,?,?,?,?,?)').join(',');
+    await c.execute(
+      `INSERT IGNORE INTO ${nomeTabella}
+        (company_id,${colonnaData},user_id,meal,default_type,meal_type,service_time,at_rest,note)
+       VALUES ${placeholders}`,
+      batch.flat()
+    );
+  }
+  const [entries] = await c.execute(
+    `SELECT user_id,meal,default_type,meal_type,service_time,at_rest,note
+     FROM ${nomeTabella} WHERE company_id=? AND ${colonnaData}=?`,
+    [companyId, data]
+  );
+  const byKey = new Map(entries.map(e => [`${e.user_id}|${e.meal}`, e]));
+  return {
+    date: data,
+    weekday,
+    forecast,
+    students: users.map(u => ({
+      id: u.id,
+      name: (u.full_name || [u.nome, u.cognome].filter(Boolean).join(' ') || u.username || '').trim(),
+      firstName: u.nome || '',
+      lastName: u.cognome || '',
+      rank: u.military_rank || 'AU',
+      course: labelCorsoPasti(u.course_code),
+      courseCode: u.course_code || '',
+      meals: Object.fromEntries(pasti.PASTI.map(meal => {
+        const v = byKey.get(`${u.id}|${meal}`) || {};
+        return [meal, {
+          defaultType: v.default_type || null,
+          type: v.meal_type || null,
+          serviceTime: v.service_time || null,
+          atRest: !!Number(v.at_rest),
+          note: v.note || null
+        }];
+      }))
+    }))
+  };
+}
+
+async function salvaVociPasto(c, req, data, entries, forecast = false) {
+  if (!Array.isArray(entries) || entries.length > 1000)
+    throw Object.assign(new Error('Elenco pasti non valido'), { status: 400 });
+  const companyId = Number(req.user.company_id || 2);
+  const allowed = new Set(pasti.PASTI);
+  const typeAllowed = new Set(pasti.TIPI_PASTO);
+  const table = forecast ? 'meal_forecast_entries' : 'meal_day_entries';
+  const dateColumn = forecast ? 'forecast_date' : 'report_date';
+  for (const e of entries) {
+    const userId = Number(e.userId);
+    const meal = String(e.meal || '');
+    const requestedType = e.type == null || e.type === '' ? null : String(e.type);
+    if (!Number.isInteger(userId) || userId <= 0 || !allowed.has(meal)
+        || (requestedType && !typeAllowed.has(requestedType)))
+      throw Object.assign(new Error('Una delle modifiche non è valida'), { status: 400 });
+    const atRest = !!e.atRest;
+    const finalType = atRest ? 'sacchetto' : requestedType;
+    const [baseline] = await c.execute(
+      `SELECT e.default_type FROM ${table} e
+       JOIN users u ON u.id=e.user_id AND u.company_id=e.company_id
+       WHERE e.company_id=? AND e.${dateColumn}=? AND e.user_id=? AND e.meal=?
+         AND UPPER(TRIM(COALESCE(u.military_rank,'AU'))) IN ('AU','A.U.')`,
+      [companyId, data, userId, meal]
+    );
+    if (!baseline.length)
+      throw Object.assign(new Error('Allievo o pasto non appartenente alla compagnia'), { status: 403 });
+    await c.execute(
+      `UPDATE ${table}
+       SET meal_type=?,at_rest=?,updated_by=?,note=COALESCE(?,note)
+       WHERE company_id=? AND ${dateColumn}=? AND user_id=? AND meal=?`,
+      [finalType, atRest ? 1 : 0, req.user.id, e.note ? String(e.note).slice(0, 255) : null,
+        companyId, data, userId, meal]
+    );
+  }
+  return preparaVociPasto(c, companyId, data, forecast);
+}
+
 // Capitano e Tenente condividono lo stesso livello di autorizzazione:
 // un'unica lista, nessuna logica duplicata.
 // Anni di corso gestiti dal Registro Voti. Per aggiungerne altri in futuro
@@ -721,6 +926,11 @@ const ROLES_WITH_COM_WRITE = ['allievo_servizio', 'capo_compagnia', 'vice_capo_c
 
 function canWriteComunicazioni(user) {
   return user.is_admin || ROLES_WITH_COM_WRITE.includes(user.role);
+}
+
+function requireResponsabilePasti(req, res, next) {
+  if (canWriteComunicazioni(req.user)) return next();
+  return res.status(403).json({ error: 'Solo il personale responsabile può modificare i rapportini pasti' });
 }
 
 // ── SETUP ─────────────────────────────────────────────────────
@@ -985,7 +1195,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,nome,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_2compagnia,is_admin FROM users WHERE id=?',
+      'SELECT id,username,email,full_name,nome,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_2compagnia,is_admin,company_id,course_code FROM users WHERE id=?',
       [req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
@@ -1003,7 +1213,9 @@ app.get('/api/auth/me', auth, async (req, res) => {
       role: u.role,
       can_access_finance:    u.can_access_finance,
       can_access_2compagnia: u.can_access_2compagnia,
-      is_admin: u.is_admin
+      is_admin: u.is_admin,
+      company_id: Number(u.company_id || 2),
+      course_code: u.course_code || ''
     };
     const newToken = jwt.sign(payload, CHIAVE_JWT, { expiresIn: '7d', algorithm: 'HS256' });
     res.json({ ...u, token: newToken });
@@ -1012,7 +1224,10 @@ app.get('/api/auth/me', auth, async (req, res) => {
 
 // ── PROFILO ───────────────────────────────────────────────────
 app.put('/api/profile', auth, async (req, res) => {
-  const { nome, cognome, platoon, academic_year } = req.body;
+  const { nome, cognome, platoon, academic_year, course_code } = req.body;
+  const corsiValidi = new Set(['TRAMAT','MECCANICA','INFORMATICA','TCL.','TELECOMUNICAZIONI','ELETTRONICA','CIVILE']);
+  if (course_code && !corsiValidi.has(String(course_code).trim().toUpperCase()))
+    return res.status(400).json({ error: 'Corso di laurea non valido' });
   if (!nome?.trim() || !cognome?.trim())
     return res.status(400).json({ error: 'Nome e cognome obbligatori' });
   const full_name = `${nome.trim()} ${cognome.trim()}`;
@@ -1020,8 +1235,8 @@ app.put('/api/profile', auth, async (req, res) => {
     const c = await db();
     // military_rank non è modificabile dall'utente — rimane quello assegnato
     await c.execute(
-      'UPDATE users SET nome=?, cognome=?, full_name=?, platoon=?, academic_year=? WHERE id=?',
-      [nome.trim(), cognome.trim(), full_name, platoon||'', academic_year||'1° Anno', req.user.id]
+      'UPDATE users SET nome=?, cognome=?, full_name=?, platoon=?, academic_year=?, course_code=? WHERE id=?',
+      [nome.trim(), cognome.trim(), full_name, platoon||'', academic_year||'1° Anno', course_code ? String(course_code).trim().toUpperCase() : null, req.user.id]
     );
     res.json({ ok: true });
   } catch(e) { errServer(res, e); }
@@ -1682,6 +1897,78 @@ app.get('/api/calendar', auth, requireCompagnia, async (req, res) => {
     const [rows] = await c.execute(query, params);
     res.json(rows);
   } catch(e){ errServer(res, e); }
+});
+
+function dataRapporto(req) {
+  const value = String(req.query.data || req.body?.data || '');
+  if (!pasti.dataISOValida(value)) throw Object.assign(new Error('Data non valida'), { status: 400 });
+  return value;
+}
+
+app.get('/api/rapportini-pasti', auth, requireCompagnia, async (req, res) => {
+  try {
+    const date = dataRapporto(req);
+    const c = await db();
+    res.json(await preparaVociPasto(c, Number(req.user.company_id || 2), date));
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    errServer(res, e);
+  }
+});
+
+app.put('/api/rapportini-pasti', auth, requireCompagnia, requireResponsabilePasti, async (req, res) => {
+  try {
+    const date = dataRapporto(req);
+    const c = await db();
+    await preparaVociPasto(c, Number(req.user.company_id || 2), date);
+    res.json(await salvaVociPasto(c, req, date, req.body.entries));
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    errServer(res, e);
+  }
+});
+
+app.get('/api/rapportini-pasti/previsionale', auth, requireCompagnia, async (req, res) => {
+  try {
+    const date = pasti.giornoSuccessivo(dataRapporto(req));
+    const c = await db();
+    res.json(await preparaVociPasto(c, Number(req.user.company_id || 2), date, true));
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    errServer(res, e);
+  }
+});
+
+app.put('/api/rapportini-pasti/previsionale', auth, requireCompagnia, requireResponsabilePasti, async (req, res) => {
+  try {
+    const date = req.body?.forecastDate;
+    if (!pasti.dataISOValida(date)) throw Object.assign(new Error('Data previsionale non valida'), { status: 400 });
+    const c = await db();
+    await preparaVociPasto(c, Number(req.user.company_id || 2), date, true);
+    res.json(await salvaVociPasto(c, req, date, req.body.entries, true));
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    errServer(res, e);
+  }
+});
+
+app.get('/api/rapportini-pasti/export', auth, requireCompagnia, requireResponsabilePasti, async (req, res) => {
+  try {
+    const date = dataRapporto(req);
+    const nextDate = pasti.giornoSuccessivo(date);
+    const companyId = Number(req.user.company_id || 2);
+    const c = await db();
+    const day = await preparaVociPasto(c, companyId, date);
+    const forecast = await preparaVociPasto(c, companyId, nextDate, true);
+    const file = await excelPasti.compilaRapportino({ date, students: day.students, forecast: forecast.students });
+    const filename = `RAPPORTINO_PASTI_${date}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(file);
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    errServer(res, e);
+  }
 });
 
 app.post('/api/calendar', auth, requireCompagnia, async (req, res) => {
