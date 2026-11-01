@@ -768,6 +768,10 @@ function mealDataCorrente(){ return mealView==='day' ? mealDayData : mealForecas
 function pastoLabel(type){
   return ({servito:'Servito',sacchetto:'Sacchetto',self:'Self',buono_pasto:'Buono pasto'})[type]||'Da definire';
 }
+function mealCourseName(code){
+  const labels={TRAMAT:'TRAMAT',MECCANICA:'Meccanica',ELETTRONICA:'Elettronica',INFORMATICA:'Informatica','TCL.':'Telecomunicazioni',TCL:'Telecomunicazioni',TELECOMUNICAZIONI:'Telecomunicazioni',CIVILE:'Civile'};
+  return labels[String(code||'').trim().toUpperCase()]||'Corso da assegnare';
+}
 function mealTotals(data, meal){
   const counts={servito:0,sacchetto:0,self:0,buono_pasto:0};
   (data?.students||[]).forEach(s=>{ const t=s.meals?.[meal]?.type; if(t in counts) counts[t]++; });
@@ -822,7 +826,7 @@ function renderMealPage(){
   if(noWeekend) alerts.push('<div class="alert alert-info" style="margin-bottom:.6rem">Per sabato e domenica non è stata fornita una configurazione settimanale.</div>');
   const people=data.students||[];
   const withoutCourse=people.filter(p=>!p.courseCode).length;
-  if(withoutCourse) alerts.push(`<div class="alert alert-info" style="margin-bottom:.6rem">${withoutCourse} allievi senza corso: assegnalo dal menu sotto il nominativo. Da quel momento i pasti verranno compilati automaticamente secondo il giorno della settimana.</div>`);
+  if(withoutCourse) alerts.push(`<div class="alert alert-info" style="margin-bottom:.6rem">${withoutCourse} allievi non hanno un corso assegnato nel profilo, necessario per applicare l’orario automatico.</div>`);
   if(!canEdit) alerts.push('<div class="alert alert-warn" style="margin-bottom:1rem">Solo gli amministratori possono accedere e modificare i rapportini.</div>');
   document.getElementById('mealMessage').innerHTML=alerts.join('');
   if(!people.length){ document.getElementById('mealStudents').innerHTML='<div class="text-muted" style="padding:1rem">Nessun allievo AU con accesso alla 2ª Compagnia da inserire nel rapportino.</div>'; return; }
@@ -844,10 +848,8 @@ function renderMealPage(){
   for(const [course,roster] of groups){
     html+=`<div style="padding:.45rem .55rem;color:var(--gold);font-family:var(--font-m);font-size:.68rem;border-bottom:1px solid var(--border)">${escHtml(course)} <span style="color:var(--text3)">· ${roster.length}</span></div>`;
     for(const p of roster){
-      const courseValue=['TCL','TELECOMUNICAZIONI'].includes(String(p.courseCode||'').toUpperCase())?'TCL.':
-        ['TRAMAT'].includes(String(p.courseCode||'').toUpperCase())?'MECCANICA':(p.courseCode||'');
-      const courseCell=`<div style="margin-top:.2rem"><select aria-label="Corso di ${escHtml(p.name)}" onchange="impostaCorsoPasto(this)" style="max-width:190px;padding:.28rem;font-size:.68rem"><option value="" ${!courseValue?'selected':''} ${courseValue?'disabled':''}>Assegna il corso…</option><option value="CIVILE" ${courseValue==='CIVILE'?'selected':''}>Civile</option><option value="ELETTRONICA" ${courseValue==='ELETTRONICA'?'selected':''}>Elettronica</option><option value="TCL." ${courseValue==='TCL.'?'selected':''}>Telecomunicazioni</option><option value="INFORMATICA" ${courseValue==='INFORMATICA'?'selected':''}>Informatica</option><option value="MECCANICA" ${courseValue==='MECCANICA'?'selected':''}>Meccanica / TRAMAT</option></select></div>`;
-      html+=`<div data-user-row="${p.id}" style="display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(125px,1fr));gap:.6rem;align-items:center;padding:.62rem .55rem;border-bottom:1px solid var(--border)"><div style="font-size:.9rem">${escHtml(p.name)}${courseCell}</div>${meals.map(m=>renderMeal(p,m)).join('')}</div>`;
+      const courseCell=`<div style="font-size:.62rem;color:var(--text3);font-family:var(--font-m)">${escHtml(mealCourseName(p.courseCode))}</div>`;
+      html+=`<div style="display:grid;grid-template-columns:minmax(190px,1.5fr) repeat(3,minmax(125px,1fr));gap:.6rem;align-items:center;padding:.62rem .55rem;border-bottom:1px solid var(--border)"><div style="font-size:.9rem">${escHtml(p.name)}${courseCell}</div>${meals.map(m=>renderMeal(p,m)).join('')}</div>`;
     }
   }
   html+='</div></div>';
@@ -901,21 +903,6 @@ async function esportaRapportinoPasti(){
     button.disabled=false;
     button.removeAttribute('aria-busy');
     button.textContent=labelOriginale;
-  }
-}
-
-async function impostaCorsoPasto(select){
-  const row=select.closest('[data-user-row]');
-  const userId=Number(row?.dataset.userRow);
-  if(!userId||!select.value) return;
-  select.disabled=true;
-  try{
-    await api('PUT',`/api/rapportini-pasti/allievi/${userId}/corso`,{courseCode:select.value});
-    toast('Corso assegnato; pasti aggiornati automaticamente');
-    await loadRapportiniPasti(false);
-  }catch(e){
-    toast(e.message,'err');
-    select.disabled=false;
   }
 }
 
