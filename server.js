@@ -17,7 +17,7 @@ const pasti = require('./lib/rapportini-pasti');
 const excelPasti = require('./lib/excel-rapportini-pasti');
 // L'ID storico 2 identifica ora la 7ª Compagnia: conservarlo evita migrazioni
 // distruttive sulle regole pasti e sulle assegnazioni già presenti.
-const COMPAGNIE_REGISTRAZIONE = new Set([6, 7, 8, 9, 10]);
+const COMPAGNIE_REGISTRAZIONE = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 function compagniaIdValido(value) {
   const n = Number(value);
   return Number.isInteger(n) && COMPAGNIE_REGISTRAZIONE.has(n) ? (n === 7 ? 2 : n) : null;
@@ -164,6 +164,37 @@ async function accreditaCreditiStripe(session) {
   }
 }
 
+async function accreditaAcquistoShop(session) {
+  if (session?.payment_status !== 'paid' || session.mode !== 'payment' || session.currency !== 'eur'
+      || session.metadata?.purpose !== 'shop_kaps_listing') return;
+  const listingId = Number(session.metadata?.listing_id);
+  const buyerId = Number(session.metadata?.buyer_id);
+  if (!Number.isInteger(listingId) || listingId <= 0 || !Number.isInteger(buyerId) || buyerId <= 0 || !session.id) return;
+  const c = await db();
+  const connection = await c.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute(
+      'SELECT id,price_cents,status,pending_buyer_id,pending_session_id FROM shop_kaps_listings WHERE id=? FOR UPDATE', [listingId]
+    );
+    const listing = rows[0];
+    if (!listing || Number(listing.pending_buyer_id) !== buyerId || listing.pending_session_id !== session.id
+        || Number(session.amount_total) !== Number(listing.price_cents)) {
+      await connection.rollback();
+      return;
+    }
+    await connection.execute(
+      `UPDATE shop_kaps_listings SET status='purchased',buyer_id=?,stripe_session_id=?,purchased_at=CURRENT_TIMESTAMP,
+       pending_buyer_id=NULL,pending_session_id=NULL,pending_until=NULL WHERE id=? AND status='available'`,
+      [buyerId, session.id, listingId]
+    );
+    await connection.commit();
+  } catch (e) {
+    try { await connection.rollback(); } catch {}
+    throw e;
+  } finally { connection.release(); }
+}
+
 // Stripe richiede il corpo originale per verificare la firma del webhook; la
 // rotta è registrata prima del parser JSON generale.
 app.post('/api/payments/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
@@ -171,8 +202,10 @@ app.post('/api/payments/stripe/webhook', express.raw({ type: 'application/json',
     return res.status(400).send('Firma Stripe non valida');
   try {
     const event = JSON.parse(req.body.toString('utf8'));
-    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded')
+    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
       await accreditaCreditiStripe(event.data?.object);
+      await accreditaAcquistoShop(event.data?.object);
+    }
     res.json({ received: true });
   } catch (e) {
     console.error('[STRIPE WEBHOOK]', e.stack || e.message);
@@ -650,6 +683,28 @@ async function initDB() {
     try {
       await c.execute('ALTER TABLE users ADD COLUMN company_id INT NOT NULL DEFAULT 2');
     } catch(e) { /* già presente */ }
+    try { await c.execute('ALTER TABLE users ADD COLUMN shop_year TINYINT NULL'); } catch(e) { /* già presente */ }
+    try { await c.execute('ALTER TABLE users ADD COLUMN shop_company TINYINT NULL'); } catch(e) { /* già presente */ }
+    await c.execute(`
+      CREATE TABLE IF NOT EXISTS shop_kaps_listings (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        seller_id INT NOT NULL,
+        buyer_id INT NULL,
+        item_name VARCHAR(120) NOT NULL,
+        price_cents INT UNSIGNED NOT NULL,
+        seller_phone VARCHAR(30) NOT NULL,
+        status ENUM('available','purchased') NOT NULL DEFAULT 'available',
+        stripe_session_id VARCHAR(191) NULL UNIQUE,
+        pending_buyer_id INT NULL,
+        pending_session_id VARCHAR(191) NULL,
+        pending_until TIMESTAMP NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        purchased_at TIMESTAMP NULL,
+        KEY idx_shop_status_created (status,created_at),
+        KEY idx_shop_seller (seller_id,created_at),
+        KEY idx_shop_buyer (buyer_id,purchased_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
     try {
       await c.execute('ALTER TABLE users ADD COLUMN course_code VARCHAR(60) NULL');
     } catch(e) { /* già presente */ }
@@ -829,7 +884,7 @@ async function auth(req, res, next) {
     // account eliminati o permessi revocati hanno effetto immediato.
     const c = await db();
     const [utenti] = await c.execute(
-      'SELECT id,username,full_name,military_rank,role,can_access_finance,can_access_2compagnia,is_admin,company_id,course_code FROM users WHERE id=?',
+      'SELECT id,username,full_name,military_rank,role,can_access_finance,can_access_2compagnia,is_admin,company_id,course_code,shop_year,shop_company FROM users WHERE id=?',
       [req.user.id]
     );
     if (!utenti.length) return res.status(401).json({ error: 'Account non più disponibile' });
@@ -844,7 +899,9 @@ async function auth(req, res, next) {
       can_access_2compagnia: !!Number(u.can_access_2compagnia),
       is_admin: !!Number(u.is_admin),
       company_id: Number(u.company_id || 2),
-      course_code: u.course_code || ''
+      course_code: u.course_code || '',
+      shop_year: u.shop_year == null ? null : Number(u.shop_year),
+      shop_company: u.shop_company == null ? null : Number(u.shop_company)
     });
     next();
   } catch (e) { errServer(res, e); }
@@ -1077,12 +1134,18 @@ app.post('/api/setup', limitaTentativi('setup', 5, QUARTO_DORA), async (req, res
 app.post('/api/auth/register', limitaTentativi('registrazione-ip', 40, QUARTO_DORA), async (req, res) => {
   const { username, email, password, nome, cognome } = req.body;
   const companyId = compagniaIdValido(req.body.company_id);
+  const shopYear = Number(req.body.shop_year);
+  const shopCompany = Number(req.body.shop_company);
   if (!username || !email || !password)
     return res.status(400).json({ error: 'Username, email e password sono obbligatori' });
   if (!nome?.trim() || !cognome?.trim())
     return res.status(400).json({ error: 'Nome e cognome sono obbligatori' });
   if (companyId == null)
-    return res.status(400).json({ error: 'Seleziona una compagnia valida (6, 7, 8, 9 o 10)' });
+    return res.status(400).json({ error: 'Seleziona una compagnia valida (da 1 a 10)' });
+  if (![1, 2].includes(shopYear) || !Number.isInteger(shopCompany)
+      || (shopYear === 1 && (shopCompany < 1 || shopCompany > 5))
+      || (shopYear === 2 && (shopCompany < 6 || shopCompany > 10)))
+    return res.status(400).json({ error: 'Seleziona l’anno e una compagnia corrispondente' });
   if (password.length < 12)
     return res.status(400).json({ error: 'La password deve avere almeno 12 caratteri' });
   // bcrypt considera solo i primi 72 byte: oltre, la parte in più non conta
@@ -1099,8 +1162,8 @@ app.post('/api/auth/register', limitaTentativi('registrazione-ip', 40, QUARTO_DO
     const hash = await bcrypt.hash(password, 12);
     const full_name = `${nome.trim()} ${cognome.trim()}`;
     const [result] = await c.execute(
-      "INSERT INTO users (username,email,password_hash,full_name,nome,cognome,company_id,role) VALUES (?,?,?,?,?,?,?,'none')",
-      [username.trim(), email.trim().toLowerCase(), hash, full_name, nome.trim(), cognome.trim(), companyId]
+      "INSERT INTO users (username,email,password_hash,full_name,nome,cognome,company_id,shop_year,shop_company,role) VALUES (?,?,?,?,?,?,?,?,?,'none')",
+      [username.trim(), email.trim().toLowerCase(), hash, full_name, nome.trim(), cognome.trim(), companyId, shopYear, shopCompany]
     );
     // Iscrizione riuscita: non deve consumare il budget della rete condivisa
     scalaTentativo('registrazione-ip', req.ip);
@@ -1316,7 +1379,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute(
-      'SELECT id,username,email,full_name,nome,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_2compagnia,is_admin,company_id,course_code FROM users WHERE id=?',
+      'SELECT id,username,email,full_name,nome,cognome,military_rank,platoon,academic_year,role,can_access_finance,can_access_2compagnia,is_admin,company_id,course_code,shop_year,shop_company FROM users WHERE id=?',
       [req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
@@ -1336,7 +1399,9 @@ app.get('/api/auth/me', auth, async (req, res) => {
       can_access_2compagnia: u.can_access_2compagnia,
       is_admin: u.is_admin,
       company_id: Number(u.company_id || 2),
-      course_code: u.course_code || ''
+      course_code: u.course_code || '',
+      shop_year: u.shop_year == null ? null : Number(u.shop_year),
+      shop_company: u.shop_company == null ? null : Number(u.shop_company)
     };
     const newToken = jwt.sign(payload, CHIAVE_JWT, { expiresIn: '7d', algorithm: 'HS256' });
     res.json({ ...u, token: newToken });
@@ -2126,6 +2191,152 @@ app.get('/api/rapportini-pasti/crediti/conferma', auth, requireCompagnia, async 
     const c = await db();
     const [rows] = await c.execute('SELECT meal_export_credits FROM users WHERE id=?', [req.user.id]);
     res.json({ credits: Number(rows[0]?.meal_export_credits || 0) });
+  } catch (e) { errServer(res, e); }
+});
+
+// ── SHOP KAPS ─────────────────────────────────────────────────
+app.get('/api/shop-kaps/listings', auth, async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 120);
+  try {
+    const c = await db();
+    const params = [];
+    let where = '1=1';
+    if (q) { where += ' AND l.item_name LIKE ?'; params.push(`%${q}%`); }
+    const [rows] = await c.execute(
+      `SELECT l.id,l.item_name,l.price_cents,l.status,l.created_at,l.purchased_at,
+       (l.seller_id=?) AS mine,(l.buyer_id=?) AS purchased_by_me
+       FROM shop_kaps_listings l WHERE ${where}
+       ORDER BY CASE WHEN l.status='available' THEN 0 ELSE 1 END,l.created_at DESC`,
+      [req.user.id, req.user.id, ...params]
+    );
+    res.json(rows.map(row => ({ ...row, mine: !!Number(row.mine), purchased_by_me: !!Number(row.purchased_by_me) })));
+  } catch (e) { errServer(res, e); }
+});
+
+app.post('/api/shop-kaps/listings', auth, async (req, res) => {
+  if (Number(req.user.shop_year) !== 2) return res.status(403).json({ error: 'Solo gli iscritti al 2° anno possono pubblicare' });
+  const name = String(req.body?.name || '').trim();
+  const phone = String(req.body?.phone || '').trim();
+  const price = Number(String(req.body?.price || '').replace(',', '.'));
+  const priceCents = Math.round(price * 100);
+  if (!name || name.length > 120) return res.status(400).json({ error: 'Inserisci un nome articolo (massimo 120 caratteri)' });
+  if (!Number.isFinite(price) || priceCents < 50 || priceCents > 1000000)
+    return res.status(400).json({ error: 'Il prezzo deve essere compreso tra 0,50 € e 10.000 €' });
+  if (!/^\+?[0-9 ()-]{6,25}$/.test(phone) || phone.replace(/\D/g, '').length < 6)
+    return res.status(400).json({ error: 'Inserisci un numero di telefono valido' });
+  try {
+    const c = await db();
+    const [result] = await c.execute(
+      'INSERT INTO shop_kaps_listings (seller_id,item_name,price_cents,seller_phone) VALUES (?,?,?,?)',
+      [req.user.id, name, priceCents, phone]
+    );
+    res.json({ ok: true, id: result.insertId });
+  } catch (e) { errServer(res, e); }
+});
+
+app.post('/api/shop-kaps/attiva-profilo', auth, async (req, res) => {
+  const year = Number(req.body?.shop_year);
+  const company = Number(req.body?.shop_company);
+  if (![1,2].includes(year) || !Number.isInteger(company)
+      || (year === 1 && (company < 1 || company > 5))
+      || (year === 2 && (company < 6 || company > 10)))
+    return res.status(400).json({ error: 'Seleziona anno e compagnia corrispondenti' });
+  try {
+    const c = await db();
+    const [result] = await c.execute(
+      'UPDATE users SET shop_year=?,shop_company=? WHERE id=? AND shop_year IS NULL AND shop_company IS NULL',
+      [year, company, req.user.id]
+    );
+    if (!result.affectedRows) return res.status(409).json({ error: 'La scelta SHOP KAPS è già stata effettuata e non può essere cambiata' });
+    res.json({ ok: true });
+  } catch (e) { errServer(res, e); }
+});
+
+app.post('/api/shop-kaps/listings/:id/checkout', auth, async (req, res) => {
+  if (Number(req.user.shop_year) !== 1) return res.status(403).json({ error: 'Gli acquisti sono riservati al 1° anno' });
+  const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '').trim();
+  const appUrl = String(process.env.APP_URL || '').trim().replace(/\/+$/, '');
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Articolo non valido' });
+  if (!stripeSecret || !appUrl) return res.status(503).json({ error: 'Pagamenti Stripe non ancora configurati' });
+  const c = await db();
+  const connection = await c.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute('SELECT * FROM shop_kaps_listings WHERE id=? FOR UPDATE', [id]);
+    const listing = rows[0];
+    if (!listing || listing.status !== 'available') {
+      await connection.rollback();
+      return res.status(409).json({ error: 'Questo articolo è già stato comprato' });
+    }
+    if (Number(listing.seller_id) === Number(req.user.id)) {
+      await connection.rollback();
+      return res.status(403).json({ error: 'Non puoi comprare un tuo articolo' });
+    }
+    if (listing.pending_until && new Date(listing.pending_until).getTime() > Date.now()) {
+      await connection.rollback();
+      return res.status(409).json({ error: 'È già in corso un pagamento per questo articolo. Riprova tra qualche minuto.' });
+    }
+    const form = new URLSearchParams();
+    form.set('mode', 'payment');
+    form.set('line_items[0][price_data][currency]', 'eur');
+    form.set('line_items[0][price_data][unit_amount]', String(listing.price_cents));
+    form.set('line_items[0][price_data][product_data][name]', listing.item_name);
+    form.set('line_items[0][quantity]', '1');
+    form.set('client_reference_id', String(req.user.id));
+    form.set('metadata[purpose]', 'shop_kaps_listing');
+    form.set('metadata[listing_id]', String(id));
+    form.set('metadata[buyer_id]', String(req.user.id));
+    form.set('success_url', `${appUrl}/?sezione=shop-kaps&acquisto=verifica&session_id={CHECKOUT_SESSION_ID}`);
+    form.set('cancel_url', `${appUrl}/?sezione=shop-kaps&acquisto=annullato`);
+    const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST', headers: { Authorization: `Bearer ${stripeSecret}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form
+    });
+    const session = await response.json();
+    if (!response.ok || !session.url || !session.id) {
+      await connection.rollback();
+      console.error('[SHOP STRIPE CHECKOUT]', session.error?.message || `HTTP ${response.status}`);
+      return res.status(502).json({ error: 'Non è stato possibile avviare il pagamento. Riprova più tardi.' });
+    }
+    await connection.execute(
+      'UPDATE shop_kaps_listings SET pending_buyer_id=?,pending_session_id=?,pending_until=DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 30 MINUTE) WHERE id=?',
+      [req.user.id, session.id, id]
+    );
+    await connection.commit();
+    res.json({ url: session.url });
+  } catch (e) {
+    try { await connection.rollback(); } catch {}
+    errServer(res, e);
+  } finally { connection.release(); }
+});
+
+app.get('/api/shop-kaps/purchases/confirm', auth, async (req, res) => {
+  const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '').trim();
+  const sessionId = String(req.query.session_id || '');
+  if (!stripeSecret || !/^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(sessionId))
+    return res.status(400).json({ error: 'Riferimento pagamento non valido' });
+  try {
+    const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
+      headers: { Authorization: `Bearer ${stripeSecret}` }
+    });
+    const session = await response.json();
+    if (!response.ok) return res.status(502).json({ error: 'Verifica del pagamento non riuscita' });
+    if (session.metadata?.purpose !== 'shop_kaps_listing' || Number(session.metadata?.buyer_id) !== Number(req.user.id))
+      return res.status(403).json({ error: 'Pagamento associato a un altro account' });
+    if (session.payment_status === 'paid') await accreditaAcquistoShop(session);
+    res.json({ pending: session.payment_status !== 'paid' });
+  } catch (e) { errServer(res, e); }
+});
+
+app.get('/api/shop-kaps/purchases/:id/phone', auth, async (req, res) => {
+  try {
+    const c = await db();
+    const [rows] = await c.execute(
+      "SELECT seller_phone FROM shop_kaps_listings WHERE id=? AND status='purchased' AND buyer_id=?",
+      [Number(req.params.id), req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Numero disponibile solo dopo un acquisto completato' });
+    res.json({ phone: rows[0].seller_phone });
   } catch (e) { errServer(res, e); }
 });
 
