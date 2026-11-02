@@ -12,7 +12,7 @@ const DOC_TITLE_PUBLIC = 'Portale Allievi Ufficiali';
 const SECTION_DOC_TITLES = {
   bacheca:'Bacheca annunci', comunicazioni:'Comunicazioni', calendario:'Calendario', liste:'Liste',
   'rapportini-pasti':'Rapportini pasti',
-  strumenti:'Strumenti', 'strumento-locked':'Strumento bloccato',
+  strumenti:'Strumenti', caffe:'Offri un caffè', 'strumento-locked':'Strumento bloccato',
   finanze:'Gestione finanze', voti:'Voti e registro', profilo:'Profilo', admin:'Gestione utenti'
 };
 
@@ -314,7 +314,12 @@ async function showApp(){
 // Se la sezione non esiste o è bloccata dai permessi, resta la bacheca.
 async function apriSezioneRichiesta(){
   let sezione = null;
-  try { sezione = new URLSearchParams(location.search).get('sezione'); } catch(e){}
+  let esitoSupporto = null;
+  try {
+    const params = new URLSearchParams(location.search);
+    sezione = params.get('sezione');
+    esitoSupporto = params.get('supporto');
+  } catch(e){}
   if(!sezione) return;
   try { history.replaceState(null, '', location.pathname); } catch(e){}
   if(!document.getElementById('page-'+sezione)) return;
@@ -323,6 +328,9 @@ async function apriSezioneRichiesta(){
   const link = [...document.querySelectorAll('.sb-link')].find(a =>
     (a.getAttribute('onclick') || '').includes(`showPage('${sezione}'`));
   await showPage(sezione, link || null);
+  if(sezione==='caffe' && esitoSupporto){
+    toast(esitoSupporto==='grazie'?'Grazie per la mancia e per il supporto al portale.':'Pagamento annullato',esitoSupporto==='grazie'?'ok':'info');
+  }
 }
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
@@ -426,6 +434,14 @@ async function showPage(id, link){
   if(id==='comunicazioni')  loadComunicazioni();
   if(id==='calendario')    loadCalendario();
   if(id==='rapportini-pasti') loadRapportiniPasti();
+  if(id==='caffe'){
+    const params=new URLSearchParams(location.search);
+    const esito=params.get('supporto');
+    if(esito) toast(esito==='grazie'?'Grazie per la mancia e per il supporto al portale.':'Pagamento annullato',esito==='grazie'?'ok':'info');
+    params.delete('supporto');
+    const query=params.toString();
+    if(esito) history.replaceState({},'',`${location.pathname}${query?`?${query}`:''}${location.hash}`);
+  }
   if(id==='profilo')        loadProfile();
 }
 
@@ -467,7 +483,8 @@ function applyPermissions(){
 // Nella sidebar resta solo la voce indice: i singoli strumenti si raggiungono
 // da "Tutti gli Strumenti", così non compaiono due volte nella navigazione.
 function renderToolsNav(){
-  const indice = `<a class="sb-link" onclick="showPage('strumenti',this)"><span class="sb-icon">🧰</span>Tutti gli Strumenti</a>`;
+  const indice = `<a class="sb-link" onclick="showPage('strumenti',this)"><span class="sb-icon">🧰</span>Tutti gli Strumenti</a>`+
+    `<a class="sb-link" onclick="showPage('caffe',this)"><span class="sb-icon">☕</span>Offri un caffè</a>`;
   ['sb-nav-strumenti','drawer-nav-strumenti'].forEach(id => {
     const nav = document.getElementById(id);
     if(!nav) return;
@@ -854,10 +871,7 @@ function renderMealPage(){
     const c=mealTotals(data,meal);
     return `<div class="stat-box"><div class="stat-label">${meal[0].toUpperCase()+meal.slice(1)}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:.28rem;margin-top:.5rem;font-family:var(--font-m);font-size:.66rem"><span>Servito <strong>${c.servito}</strong></span><span>Sacchetto <strong>${c.sacchetto}</strong></span><span>Self <strong>${c.self}</strong></span><span>Buoni <strong>${c.buono_pasto}</strong></span></div></div>`;
   }).join('');
-  const weekday=data.weekday;
-  const noWeekend=weekday>=6;
   const alerts=[];
-  if(noWeekend) alerts.push('<div class="alert alert-info" style="margin-bottom:.6rem">Per sabato e domenica non è stata fornita una configurazione settimanale.</div>');
   if(!mealPaymentsReady) alerts.push('<div class="alert alert-info" style="margin-bottom:.6rem">Pagamenti non ancora configurati: l’acquisto dei crediti sarà disponibile dopo il collegamento del conto Stripe.</div>');
   const people=data.students||[];
   const withoutCourse=people.filter(p=>!p.courseCode).length;
@@ -961,6 +975,21 @@ async function acquistaCreditiPasti(){
   }
 }
 
+async function offriCaffe(amountCents, button){
+  if(!button) return;
+  const buttons=[...document.querySelectorAll('[data-coffee-button]')];
+  buttons.forEach(b=>{b.disabled=true});
+  button.textContent='⏳ Apertura pagamento…';
+  try{
+    const result=await api('POST','/api/supporto/offri-caffe',{amountCents});
+    if(!result.url) throw new Error('Link di pagamento non disponibile');
+    window.location.assign(result.url);
+  }catch(e){
+    toast(e.message,'err');
+    buttons.forEach(b=>{b.disabled=false;b.textContent=b.dataset.label||b.textContent});
+  }
+}
+
 // Quando si torna dal Checkout con il tasto Indietro, il browser può
 // ripristinare la pagina dalla cache con il pulsante ancora in caricamento.
 window.addEventListener('pageshow',()=>{
@@ -969,6 +998,10 @@ window.addEventListener('pageshow',()=>{
   button.textContent='1 € · 3 esportazioni';
   button.disabled=!mealPaymentsReady;
   button.removeAttribute('aria-busy');
+  document.querySelectorAll('[data-coffee-button]').forEach(b=>{
+    b.disabled=false;
+    b.textContent=b.dataset.label||b.textContent;
+  });
 });
 
 // ── BACHECA + POLLING ──────────────────────────────────────────────
