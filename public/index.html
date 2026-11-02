@@ -1770,6 +1770,13 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
         <div class="form-group"><label>Nome *</label><input type="text" id="regNome" placeholder="Mario"></div>
         <div class="form-group"><label>Cognome *</label><input type="text" id="regCognome" placeholder="Rossi"></div>
       </div>
+      <div class="form-group"><label for="regCompany">Compagnia *</label>
+        <select id="regCompany" required>
+          <option value="">Seleziona la compagnia</option>
+          <option value="6">6ª Compagnia</option><option value="7">7ª Compagnia</option>
+          <option value="8">8ª Compagnia</option><option value="9">9ª Compagnia</option><option value="10">10ª Compagnia</option>
+        </select>
+      </div>
       <div class="form-row-2">
         <div class="form-group"><label>Password *</label><input type="password" id="regPass" placeholder="min 12 caratteri" autocomplete="new-password"></div>
         <div class="form-group"><label>Conferma *</label><input type="password" id="regPass2" placeholder="••••••••"></div>
@@ -1816,21 +1823,21 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
       <div>
         <div class="sb-user-name" id="drawerUserName">—</div>
         <div class="sb-user-rank" id="drawerUserRank">Allievo Ufficiale</div>
-        <div class="sb-user-hint">→ Clicca per il profilo</div>
+        <div class="sb-user-hint">→ Clicca per il profilo <span id="drawerProfileCompletionBadge" class="badge badge-gold hidden">Da completare</span></div>
       </div>
     </div>
     <div class="sb-nav">
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link" onclick="showPage('bacheca',this);closeDrawer()"><span class="sb-icon">📢</span>Bacheca Annunci</a>
-        <a class="sb-link" onclick="showPage('rapportini-pasti',this);closeDrawer()"><span class="sb-icon">🍽</span>Rapportini pasti</a>
       </nav>
-      <div class="sb-section" id="drawer-section-compagnia" style="display:none">2 Compagnia</div>
-      <nav id="drawer-nav-compagnia" style="display:none">
-        <a class="sb-link" onclick="showPage('comunicazioni',this);closeDrawer()"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
-        <a class="sb-link" onclick="showPage('voti',this);closeDrawer()"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
-        <a class="sb-link" onclick="showPage('liste',this);closeDrawer()"><span class="sb-icon">📋</span>Liste</a>
-        <a class="sb-link" onclick="showPage('calendario',this);closeDrawer()"><span class="sb-icon">📅</span>Calendario</a>
+      <div class="sb-section" id="drawer-section-compagnia">7 Compagnia</div>
+      <nav id="drawer-nav-compagnia">
+        <a class="sb-link" onclick="showPage('rapportini-pasti',this);closeDrawer()"><span class="sb-icon">🍽</span>Rapportini pasti</a>
+        <a class="sb-link" data-company-permission onclick="showPage('comunicazioni',this);closeDrawer()"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
+        <a class="sb-link" data-company-permission onclick="showPage('voti',this);closeDrawer()"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
+        <a class="sb-link" data-company-permission onclick="showPage('liste',this);closeDrawer()"><span class="sb-icon">📋</span>Liste</a>
+        <a class="sb-link" data-company-permission onclick="showPage('calendario',this);closeDrawer()"><span class="sb-icon">📅</span>Calendario</a>
       </nav>
       <div class="sb-section" id="drawer-section-strumenti">Strumenti</div>
       <!-- Popolata da renderToolsNav() a partire dal registro TOOLS -->
@@ -1866,21 +1873,21 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
         <div class="sb-user-name" id="sbUserName">—</div>
         <div class="sb-user-rank" id="sbUserRank">Allievo Ufficiale</div>
         <div class="sb-user-role" id="sbUserRole"></div>
-        <div class="sb-user-hint">→ Clicca per il profilo</div>
+        <div class="sb-user-hint">→ Clicca per il profilo <span id="profileCompletionBadge" class="badge badge-gold hidden">Da completare</span></div>
       </div>
     </div>
     <div class="sb-nav">
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link active" onclick="showPage('bacheca',this)"><span class="sb-icon">📢</span>Bacheca Annunci</a>
-        <a class="sb-link" onclick="showPage('rapportini-pasti',this)"><span class="sb-icon">🍽</span>Rapportini pasti</a>
       </nav>
-      <div class="sb-section" id="sb-section-compagnia" style="display:none">2 Compagnia</div>
-      <nav id="sb-nav-compagnia" style="display:none">
-        <a class="sb-link" onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
-        <a class="sb-link" onclick="showPage('voti',this)"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
-        <a class="sb-link" onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
-        <a class="sb-link" onclick="showPage('calendario',this)"><span class="sb-icon">📅</span>Calendario</a>
+      <div class="sb-section" id="sb-section-compagnia">7 Compagnia</div>
+      <nav id="sb-nav-compagnia">
+        <a class="sb-link" onclick="showPage('rapportini-pasti',this)"><span class="sb-icon">🍽</span>Rapportini pasti</a>
+        <a class="sb-link" data-company-permission onclick="showPage('comunicazioni',this)"><span class="sb-icon">💬</span>Comunicazioni<span class="chat-unread-badge"></span></a>
+        <a class="sb-link" data-company-permission onclick="showPage('voti',this)"><span class="sb-icon">🎓</span>Voti &amp; Registro</a>
+        <a class="sb-link" data-company-permission onclick="showPage('liste',this)"><span class="sb-icon">📋</span>Liste</a>
+        <a class="sb-link" data-company-permission onclick="showPage('calendario',this)"><span class="sb-icon">📅</span>Calendario</a>
       </nav>
       <div class="sb-section" id="sb-section-strumenti">Strumenti</div>
       <!-- Popolata da renderToolsNav() a partire dal registro TOOLS: tutti gli
@@ -1903,19 +1910,24 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
     <div class="page" id="page-profilo">
       <div class="page-title">Il Mio <em>Profilo</em></div>
       <div class="page-desc">Dati personali · Permessi · Ruolo militare</div>
+      <div class="alert alert-warn hidden" id="profileCompletionNotice" style="margin-bottom:1rem">
+        Completa il tuo profilo: seleziona il <strong>corso di studi</strong> per personalizzare le funzioni del portale.
+        <button type="button" class="btn btn-sm" style="margin-left:.5rem" onclick="document.getElementById('prof-course').focus()">Completa ora</button>
+      </div>
       <div class="profile-hero">
         <div class="profile-avatar" id="prof-avatar">AU</div>
         <div style="flex:1">
           <div class="profile-info-name" id="prof-display-name">—</div>
           <div class="profile-info-meta" id="prof-username">@—</div>
           <div class="profile-info-meta" id="prof-email" style="color:var(--text3)">—</div>
+          <div class="profile-info-meta" id="prof-company" style="color:var(--text3)">—</div>
           <div style="margin-top:.5rem" id="prof-role-badge"></div>
         </div>
       </div>
       <div class="card">
         <div class="card-header"><div class="card-title">Permessi Attivi</div></div>
         <div class="perm-grid">
-          <div class="perm-box"><div class="perm-box-label">🏛 Sezione 2 Compagnia<div style="font-size:.52rem;color:var(--text3);margin-top:.15rem;text-transform:none;letter-spacing:0">Include il Registro Voti</div></div><div class="perm-indicator" id="prof-perm-2comp">—</div></div>
+          <div class="perm-box"><div class="perm-box-label">🏛 Sezione 7 Compagnia<div style="font-size:.52rem;color:var(--text3);margin-top:.15rem;text-transform:none;letter-spacing:0">Include il Registro Voti e i Rapportini pasti</div></div><div class="perm-indicator" id="prof-perm-2comp">—</div></div>
           <div class="perm-box"><div class="perm-box-label">🧰 Strumento: Gestione Finanze</div><div class="perm-indicator" id="prof-perm-finance">—</div></div>
           <div class="perm-box"><div class="perm-box-label">💬 Comunicazioni (scrittura)</div><div class="perm-indicator" id="prof-perm-com">—</div></div>
         </div>
@@ -1936,7 +1948,7 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
             <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:.6rem .88rem;font-family:var(--font-m);font-size:.78rem;color:var(--text2)" id="prof-rank-display">AU</div>
             <div style="font-family:var(--font-m);font-size:.52rem;color:var(--text3);margin-top:.2rem">Assegnato automaticamente — non modificabile dall'utente</div>
           </div>
-          <div class="form-group"><label>Reparto / Plotone</label><input type="text" id="prof-platoon" placeholder="es. 3° Plotone Alpha"></div>
+          <div class="form-group"><label>Plotone <span class="text-muted">· facoltativo</span></label><select id="prof-platoon"><option value="">Non indicato</option><option value="1">1</option><option value="2">2</option></select></div>
         </div>
         <div class="form-group"><label>Corso di laurea</label>
           <select id="prof-course">
@@ -1947,6 +1959,9 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
             <option value="TCL.">Telecomunicazioni</option>
             <option value="ELETTRONICA">Elettronica</option>
             <option value="CIVILE">Civile</option>
+            <option value="SCIENZE_STRATEGICHE">Scienze strategiche</option>
+            <option value="GIURISPRUDENZA">Giurisprudenza</option>
+            <option value="MEDICINA">Medicina</option>
           </select>
         </div>
         <div class="form-group"><label>Anno di Corso</label>
@@ -2073,6 +2088,10 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
             <button class="btn btn-gold" id="mealExportButton" onclick="esportaRapportinoPasti()">⬇ Esporta Excel</button>
           </div>
         </div>
+        <label id="mealAllServitoControl" class="hidden" style="display:flex;align-items:center;gap:.5rem;margin-top:.75rem;font-size:.78rem;color:var(--text2)">
+          <input type="checkbox" id="mealAllServito" onchange="impostaTuttiServito(this)">
+          Tutti al servito per colazione, pranzo e cena
+        </label>
         <div class="text-muted" style="font-size:.68rem;margin-top:.6rem">Acquista un pacchetto da 3 crediti a 1 €; ogni file Excel scaricato consuma 1 credito. PayPal e Apple Pay sono disponibili quando attivati sul conto pagamenti.</div>
       </div>
       <div id="mealCounts" class="grid-3" style="margin-bottom:1rem"></div>
@@ -2179,7 +2198,7 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
     <div class="page" id="page-voti">
       <div class="page-title">Registro <em>Voti</em></div>
       <div class="page-desc">Università · Ginnastica · Militare · Punizioni</div>
-      <div id="voti-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Accesso Non Autorizzato</div><div class="locked-desc">Il Registro Voti fa parte della sezione <strong>2 Compagnia</strong>.<br>Contatta un amministratore per richiedere l'accesso.</div></div></div>
+      <div id="voti-locked" class="hidden card"><div class="locked-state"><div class="locked-icon">🔒</div><div class="locked-title">Accesso Non Autorizzato</div><div class="locked-desc">Il Registro Voti fa parte della sezione <strong>7 Compagnia</strong>.<br>Contatta un amministratore per richiedere l'accesso.</div></div></div>
       <div id="voti-content">
         <!-- L'anno selezionato determina quali voti si vedono e si modificano.
              Le opzioni sono generate da ANNI_CORSO in app.js. -->
@@ -2370,7 +2389,7 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
             <input type="text" id="adminSearch" placeholder="Cerca per nome, cognome o username…" autocomplete="off" oninput="scheduleAdminSearch()">
           </div>
         </div>
-        <div class="alert alert-info" style="margin-bottom:.9rem">ℹ Tutti i permessi di un utente (schedario 2 Compagnia, singoli strumenti, amministrazione) si gestiscono dal pulsante <strong>⚙ Permessi</strong>: è il punto centrale unico e resta valido man mano che si aggiungono nuovi strumenti.</div>
+        <div class="alert alert-info" style="margin-bottom:.9rem">ℹ Tutti i permessi di un utente (schedario 7 Compagnia, singoli strumenti, amministrazione) si gestiscono dal pulsante <strong>⚙ Permessi</strong>: è il punto centrale unico e resta valido man mano che si aggiungono nuovi strumenti.</div>
         <div style="overflow-x:auto">
           <table class="data-table">
             <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Ruolo</th><th>Registrato</th><th>Permessi attivi</th><th></th></tr></thead>

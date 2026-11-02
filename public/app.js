@@ -43,10 +43,10 @@ function userHasPerm(field, user){
 function canUseTool(tool, user){ return userHasPerm(tool.perm, user); }
 
 // ── REGISTRO PERMESSI (modale admin) ───────────────────────────────
-// Unico elenco dei permessi assegnabili: schedario 2 Compagnia, strumenti,
+// Unico elenco dei permessi assegnabili: schedario 7 Compagnia, strumenti,
 // amministrazione. Nuovi permessi si aggiungono solo qui.
 const PERMISSIONS = [
-  { group:'Sezioni',        field:'can_access_2compagnia', label:'Schedario 2 Compagnia', icon:'🏛',
+  { group:'Sezioni',        field:'can_access_2compagnia', label:'Schedario 7 Compagnia', icon:'🏛',
     desc:"Comunicazioni, Liste, Calendario e Registro Voti. Include l'accesso ai voti: non esiste più un permesso separato." },
   ...TOOLS.map(t => ({
     group:'Strumenti', field:t.perm, label:t.label, icon:t.icon,
@@ -384,8 +384,8 @@ function stopChatBadgePolling(){
 }
 // ─────────────────────────────────────────────────────────────────
 
-// Pagine che restano dentro lo schedario "2 Compagnia" (finanze è passata a Strumenti)
-const COMPAGNIA_PAGES = ['comunicazioni','liste','calendario','voti'];
+// Pagine che restano dentro lo schedario "7 Compagnia" (finanze è passata a Strumenti)
+const COMPAGNIA_PAGES = ['rapportini-pasti','comunicazioni','liste','calendario','voti'];
 
 // Il rinfresco dei permessi non serve a OGNI click: una richiesta e una nuova
 // firma del token per ogni cambio pagina erano puro rumore. 30 secondi di
@@ -399,9 +399,9 @@ async function refreshCurrentUserThrottled(){
 
 async function showPage(id, link){
   await refreshCurrentUserThrottled();
-  // Blocco accesso sezione 2 Compagnia per utenti non autorizzati
+  // Blocco accesso sezione 7 Compagnia per utenti non autorizzati
   if(COMPAGNIA_PAGES.includes(id) && !currentUser?.is_admin && !currentUser?.can_access_2compagnia){
-    toast('Non hai i permessi per accedere a questa sezione','err');
+    toast('Non hai i permessi per accedere alla sezione 7 Compagnia','err');
     return;
   }
   // Strumenti: la voce è visibile a tutti, ma senza permesso si apre la
@@ -463,8 +463,11 @@ function applyPermissions(){
 
   document.getElementById('sb-section-admin').style.display    = isAdmin  ? '' : 'none';
   document.getElementById('sb-nav-admin').style.display        = isAdmin  ? '' : 'none';
-  document.getElementById('sb-section-compagnia').style.display = has2Comp ? '' : 'none';
-  document.getElementById('sb-nav-compagnia').style.display     = has2Comp ? '' : 'none';
+  document.getElementById('sb-section-compagnia').style.display = '';
+  document.getElementById('sb-nav-compagnia').style.display     = '';
+  document.querySelectorAll('[data-company-permission]').forEach(link => {
+    link.style.display = has2Comp ? '' : 'none';
+  });
 
   // La sezione Strumenti è sempre visibile: cambia solo lo stato dei lucchetti
   renderToolsNav();
@@ -473,6 +476,11 @@ function applyPermissions(){
   if(btnNew) btnNew.classList.remove('hidden');
   document.getElementById('sbUserName').textContent = currentUser.full_name||currentUser.username;
   document.getElementById('sbUserRank').textContent = currentUser.military_rank||'AU';
+  const profileIncomplete=!currentUser.course_code;
+  ['profileCompletionBadge','drawerProfileCompletionBadge'].forEach(id=>{
+    const badge=document.getElementById(id);
+    if(badge) badge.classList.toggle('hidden',!profileIncomplete);
+  });
   const rbEl = document.getElementById('sbUserRole');
   if(rbEl) rbEl.innerHTML = roleBadge(currentUser.role, isAdmin);
 }
@@ -565,13 +573,14 @@ async function doRegister(){
   const email    = document.getElementById('regEmail').value.trim();
   const nome     = document.getElementById('regNome').value.trim();
   const cognome  = document.getElementById('regCognome').value.trim();
+  const company_id = document.getElementById('regCompany').value;
   const password = document.getElementById('regPass').value;
   const password2= document.getElementById('regPass2').value;
-  if(!username||!email||!nome||!cognome||!password){ showAuthError('Compila tutti i campi obbligatori'); return }
+  if(!username||!email||!nome||!cognome||!password||!company_id){ showAuthError('Compila tutti i campi obbligatori, compresa la compagnia'); return }
   if(password!==password2){ showAuthError('Le password non coincidono'); return }
   if(password.length<12){ showAuthError('Password troppo corta (min 12 caratteri)'); return }
   try {
-    await api('POST','/api/auth/register',{username,email,password,nome,cognome});
+    await api('POST','/api/auth/register',{username,email,password,nome,cognome,company_id});
     toast('Account creato! Ora accedi.','info');
     switchAuthTab('login');
     document.getElementById('loginUser').value=username;
@@ -723,6 +732,8 @@ async function loadProfile(){
   document.getElementById('prof-avatar').textContent = getInitials(currentUser.full_name||currentUser.username);
   document.getElementById('prof-username').textContent = '@'+currentUser.username;
   document.getElementById('prof-email').textContent = currentUser.email||'—';
+  const companyNumber=Number(currentUser.company_id||2);
+  document.getElementById('prof-company').textContent=`${companyNumber===2?7:companyNumber}ª Compagnia`;
   document.getElementById('prof-role-badge').innerHTML = roleBadge(currentUser.role, currentUser.is_admin) ||
     '<span class="role-badge role-none">Allievo</span>';
   document.getElementById('prof-nome').value     = currentUser.nome||'';
@@ -731,6 +742,7 @@ async function loadProfile(){
   document.getElementById('prof-platoon').value  = currentUser.platoon||'';
   document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
   document.getElementById('prof-course').value   = currentUser.course_code||'';
+  document.getElementById('profileCompletionNotice').classList.toggle('hidden',!!currentUser.course_code);
   const has2c = userHasPerm('can_access_2compagnia');
   document.getElementById('prof-perm-2comp').textContent  = has2c ? '✓ Abilitato' : '✗ Non abilitato';
   document.getElementById('prof-perm-2comp').className    = 'perm-indicator '+(has2c?'perm-ok':'perm-no');
@@ -768,6 +780,7 @@ async function saveProfile(){
     await api('PUT','/api/profile',{nome,cognome,platoon,academic_year,course_code});
     const full_name = `${nome} ${cognome}`;
     Object.assign(currentUser, {nome,cognome,full_name,platoon,academic_year,course_code});
+    document.getElementById('profileCompletionNotice').classList.toggle('hidden',!!course_code);
     applyPermissions();
     toast('Profilo aggiornato');
   } catch(e){ toast(e.message,'err') }
@@ -783,7 +796,7 @@ function pastoLabel(type){
   return ({servito:'Servito',sacchetto:'Sacchetto',self:'Self',buono_pasto:'Buono pasto'})[type]||'Da definire';
 }
 function mealCourseName(code){
-  const labels={TRAMAT:'TRAMAT',MECCANICA:'Meccanica',ELETTRONICA:'Elettronica',INFORMATICA:'Informatica','TCL.':'Telecomunicazioni',TCL:'Telecomunicazioni',TELECOMUNICAZIONI:'Telecomunicazioni',CIVILE:'Civile'};
+  const labels={TRAMAT:'TRAMAT',MECCANICA:'Meccanica',ELETTRONICA:'Elettronica',INFORMATICA:'Informatica','TCL.':'Telecomunicazioni',TCL:'Telecomunicazioni',TELECOMUNICAZIONI:'Telecomunicazioni',CIVILE:'Civile',SCIENZE_STRATEGICHE:'Scienze strategiche',GIURISPRUDENZA:'Giurisprudenza',MEDICINA:'Medicina'};
   return labels[String(code||'').trim().toUpperCase()]||'Corso da assegnare';
 }
 function mealTotals(data, meal){
@@ -860,6 +873,8 @@ function renderMealPage(){
   document.getElementById('mealTabDay').className=mealView==='day'?'btn btn-gold':'btn';
   document.getElementById('mealTabForecast').className=mealView==='forecast'?'btn btn-gold':'btn';
   const canEdit=!!currentUser?.is_admin;
+  const allServitoControl=document.getElementById('mealAllServitoControl');
+  if(allServitoControl) allServitoControl.classList.toggle('hidden',!canEdit);
   const exportButton=document.getElementById('mealExportButton');
   exportButton.disabled=mealCredits<1;
   exportButton.title=mealCredits>0?'Consuma 1 credito per scaricare l’Excel':'Acquista crediti per esportare il rapportino';
@@ -876,9 +891,11 @@ function renderMealPage(){
   const people=data.students||[];
   const withoutCourse=people.filter(p=>!p.courseCode).length;
   if(withoutCourse) alerts.push(`<div class="alert alert-info" style="margin-bottom:.6rem">${withoutCourse} allievi non hanno un corso assegnato nel profilo, necessario per applicare l’orario automatico.</div>`);
+  const coursesWithoutSchedule=people.filter(p=>['SCIENZE_STRATEGICHE','GIURISPRUDENZA','MEDICINA'].includes(String(p.courseCode||'').trim().toUpperCase())).length;
+  if(coursesWithoutSchedule) alerts.push(`<div class="alert alert-info" style="margin-bottom:.6rem">${coursesWithoutSchedule} allievi di Scienze strategiche, Giurisprudenza o Medicina: per questi corsi non è stato fornito un orario automatico, quindi i pasti restano da definire.</div>`);
   if(!canEdit) alerts.push('<div class="alert alert-info" style="margin-bottom:1rem">Visualizzazione in sola lettura. Gli amministratori gestiscono le variazioni; puoi esportare il prospetto usando 1 credito.</div>');
   document.getElementById('mealMessage').innerHTML=alerts.join('');
-  if(!people.length){ document.getElementById('mealStudents').innerHTML='<div class="text-muted" style="padding:1rem">Nessun allievo AU con accesso alla 2ª Compagnia da inserire nel rapportino.</div>'; return; }
+  if(!people.length){ document.getElementById('mealStudents').innerHTML='<div class="text-muted" style="padding:1rem">Nessun allievo AU con accesso alla 7ª Compagnia da inserire nel rapportino.</div>'; return; }
   const groups=new Map();
   people.forEach(p=>{if(!groups.has(p.course))groups.set(p.course,[]);groups.get(p.course).push(p)});
   for(const roster of groups.values()) roster.sort((a,b)=>
@@ -933,6 +950,29 @@ function aggiornaPasto(control){
   mealSaveQueue=mealSaveQueue.then(()=>api('PUT',endpoint,payload)).then(()=>{
     if(mealDataCorrente()?.date===data.date) document.getElementById('mealSaveState').textContent='Salvato';
   }).catch(e=>{toast(e.message,'err');document.getElementById('mealSaveState').textContent='Errore di salvataggio';});
+}
+function impostaTuttiServito(control){
+  if(!control.checked) return;
+  const data=mealDataCorrente();
+  if(!data || !currentUser?.is_admin){control.checked=false;return;}
+  const endpoint=mealView==='forecast'?'/api/rapportini-pasti/previsionale':'/api/rapportini-pasti';
+  const payload=mealView==='forecast'?{forecastDate:data.date,allServito:true}:{data:data.date,allServito:true};
+  const state=document.getElementById('mealSaveState');
+  control.disabled=true;
+  state.textContent='Impostazione di tutti al servito…';
+  mealSaveQueue=mealSaveQueue.then(()=>api('PUT',endpoint,payload)).then(updated=>{
+    if(mealDataCorrente()?.date===data.date){
+      if(mealView==='forecast') mealForecastData=updated; else mealDayData=updated;
+      renderMealPage();
+      document.getElementById('mealSaveState').textContent='Tutti impostati al servito';
+    }
+  }).catch(e=>{
+    toast(e.message,'err');
+    document.getElementById('mealSaveState').textContent='Errore di salvataggio';
+  }).finally(()=>{
+    control.checked=false;
+    control.disabled=false;
+  });
 }
 async function esportaRapportinoPasti(){
   if(!mealDateValue) return;
