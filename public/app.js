@@ -11,7 +11,7 @@ const DOC_TITLE_APP = 'Portale AU';
 const DOC_TITLE_PUBLIC = 'Portale Allievi Ufficiali';
 const SECTION_DOC_TITLES = {
   bacheca:'Bacheca annunci', comunicazioni:'Comunicazioni', calendario:'Calendario', liste:'Liste',
-  'rapportini-pasti':'Rapportini pasti',
+  'rapportini-pasti':'Rapportini pasti', 'shop-kaps':'SHOP KAPS',
   strumenti:'Strumenti', caffe:'Offri un caffè', 'strumento-locked':'Strumento bloccato',
   finanze:'Gestione finanze', voti:'Voti e registro', profilo:'Profilo', admin:'Gestione utenti'
 };
@@ -315,10 +315,14 @@ async function showApp(){
 async function apriSezioneRichiesta(){
   let sezione = null;
   let esitoSupporto = null;
+  let esitoAcquisto = null;
+  let sessionAcquisto = null;
   try {
     const params = new URLSearchParams(location.search);
     sezione = params.get('sezione');
     esitoSupporto = params.get('supporto');
+    esitoAcquisto = params.get('acquisto');
+    sessionAcquisto = params.get('session_id');
   } catch(e){}
   if(!sezione) return;
   try { history.replaceState(null, '', location.pathname); } catch(e){}
@@ -331,6 +335,8 @@ async function apriSezioneRichiesta(){
   if(sezione==='caffe' && esitoSupporto){
     toast(esitoSupporto==='grazie'?'Grazie per la mancia e per il supporto al portale.':'Pagamento annullato',esitoSupporto==='grazie'?'ok':'info');
   }
+  if(sezione==='shop-kaps' && esitoAcquisto==='verifica' && sessionAcquisto) await verificaAcquistoShop(sessionAcquisto);
+  if(sezione==='shop-kaps' && esitoAcquisto==='annullato') toast('Pagamento annullato. L’articolo è ancora disponibile.','info');
 }
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
@@ -434,6 +440,7 @@ async function showPage(id, link){
   if(id==='comunicazioni')  loadComunicazioni();
   if(id==='calendario')    loadCalendario();
   if(id==='rapportini-pasti') loadRapportiniPasti();
+  if(id==='shop-kaps')    loadShopKaps();
   if(id==='caffe'){
     const params=new URLSearchParams(location.search);
     const esito=params.get('supporto');
@@ -574,17 +581,28 @@ async function doRegister(){
   const nome     = document.getElementById('regNome').value.trim();
   const cognome  = document.getElementById('regCognome').value.trim();
   const company_id = document.getElementById('regCompany').value;
+  const shop_year = Number(document.getElementById('regShopYear').value);
+  const shop_company = Number(company_id);
   const password = document.getElementById('regPass').value;
   const password2= document.getElementById('regPass2').value;
-  if(!username||!email||!nome||!cognome||!password||!company_id){ showAuthError('Compila tutti i campi obbligatori, compresa la compagnia'); return }
+  if(!username||!email||!nome||!cognome||!password||!company_id||!shop_year){ showAuthError('Compila tutti i campi obbligatori, compresi anno e compagnia'); return }
   if(password!==password2){ showAuthError('Le password non coincidono'); return }
   if(password.length<12){ showAuthError('Password troppo corta (min 12 caratteri)'); return }
   try {
-    await api('POST','/api/auth/register',{username,email,password,nome,cognome,company_id});
+    await api('POST','/api/auth/register',{username,email,password,nome,cognome,company_id:7,shop_year,shop_company});
     toast('Account creato! Ora accedi.','info');
     switchAuthTab('login');
     document.getElementById('loginUser').value=username;
   } catch(e){ showAuthError(e.message) }
+}
+function aggiornaCompagnieRegistrazione(){
+  aggiornaCompagnieShop('regShopYear','regCompany');
+}
+function aggiornaCompagnieShop(yearId,companyId){
+  const year=Number(document.getElementById(yearId).value);
+  const select=document.getElementById(companyId);
+  const values=year===1?[1,2,3,4,5]:year===2?[6,7,8,9,10]:[];
+  select.innerHTML='<option value="">Seleziona la compagnia</option>'+values.map(n=>`<option value="${n}">${n}ª Compagnia</option>`).join('');
 }
 function showAuthError(msg){ const el=document.getElementById('authError');el.textContent='⚠ '+msg;el.style.display='block' }
 
@@ -741,6 +759,10 @@ async function loadProfile(){
   document.getElementById('prof-rank-display').textContent = currentUser.military_rank||'AU';
   document.getElementById('prof-platoon').value  = currentUser.platoon||'';
   document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
+  const shopProfile=document.getElementById('prof-shop');
+  if(shopProfile) shopProfile.textContent=currentUser.shop_year
+    ? `${currentUser.shop_year}° anno · ${currentUser.shop_company}ª Compagnia`
+    : 'Da impostare nella sezione SHOP KAPS';
   document.getElementById('prof-course').value   = currentUser.course_code||'';
   document.getElementById('profileCompletionNotice').classList.toggle('hidden',!!currentUser.course_code);
   const has2c = userHasPerm('can_access_2compagnia');
@@ -1090,6 +1112,69 @@ async function deletePost(id){
   if(!confirm('Eliminare questo annuncio?')) return;
   try { await api('DELETE','/api/announcements/'+id); loadBacheca(); toast('Eliminato') }
   catch(e){ toast(e.message,'err') }
+}
+// ── SHOP KAPS ─────────────────────────────────────────────────────
+let shopSearchTimer=null;
+function loadShopKaps(){
+  const enrolled=Number(currentUser?.shop_year)===1||Number(currentUser?.shop_year)===2;
+  document.getElementById('shopEnrollmentPanel').classList.toggle('hidden',enrolled);
+  document.getElementById('shopSellerPanel').classList.toggle('hidden',Number(currentUser?.shop_year)!==2);
+  caricaShopArticoli();
+}
+async function attivaProfiloShop(){
+  const shop_year=Number(document.getElementById('shopEnrollYear').value);
+  const shop_company=Number(document.getElementById('shopEnrollCompany').value);
+  try{
+    await api('POST','/api/shop-kaps/attiva-profilo',{shop_year,shop_company});
+    currentUser.shop_year=shop_year;currentUser.shop_company=shop_company;
+    toast('Scelta SHOP KAPS registrata e bloccata');loadShopKaps();
+  }catch(e){toast(e.message,'err')}
+}
+function cercaShopArticoli(){clearTimeout(shopSearchTimer);shopSearchTimer=setTimeout(()=>caricaShopArticoli(),220)}
+async function caricaShopArticoli(){
+  const box=document.getElementById('shopListings');
+  const q=document.getElementById('shopSearch').value.trim();
+  try{
+    const rows=await api('GET','/api/shop-kaps/listings'+(q?'?q='+encodeURIComponent(q):''));
+    if(!rows.length){box.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text3)">Nessun articolo trovato.</div>';return}
+    box.innerHTML=rows.map(item=>{
+      const bought=item.status==='purchased';
+      const status=bought?'<span class="badge badge-blue">Comprato</span>':'<span class="badge badge-green">Non venduto</span>';
+      const amount=(Number(item.price_cents)/100).toLocaleString('it-IT',{style:'currency',currency:'EUR'});
+      const actions=item.purchased_by_me?`<button class="btn btn-sm btn-gold" onclick="mostraTelefonoShop(${Number(item.id)},this)">Mostra telefono del venditore</button>`
+        :(!bought&&!item.mine&&Number(currentUser?.shop_year)===1?`<button class="btn btn-sm btn-gold" onclick="acquistaShop(${Number(item.id)},this)">Compra · ${amount}</button>`:'');
+      return `<article class="card" style="margin:0"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem"><div class="card-title">${escHtml(item.item_name)}</div>${status}</div><div style="font-family:var(--font-u);font-size:1.15rem;color:var(--gold);margin:.6rem 0">${amount}</div>${item.mine?'<div style="font-size:.7rem;color:var(--text3);margin-bottom:.6rem">Il tuo annuncio</div>':''}<div>${actions}</div></article>`;
+    }).join('');
+  }catch(e){box.innerHTML=`<div class="alert alert-warn" style="grid-column:1/-1">${escHtml(e.message)}</div>`}
+}
+async function pubblicaShopArticolo(){
+  const name=document.getElementById('shopItemName').value.trim();
+  const price=document.getElementById('shopItemPrice').value;
+  const phone=document.getElementById('shopSellerPhone').value.trim();
+  try{
+    await api('POST','/api/shop-kaps/listings',{name,price,phone});
+    document.getElementById('shopItemName').value='';document.getElementById('shopItemPrice').value='';document.getElementById('shopSellerPhone').value='';
+    toast('Annuncio pubblicato');await caricaShopArticoli();
+  }catch(e){toast(e.message,'err')}
+}
+async function acquistaShop(id,button){
+  if(button.disabled)return;
+  button.disabled=true;button.textContent='Apertura pagamento…';
+  try{const data=await api('POST',`/api/shop-kaps/listings/${id}/checkout`,{});location.assign(data.url)}
+  catch(e){toast(e.message,'err');button.disabled=false;button.textContent='Compra'}
+}
+async function verificaAcquistoShop(sessionId){
+  try{
+    const result=await api('GET','/api/shop-kaps/purchases/confirm?session_id='+encodeURIComponent(sessionId));
+    if(result.pending)toast('Il pagamento è ancora in elaborazione. Aggiorna tra poco.','info');
+    else toast('Pagamento confermato. Il numero del venditore è ora disponibile.','ok');
+    await caricaShopArticoli();
+  }catch(e){toast(e.message,'err')}
+}
+async function mostraTelefonoShop(id,button){
+  button.disabled=true;
+  try{const data=await api('GET',`/api/shop-kaps/purchases/${id}/phone`);button.textContent=data.phone;button.disabled=false}
+  catch(e){button.disabled=false;toast(e.message,'err')}
 }
 // ── COMUNICAZIONI ──────────────────────────────────────────────────
 function startComPolling(){
