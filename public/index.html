@@ -1771,15 +1771,6 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
         <div class="form-group"><label>Cognome *</label><input type="text" id="regCognome" placeholder="Rossi"></div>
       </div>
       <div class="form-row-2">
-        <div class="form-group"><label for="regShopYear">Anno SHOP KAPS *</label>
-          <select id="regShopYear" required onchange="aggiornaCompagnieRegistrazione()"><option value="">Seleziona l’anno</option><option value="1">1° anno</option><option value="2">2° anno</option></select>
-        </div>
-        <div class="form-group"><label for="regCompany">Compagnia *</label>
-        <select id="regCompany" required><option value="">Prima seleziona l’anno</option></select>
-        </div>
-      </div>
-      <div style="font-family:var(--font-m);font-size:.55rem;color:var(--text3);margin:-.2rem 0 .8rem">Anno e compagnia SHOP KAPS vengono fissati alla creazione dell’account e non si possono modificare.</div>
-      <div class="form-row-2">
         <div class="form-group"><label>Password *</label><input type="password" id="regPass" placeholder="min 12 caratteri" autocomplete="new-password"></div>
         <div class="form-group"><label>Conferma *</label><input type="password" id="regPass2" placeholder="••••••••"></div>
       </div>
@@ -1832,7 +1823,7 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link" onclick="showPage('bacheca',this);closeDrawer()"><span class="sb-icon">📢</span>Bacheca Annunci</a>
-        <a class="sb-link" onclick="showPage('shop-kaps',this);closeDrawer()"><span class="sb-icon">🛍️</span>SHOP KAPS</a>
+        <a class="sb-link" onclick="showPage('shop-kaps',this);closeDrawer()"><span class="sb-icon">🛍️</span>Shop</a>
       </nav>
       <div class="sb-section" id="drawer-section-compagnia">7 Compagnia</div>
       <nav id="drawer-nav-compagnia">
@@ -1883,7 +1874,7 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
       <div class="sb-section">Principale</div>
       <nav>
         <a class="sb-link active" onclick="showPage('bacheca',this)"><span class="sb-icon">📢</span>Bacheca Annunci</a>
-        <a class="sb-link" onclick="showPage('shop-kaps',this)"><span class="sb-icon">🛍️</span>SHOP KAPS</a>
+        <a class="sb-link" onclick="showPage('shop-kaps',this)"><span class="sb-icon">🛍️</span>Shop</a>
       </nav>
       <div class="sb-section" id="sb-section-compagnia">7 Compagnia</div>
       <nav id="sb-nav-compagnia">
@@ -1971,9 +1962,6 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
         <div class="form-group"><label>Anno di Corso</label>
           <select id="prof-year"><option>1° Anno</option><option>2° Anno</option><option>3° Anno</option><option>4° Anno</option><option>5° Anno</option></select>
         </div>
-        <div class="form-group"><label>Anno e compagnia SHOP KAPS · non modificabili</label>
-          <div class="ro-field" id="prof-shop">Da impostare nella sezione SHOP KAPS</div>
-        </div>
         <div style="display:flex;justify-content:flex-end;margin-top:.5rem"><button class="btn btn-gold" onclick="saveProfile()">💾 &nbsp;Salva Modifiche</button></div>
       </div>
     </div>
@@ -1989,31 +1977,29 @@ input,select,textarea{font-family:var(--font-u)!important;border-radius:10px!imp
       <div class="feed" id="feedList"><div class="caricamento">Caricamento</div></div>
     </div>
 
-    <!-- ── SHOP KAPS ── -->
+    <!-- ── SHOP ── -->
     <div class="page" id="page-shop-kaps">
-      <div class="page-title">SHOP <em>KAPS</em></div>
-      <div class="page-desc">Mercatino riservato · 1° anno acquista · 2° anno pubblica</div>
+      <div class="page-title"><em>Shop</em></div>
+      <div class="page-desc">Il mercatino dell’Accademia · compra e vendi tra allievi</div>
       <div class="alert alert-info" style="margin-bottom:1rem">Il venditore e il suo numero non compaiono nell’annuncio. Dopo il pagamento confermato, solo chi ha comprato vede il numero per accordarsi.</div>
-      <div id="shopEnrollmentPanel" class="card hidden" style="margin-bottom:1rem">
-        <div class="card-header"><div class="card-title">Attiva SHOP KAPS</div></div>
-        <div class="alert alert-warn">Per gli account già esistenti, scegli anno e compagnia una sola volta. La scelta non sarà più modificabile.</div>
-        <div class="form-row-2">
-          <div class="form-group"><label for="shopEnrollYear">Anno</label><select id="shopEnrollYear" onchange="aggiornaCompagnieShop('shopEnrollYear','shopEnrollCompany')"><option value="">Seleziona l’anno</option><option value="1">1° anno</option><option value="2">2° anno</option></select></div>
-          <div class="form-group"><label for="shopEnrollCompany">Compagnia</label><select id="shopEnrollCompany"><option value="">Prima seleziona l’anno</option></select></div>
-        </div>
-        <div style="display:flex;justify-content:flex-end"><button class="btn btn-gold" onclick="attivaProfiloShop()">Conferma scelta</button></div>
-      </div>
-      <div id="shopSellerPanel" class="card hidden" style="margin-bottom:1rem">
+      <div id="shopCommissionInfo" style="font-size:.75rem;color:var(--text2);margin:-.35rem 0 1rem">Pagamento Stripe al prezzo indicato. La piattaforma trattiene il 15%; il saldo netto al venditore viene consegnato dall’amministrazione.</div>
+      <div id="shopSellerPanel" class="card" style="margin-bottom:1rem">
         <div class="card-header"><div class="card-title">Pubblica un articolo</div></div>
         <div class="form-row-2">
           <div class="form-group"><label for="shopItemName">Nome articolo</label><input id="shopItemName" maxlength="120" placeholder="es. Kebab"></div>
           <div class="form-group"><label for="shopItemPrice">Prezzo in euro</label><input id="shopItemPrice" type="number" min="0.50" max="10000" step="0.01" placeholder="10,00"></div>
         </div>
+        <div class="form-row-2">
+          <div class="form-group"><label for="shopItemCategory">Categoria</label><select id="shopItemCategory"><option value="abbigliamento">Abbigliamento</option><option value="elettronica">Elettronica</option><option value="libri">Libri e studio</option><option value="sport">Sport</option><option value="altro" selected>Altro</option></select></div>
+          <div class="form-group"><label for="shopItemDescription">Descrizione · facoltativa</label><textarea id="shopItemDescription" maxlength="800" rows="3" placeholder="Condizioni, taglia, dettagli…"></textarea></div>
+        </div>
         <div class="form-group"><label for="shopSellerPhone">Numero di telefono</label><input id="shopSellerPhone" type="tel" maxlength="25" placeholder="+39 …"><small class="text-muted">Resta privato fino al completamento di un acquisto.</small></div>
-        <div style="display:flex;justify-content:flex-end"><button class="btn btn-gold" onclick="pubblicaShopArticolo()">＋ Pubblica annuncio</button></div>
+        <div style="display:flex;justify-content:flex-end;gap:.5rem"><button id="shopCancelEdit" class="btn hidden" onclick="annullaModificaShop()">Annulla</button><button id="shopSaveButton" class="btn btn-gold" onclick="salvaShopArticolo()">＋ Pubblica annuncio</button></div>
       </div>
+      <div id="shopAdminSettlements" class="card hidden" style="margin-bottom:1rem"><div class="card-header"><div class="card-title">Saldi da consegnare</div><button class="btn btn-sm" onclick="caricaShopSaldi()">↻ Aggiorna</button></div><div id="shopSettlementsList"></div></div>
       <div style="display:flex;gap:.7rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap">
         <input id="shopSearch" type="search" placeholder="Cerca per nome articolo…" oninput="cercaShopArticoli()" style="flex:1;min-width:220px">
+        <select id="shopCategoryFilter" onchange="caricaShopArticoli()" style="min-width:170px"><option value="">Tutte le categorie</option><option value="abbigliamento">Abbigliamento</option><option value="elettronica">Elettronica</option><option value="libri">Libri e studio</option><option value="sport">Sport</option><option value="altro">Altro</option></select>
         <button class="btn" onclick="caricaShopArticoli()">↻ Aggiorna</button>
       </div>
       <div id="shopListings" class="grid-2"><div class="caricamento">Caricamento</div></div>

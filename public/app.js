@@ -11,7 +11,7 @@ const DOC_TITLE_APP = 'Portale AU';
 const DOC_TITLE_PUBLIC = 'Portale Allievi Ufficiali';
 const SECTION_DOC_TITLES = {
   bacheca:'Bacheca annunci', comunicazioni:'Comunicazioni', calendario:'Calendario', liste:'Liste',
-  'rapportini-pasti':'Rapportini pasti', 'shop-kaps':'SHOP KAPS',
+  'rapportini-pasti':'Rapportini pasti', 'shop-kaps':'Shop',
   strumenti:'Strumenti', caffe:'Offri un caffè', 'strumento-locked':'Strumento bloccato',
   finanze:'Gestione finanze', voti:'Voti e registro', profilo:'Profilo', admin:'Gestione utenti'
 };
@@ -317,12 +317,14 @@ async function apriSezioneRichiesta(){
   let esitoSupporto = null;
   let esitoAcquisto = null;
   let sessionAcquisto = null;
+  let annuncioAnnullato = null;
   try {
     const params = new URLSearchParams(location.search);
     sezione = params.get('sezione');
     esitoSupporto = params.get('supporto');
     esitoAcquisto = params.get('acquisto');
     sessionAcquisto = params.get('session_id');
+    annuncioAnnullato = params.get('listing_id');
   } catch(e){}
   if(!sezione) return;
   try { history.replaceState(null, '', location.pathname); } catch(e){}
@@ -336,7 +338,15 @@ async function apriSezioneRichiesta(){
     toast(esitoSupporto==='grazie'?'Grazie per la mancia e per il supporto al portale.':'Pagamento annullato',esitoSupporto==='grazie'?'ok':'info');
   }
   if(sezione==='shop-kaps' && esitoAcquisto==='verifica' && sessionAcquisto) await verificaAcquistoShop(sessionAcquisto);
-  if(sezione==='shop-kaps' && esitoAcquisto==='annullato') toast('Pagamento annullato. L’articolo è ancora disponibile.','info');
+  if(sezione==='shop-kaps' && esitoAcquisto==='annullato'){
+    if(annuncioAnnullato){
+      try{const result=await api('POST','/api/shop-kaps/purchases/cancel',{listing_id:Number(annuncioAnnullato)});
+        if(result.purchased) toast('Il pagamento risulta completato. L’annuncio è stato aggiornato.','ok');
+        else toast('Pagamento annullato. L’articolo è di nuovo disponibile.','info');
+      }catch(e){toast(e.message,'err')}
+    } else toast('Pagamento annullato. L’articolo è ancora disponibile.','info');
+    await caricaShopArticoli();
+  }
 }
 function _s(id){ document.getElementById(id).classList.remove('hidden') }
 function _h(id){ document.getElementById(id).classList.add('hidden') }
@@ -580,29 +590,17 @@ async function doRegister(){
   const email    = document.getElementById('regEmail').value.trim();
   const nome     = document.getElementById('regNome').value.trim();
   const cognome  = document.getElementById('regCognome').value.trim();
-  const company_id = document.getElementById('regCompany').value;
-  const shop_year = Number(document.getElementById('regShopYear').value);
-  const shop_company = Number(company_id);
   const password = document.getElementById('regPass').value;
   const password2= document.getElementById('regPass2').value;
-  if(!username||!email||!nome||!cognome||!password||!company_id||!shop_year){ showAuthError('Compila tutti i campi obbligatori, compresi anno e compagnia'); return }
+  if(!username||!email||!nome||!cognome||!password){ showAuthError('Compila tutti i campi obbligatori'); return }
   if(password!==password2){ showAuthError('Le password non coincidono'); return }
   if(password.length<12){ showAuthError('Password troppo corta (min 12 caratteri)'); return }
   try {
-    await api('POST','/api/auth/register',{username,email,password,nome,cognome,company_id:7,shop_year,shop_company});
+    await api('POST','/api/auth/register',{username,email,password,nome,cognome});
     toast('Account creato! Ora accedi.','info');
     switchAuthTab('login');
     document.getElementById('loginUser').value=username;
   } catch(e){ showAuthError(e.message) }
-}
-function aggiornaCompagnieRegistrazione(){
-  aggiornaCompagnieShop('regShopYear','regCompany');
-}
-function aggiornaCompagnieShop(yearId,companyId){
-  const year=Number(document.getElementById(yearId).value);
-  const select=document.getElementById(companyId);
-  const values=year===1?[1,2,3,4,5]:year===2?[6,7,8,9,10]:[];
-  select.innerHTML='<option value="">Seleziona la compagnia</option>'+values.map(n=>`<option value="${n}">${n}ª Compagnia</option>`).join('');
 }
 function showAuthError(msg){ const el=document.getElementById('authError');el.textContent='⚠ '+msg;el.style.display='block' }
 
@@ -759,10 +757,6 @@ async function loadProfile(){
   document.getElementById('prof-rank-display').textContent = currentUser.military_rank||'AU';
   document.getElementById('prof-platoon').value  = currentUser.platoon||'';
   document.getElementById('prof-year').value     = currentUser.academic_year||'1° Anno';
-  const shopProfile=document.getElementById('prof-shop');
-  if(shopProfile) shopProfile.textContent=currentUser.shop_year
-    ? `${currentUser.shop_year}° anno · ${currentUser.shop_company}ª Compagnia`
-    : 'Da impostare nella sezione SHOP KAPS';
   document.getElementById('prof-course').value   = currentUser.course_code||'';
   document.getElementById('profileCompletionNotice').classList.toggle('hidden',!!currentUser.course_code);
   const has2c = userHasPerm('can_access_2compagnia');
@@ -1113,48 +1107,91 @@ async function deletePost(id){
   try { await api('DELETE','/api/announcements/'+id); loadBacheca(); toast('Eliminato') }
   catch(e){ toast(e.message,'err') }
 }
-// ── SHOP KAPS ─────────────────────────────────────────────────────
+// ── SHOP ──────────────────────────────────────────────────────────
 let shopSearchTimer=null;
+let shopEditingId=null;
+let shopCommissionPct=15;
+let shopPaymentsReady=false;
 function loadShopKaps(){
-  const enrolled=Number(currentUser?.shop_year)===1||Number(currentUser?.shop_year)===2;
-  document.getElementById('shopEnrollmentPanel').classList.toggle('hidden',enrolled);
-  document.getElementById('shopSellerPanel').classList.toggle('hidden',Number(currentUser?.shop_year)!==2);
+  document.getElementById('shopSellerPanel').classList.remove('hidden');
+  const adminPanel=document.getElementById('shopAdminSettlements');
+  adminPanel.classList.toggle('hidden',!currentUser?.is_admin);
+  if(currentUser?.is_admin) caricaShopSaldi();
+  api('GET','/api/shop-kaps/config').then(config=>{
+    shopCommissionPct=Number(config.commission_percent);
+    shopPaymentsReady=!!config.payments_ready;
+    document.getElementById('shopCommissionInfo').textContent=`Il prezzo mostrato è quello pagato dall’acquirente. La piattaforma trattiene il ${shopCommissionPct}% e l’amministrazione consegna manualmente al venditore il saldo netto.`;
+    caricaShopArticoli();
+  }).catch(e=>toast(e.message,'err'));
   caricaShopArticoli();
-}
-async function attivaProfiloShop(){
-  const shop_year=Number(document.getElementById('shopEnrollYear').value);
-  const shop_company=Number(document.getElementById('shopEnrollCompany').value);
-  try{
-    await api('POST','/api/shop-kaps/attiva-profilo',{shop_year,shop_company});
-    currentUser.shop_year=shop_year;currentUser.shop_company=shop_company;
-    toast('Scelta SHOP KAPS registrata e bloccata');loadShopKaps();
-  }catch(e){toast(e.message,'err')}
 }
 function cercaShopArticoli(){clearTimeout(shopSearchTimer);shopSearchTimer=setTimeout(()=>caricaShopArticoli(),220)}
 async function caricaShopArticoli(){
   const box=document.getElementById('shopListings');
   const q=document.getElementById('shopSearch').value.trim();
+  const category=document.getElementById('shopCategoryFilter').value;
+  const query=new URLSearchParams();if(q)query.set('q',q);if(category)query.set('category',category);const queryText=query.toString();
   try{
-    const rows=await api('GET','/api/shop-kaps/listings'+(q?'?q='+encodeURIComponent(q):''));
+    const rows=await api('GET','/api/shop-kaps/listings'+(queryText?'?'+queryText:''));
     if(!rows.length){box.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text3)">Nessun articolo trovato.</div>';return}
     box.innerHTML=rows.map(item=>{
       const bought=item.status==='purchased';
       const status=bought?'<span class="badge badge-blue">Comprato</span>':'<span class="badge badge-green">Non venduto</span>';
       const amount=(Number(item.price_cents)/100).toLocaleString('it-IT',{style:'currency',currency:'EUR'});
-      const actions=item.purchased_by_me?`<button class="btn btn-sm btn-gold" onclick="mostraTelefonoShop(${Number(item.id)},this)">Mostra telefono del venditore</button>`
-        :(!bought&&!item.mine&&Number(currentUser?.shop_year)===1?`<button class="btn btn-sm btn-gold" onclick="acquistaShop(${Number(item.id)},this)">Compra · ${amount}</button>`:'');
-      return `<article class="card" style="margin:0"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem"><div class="card-title">${escHtml(item.item_name)}</div>${status}</div><div style="font-family:var(--font-u);font-size:1.15rem;color:var(--gold);margin:.6rem 0">${amount}</div>${item.mine?'<div style="font-size:.7rem;color:var(--text3);margin-bottom:.6rem">Il tuo annuncio</div>':''}<div>${actions}</div></article>`;
+      const categories={abbigliamento:'Abbigliamento',elettronica:'Elettronica',libri:'Libri e studio',sport:'Sport',altro:'Altro'};
+      let actions='';
+      if(item.purchased_by_me) actions=`<button class="btn btn-sm btn-gold" onclick="mostraTelefonoShop(${Number(item.id)},this)">Mostra telefono del venditore</button>`;
+      else if(!bought&&!item.mine) actions=shopPaymentsReady
+        ? `<button class="btn btn-sm btn-gold" onclick="acquistaShop(${Number(item.id)},this)">Compra · ${amount}</button>`
+        : '<span class="text-muted" style="font-size:.7rem">Pagamenti temporaneamente non disponibili</span>';
+      else if(!bought&&item.mine) actions=item.pending
+        ? '<span class="badge badge-amber">Pagamento in verifica</span>'
+        : `<button class="btn btn-sm" onclick="modificaShopArticolo(${Number(item.id)})">Modifica</button> <button class="btn btn-sm btn-red" onclick="eliminaShopArticolo(${Number(item.id)})">Elimina</button>`;
+      const appliedRate=item.commission_percent==null?shopCommissionPct:Number(item.commission_percent);
+      const sellerInfo=item.mine&&bought?`<div style="margin-top:.7rem;padding:.65rem;background:var(--surface2);border-radius:var(--r)"><div>Commissione (${appliedRate}%): <strong>${(Number(item.commission_cents||0)/100).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</strong></div><div>Il tuo ricavo netto: <strong>${(Number(item.seller_net_cents||0)/100).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</strong></div><div style="margin-top:.25rem;color:var(--text3)">${item.seller_paid_at?'Saldo consegnato':'Saldo in attesa di consegna'}</div></div>`:'';
+      return `<article class="card" style="margin:0"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem"><div class="card-title">${escHtml(item.item_name)}</div>${status}</div><div style="font-family:var(--font-u);font-size:1.15rem;color:var(--gold);margin:.6rem 0">${amount}</div><span class="badge badge-gold">${escHtml(categories[item.category]||'Altro')}</span>${item.description?`<p style="margin:.6rem 0;color:var(--text2)">${escHtml(item.description)}</p>`:''}${item.mine?'<div style="font-size:.7rem;color:var(--text3);margin:.55rem 0">Il tuo annuncio</div>':''}${sellerInfo}<div style="margin-top:.7rem">${actions}</div></article>`;
     }).join('');
   }catch(e){box.innerHTML=`<div class="alert alert-warn" style="grid-column:1/-1">${escHtml(e.message)}</div>`}
 }
-async function pubblicaShopArticolo(){
+function annullaModificaShop(){
+  shopEditingId=null;
+  document.getElementById('shopItemName').value='';document.getElementById('shopItemPrice').value='';document.getElementById('shopItemDescription').value='';document.getElementById('shopSellerPhone').value='';
+  document.getElementById('shopItemCategory').value='altro';
+  document.getElementById('shopSaveButton').textContent='＋ Pubblica annuncio';
+  document.getElementById('shopCancelEdit').classList.add('hidden');
+}
+function modificaShopArticolo(id){
+  api('GET','/api/shop-kaps/listings').then(rows=>{
+    const item=rows.find(row=>Number(row.id)===Number(id)&&row.mine&&row.status==='available');
+    if(!item){toast('Annuncio non più modificabile','err');return}
+    shopEditingId=Number(id);
+    document.getElementById('shopItemName').value=item.item_name;
+    document.getElementById('shopItemPrice').value=(Number(item.price_cents)/100).toFixed(2);
+    document.getElementById('shopItemCategory').value=item.category||'altro';
+    document.getElementById('shopItemDescription').value=item.description||'';
+    document.getElementById('shopSellerPhone').value=item.seller_phone||'';
+    document.getElementById('shopSaveButton').textContent='Salva modifiche';
+    document.getElementById('shopCancelEdit').classList.remove('hidden');
+    document.getElementById('shopSellerPanel').scrollIntoView({behavior:'smooth',block:'center'});
+  }).catch(e=>toast(e.message,'err'));
+}
+async function eliminaShopArticolo(id){
+  if(!confirm('Eliminare questo annuncio?'))return;
+  try{await api('DELETE',`/api/shop-kaps/listings/${id}`);toast('Annuncio eliminato');await caricaShopArticoli()}
+  catch(e){toast(e.message,'err')}
+}
+async function salvaShopArticolo(){
   const name=document.getElementById('shopItemName').value.trim();
   const price=document.getElementById('shopItemPrice').value;
+  const category=document.getElementById('shopItemCategory').value;
+  const description=document.getElementById('shopItemDescription').value.trim();
   const phone=document.getElementById('shopSellerPhone').value.trim();
   try{
-    await api('POST','/api/shop-kaps/listings',{name,price,phone});
-    document.getElementById('shopItemName').value='';document.getElementById('shopItemPrice').value='';document.getElementById('shopSellerPhone').value='';
-    toast('Annuncio pubblicato');await caricaShopArticoli();
+    const body={name,price,category,description,phone};
+    if(shopEditingId) await api('PUT',`/api/shop-kaps/listings/${shopEditingId}`,body);
+    else await api('POST','/api/shop-kaps/listings',body);
+    const edited=!!shopEditingId;annullaModificaShop();
+    toast(edited?'Modifiche salvate':'Annuncio pubblicato');await caricaShopArticoli();
   }catch(e){toast(e.message,'err')}
 }
 async function acquistaShop(id,button){
@@ -1174,6 +1211,20 @@ async function verificaAcquistoShop(sessionId){
 async function mostraTelefonoShop(id,button){
   button.disabled=true;
   try{const data=await api('GET',`/api/shop-kaps/purchases/${id}/phone`);button.textContent=data.phone;button.disabled=false}
+  catch(e){button.disabled=false;toast(e.message,'err')}
+}
+async function caricaShopSaldi(){
+  const box=document.getElementById('shopSettlementsList');
+  try{
+    const rows=await api('GET','/api/shop-kaps/admin/settlements');
+    if(!rows.length){box.innerHTML='<div style="padding:.8rem;color:var(--text3)">Nessun saldo in attesa.</div>';return}
+    box.innerHTML=rows.map(row=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:.8rem;padding:.75rem 0;border-top:1px solid var(--border);flex-wrap:wrap"><div><strong>${escHtml(row.seller_name||'Venditore')}</strong> · ${escHtml(row.item_name)}<br><span style="color:var(--text3)">${escHtml(row.seller_email||'')} · ${escHtml(row.seller_phone)}<br>Incassato ${(Number(row.price_cents)/100).toLocaleString('it-IT',{style:'currency',currency:'EUR'})} · commissione ${(Number(row.commission_cents)/100).toLocaleString('it-IT',{style:'currency',currency:'EUR'})} · da consegnare ${(Number(row.seller_net_cents)/100).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</span></div><button class="btn btn-sm btn-gold" onclick="segnaSaldoShopConsegnato(${Number(row.id)},this)">Segna consegnato</button></div>`).join('');
+  }catch(e){box.innerHTML=`<div class="alert alert-warn">${escHtml(e.message)}</div>`}
+}
+async function segnaSaldoShopConsegnato(id,button){
+  if(!confirm('Confermi di aver consegnato al venditore il ricavo netto?'))return;
+  button.disabled=true;
+  try{await api('POST',`/api/shop-kaps/admin/settlements/${id}/paid`,{});toast('Saldo segnato come consegnato');await caricaShopSaldi();await caricaShopArticoli()}
   catch(e){button.disabled=false;toast(e.message,'err')}
 }
 // ── COMUNICAZIONI ──────────────────────────────────────────────────
