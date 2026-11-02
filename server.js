@@ -22,10 +22,10 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1); // dietro il proxy dell'hosting (per HTTPS e IP reali)
 
 // Errori interni: log completo sul server, messaggio generico al client
-function errServer(res, e) {
+function errServer(res, e, contesto = '') {
   // Lo stack va nei log (serve per capire DOVE è nato l'errore), al client
   // arriva solo un messaggio generico: mai dettagli interni.
-  console.error('[ERRORE SERVER]', e.stack || e.message);
+  console.error(contesto ? `[ERRORE SERVER][${contesto}]` : '[ERRORE SERVER]', e.stack || e.message);
   res.status(500).json({ error: 'Errore interno del server. Riprova più tardi.' });
 }
 
@@ -742,7 +742,11 @@ async function initDB() {
       'ALTER TABLE shop_kaps_listings ADD COLUMN pending_commission_cents INT UNSIGNED NULL',
       'ALTER TABLE shop_kaps_listings ADD COLUMN pending_seller_net_cents INT UNSIGNED NULL'
     ]) {
-      try { await c.execute(migration); } catch(e) { /* colonna già presente */ }
+      try { await c.execute(migration); }
+      catch (e) {
+        if (e.code !== 'ER_DUP_FIELDNAME')
+          console.error('[MIGRAZIONE SHOP]', migration, e.code || '', e.message || e);
+      }
     }
     try {
       await c.execute('ALTER TABLE users ADD COLUMN course_code VARCHAR(60) NULL');
@@ -2240,6 +2244,14 @@ function datiAnnuncioShop(body) {
   if (!name || name.length > 120) throw Object.assign(new Error('Inserisci un nome articolo (massimo 120 caratteri)'), { status: 400 });
   if (!SHOP_CATEGORIES.has(category)) throw Object.assign(new Error('Categoria non valida'), { status: 400 });
   if (description.length > 800) throw Object.assign(new Error('La descrizione può contenere al massimo 800 caratteri'), { status: 400 });
+  const descrizioneCompatta = description.toLowerCase().replace(/[^a-z0-9@.+]/g, '');
+  const contieneEmail = description.includes('@');
+  const contieneLink = /(?:https?:\/\/|www\.)/i.test(description) || /\.[a-z]{2,}(?:\b|$)/i.test(description);
+  const piattaformeContatto = ['whatsapp', 'telegram', 'instagram', 'facebook', 'snapchat', 'tiktok', 'signal'];
+  const citaPiattaforma = piattaformeContatto.some(nome => descrizioneCompatta.includes(nome));
+  const contieneTelefono = description.split('').filter(carattere => carattere >= '0' && carattere <= '9').length >= 7;
+  if (contieneEmail || contieneLink || citaPiattaforma || contieneTelefono)
+    throw Object.assign(new Error('Per evitare vendite fuori dallo Shop, non inserire numeri, email, link o profili social nella descrizione. I contatti si sbloccano dopo l’acquisto.'), { status: 400 });
   if (!Number.isFinite(price) || priceCents < 50 || priceCents > 1000000)
     throw Object.assign(new Error('Il prezzo deve essere compreso tra 0,50 € e 10.000 €'), { status: 400 });
   if (!/^\+?[0-9 ()-]{6,25}$/.test(phone) || phone.replace(/\D/g, '').length < 6)
@@ -2290,7 +2302,7 @@ app.post('/api/shop-kaps/listings', auth, async (req, res) => {
       [req.user.id, item.name, item.category, item.description, item.priceCents, item.phone]
     );
     res.json({ ok: true, id: result.insertId });
-  } catch (e) { if (e.status) return res.status(e.status).json({ error: e.message }); errServer(res, e); }
+  } catch (e) { if (e.status) return res.status(e.status).json({ error: e.message }); errServer(res, e, 'pubblicazione annuncio Shop'); }
 });
 
 app.put('/api/shop-kaps/listings/:id', auth, async (req, res) => {
