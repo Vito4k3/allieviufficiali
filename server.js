@@ -652,14 +652,6 @@ async function initDB() {
     await c.execute('UPDATE users SET company_id=2 WHERE company_id IS NULL OR company_id=0');
 
     await c.execute(`
-      CREATE TABLE IF NOT EXISTS meal_companies (
-        id INT NOT NULL PRIMARY KEY,
-        code VARCHAR(30) NOT NULL UNIQUE,
-        name VARCHAR(100) NOT NULL
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-    await c.execute("INSERT IGNORE INTO meal_companies (id,code,name) VALUES (2,'2cp','2ª Compagnia')");
-    await c.execute(`
       CREATE TABLE IF NOT EXISTS meal_credit_payments (
         stripe_session_id VARCHAR(191) NOT NULL PRIMARY KEY,
         user_id INT NOT NULL,
@@ -908,12 +900,10 @@ async function preparaVociPasto(c, companyId, data, forecast = false) {
      ORDER BY cognome,nome,full_name,course_code`,
     [companyId]
   );
-  const [rules] = weekday <= 5
-    ? await c.execute(
-      'SELECT course_code,meal,meal_type,service_time,note FROM meal_weekly_rules WHERE company_id=? AND weekday=?',
-      [companyId, weekday]
-    )
-    : [[]];
+  const [rules] = await c.execute(
+    'SELECT course_code,meal,meal_type,service_time,note FROM meal_weekly_rules WHERE company_id=? AND weekday=?',
+    [companyId, weekday]
+  );
   const [plannedRows] = forecast ? [[]] : await c.execute(
     `SELECT user_id,meal,meal_type,at_rest FROM meal_forecast_entries
      WHERE company_id=? AND forecast_date=?`, [companyId, data]
@@ -2044,6 +2034,42 @@ app.post('/api/rapportini-pasti/crediti/acquista', auth, async (req, res) => {
     if (!response.ok || !session.url) {
       console.error('[STRIPE CHECKOUT]', session.error?.message || `HTTP ${response.status}`);
       return res.status(502).json({ error: 'Non è stato possibile avviare il pagamento. Riprova più tardi.' });
+    }
+    res.json({ url: session.url });
+  } catch (e) { errServer(res, e); }
+});
+
+app.post('/api/supporto/offri-caffe', auth, async (req, res) => {
+  const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '').trim();
+  const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+  const appUrl = String(process.env.APP_URL || '').trim().replace(/\/+$/, '');
+  const amountCents = Number(req.body?.amountCents);
+  if (!stripeSecret || !webhookSecret || !appUrl)
+    return res.status(503).json({ error: 'Pagamenti non ancora configurati' });
+  if (![100, 200, 500, 1000].includes(amountCents))
+    return res.status(400).json({ error: 'Importo non valido' });
+  try {
+    const form = new URLSearchParams();
+    form.set('mode', 'payment');
+    form.set('line_items[0][price_data][currency]', 'eur');
+    form.set('line_items[0][price_data][unit_amount]', String(amountCents));
+    form.set('line_items[0][price_data][product_data][name]', 'Mancia volontaria · Offri un caffè');
+    form.set('line_items[0][price_data][product_data][description]', 'Supporto facoltativo per il servizio Portale AU. Non aggiunge crediti o permessi.');
+    form.set('line_items[0][quantity]', '1');
+    form.set('client_reference_id', String(req.user.id));
+    form.set('metadata[purpose]', 'portal_voluntary_tip');
+    form.set('metadata[user_id]', String(req.user.id));
+    form.set('success_url', `${appUrl}/?sezione=caffe&supporto=grazie`);
+    form.set('cancel_url', `${appUrl}/?sezione=caffe&supporto=annullato`);
+    const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${stripeSecret}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form
+    });
+    const session = await response.json();
+    if (!response.ok || !session.url) {
+      console.error('[STRIPE TIP]', session.error?.message || `HTTP ${response.status}`);
+      return res.status(502).json({ error: 'Non è stato possibile aprire il pagamento. Riprova più tardi.' });
     }
     res.json({ url: session.url });
   } catch (e) { errServer(res, e); }
