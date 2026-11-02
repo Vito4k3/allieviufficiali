@@ -6,7 +6,7 @@
 //  e pubblica il sito. Le app installate rileveranno la nuova
 //  versione e chiederanno all'utente di aggiornare.
 // ============================================================
-const APP_VERSION = '1.6.4';
+const APP_VERSION = '1.6.5';
 
 const CACHE_NAME = 'portale-au-v' + APP_VERSION;
 

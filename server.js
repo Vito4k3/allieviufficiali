@@ -15,6 +15,13 @@ const path         = require('path');
 const excelLU = require('./lib/excel-libere-uscite');
 const pasti = require('./lib/rapportini-pasti');
 const excelPasti = require('./lib/excel-rapportini-pasti');
+// L'ID storico 2 identifica ora la 7ª Compagnia: conservarlo evita migrazioni
+// distruttive sulle regole pasti e sulle assegnazioni già presenti.
+const COMPAGNIE_REGISTRAZIONE = new Set([6, 7, 8, 9, 10]);
+function compagniaIdValido(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && COMPAGNIE_REGISTRAZIONE.has(n) ? (n === 7 ? 2 : n) : null;
+}
 const mailer  = require('./lib/email');
 
 const app = express();
@@ -866,7 +873,7 @@ async function requireAdmin(req, res, next) {
 
 function requireCompagnia(req, res, next) {
   if (req.user.is_admin || req.user.can_access_2compagnia) return next();
-  return res.status(403).json({ error: 'Accesso alla sezione 2 Compagnia non autorizzato' });
+  return res.status(403).json({ error: 'Accesso alla sezione 7 Compagnia non autorizzato' });
 }
 
 function labelCorsoPasti(corso) {
@@ -875,6 +882,9 @@ function labelCorsoPasti(corso) {
   if (c === pasti.CORSI.INFORMATICA) return 'Informatica';
   if (c === pasti.CORSI.ELETTRONICA_TELECOMUNICAZIONI) return 'Elettronica / Telecomunicazioni';
   if (c === pasti.CORSI.CIVILE) return 'Civile';
+  const altriCorsi = { SCIENZE_STRATEGICHE: 'Scienze strategiche', GIURISPRUDENZA: 'Giurisprudenza', MEDICINA: 'Medicina' };
+  const scelto = altriCorsi[String(corso || '').trim().toUpperCase()];
+  if (scelto) return scelto;
   return 'Corso da assegnare';
 }
 
@@ -933,7 +943,7 @@ async function preparaVociPasto(c, companyId, data, forecast = false) {
        ON DUPLICATE KEY UPDATE
          default_type=VALUES(default_type),
          meal_type=IF(at_rest=1,'sacchetto',IF(updated_by IS NULL,VALUES(meal_type),meal_type)),
-         service_time=VALUES(service_time),
+         service_time=IF(updated_by IS NULL,VALUES(service_time),service_time),
          note=IF(updated_by IS NULL,VALUES(note),note)`,
       batch.flat()
     );
@@ -973,7 +983,7 @@ async function preparaVociPasto(c, companyId, data, forecast = false) {
 async function salvaVociPasto(c, req, data, entries, forecast = false) {
   if (!Array.isArray(entries) || entries.length > 1000)
     throw Object.assign(new Error('Elenco pasti non valido'), { status: 400 });
-  const companyId = Number(req.user.company_id || 2);
+  const companyId = 2; // I rapportini appartengono alla 7ª Compagnia, ID storico
   const allowed = new Set(pasti.PASTI);
   const typeAllowed = new Set(pasti.TIPI_PASTO);
   const table = forecast ? 'meal_forecast_entries' : 'meal_day_entries';
@@ -1004,6 +1014,21 @@ async function salvaVociPasto(c, req, data, entries, forecast = false) {
         companyId, data, userId, meal]
     );
   }
+  return preparaVociPasto(c, companyId, data, forecast);
+}
+
+async function impostaServitoPerTutti(c, req, data, forecast = false) {
+  const table = forecast ? 'meal_forecast_entries' : 'meal_day_entries';
+  const dateColumn = forecast ? 'forecast_date' : 'report_date';
+  const companyId = 2; // 7ª Compagnia, ID storico
+  await c.execute(
+    `UPDATE ${table} e
+     JOIN users u ON u.id=e.user_id AND u.company_id=e.company_id
+     SET e.meal_type='servito',e.at_rest=0,e.updated_by=?,e.service_time=NULL,e.note=NULL
+     WHERE e.company_id=? AND e.${dateColumn}=? AND u.can_access_2compagnia=1
+       AND UPPER(TRIM(COALESCE(u.military_rank,'AU'))) IN ('AU','A.U.')`,
+    [req.user.id, companyId, data]
+  );
   return preparaVociPasto(c, companyId, data, forecast);
 }
 
@@ -1051,10 +1076,13 @@ app.post('/api/setup', limitaTentativi('setup', 5, QUARTO_DORA), async (req, res
 // cancellarli, quindi qualche iscrizione di troppo non fa danno.
 app.post('/api/auth/register', limitaTentativi('registrazione-ip', 40, QUARTO_DORA), async (req, res) => {
   const { username, email, password, nome, cognome } = req.body;
+  const companyId = compagniaIdValido(req.body.company_id);
   if (!username || !email || !password)
     return res.status(400).json({ error: 'Username, email e password sono obbligatori' });
   if (!nome?.trim() || !cognome?.trim())
     return res.status(400).json({ error: 'Nome e cognome sono obbligatori' });
+  if (companyId == null)
+    return res.status(400).json({ error: 'Seleziona una compagnia valida (6, 7, 8, 9 o 10)' });
   if (password.length < 12)
     return res.status(400).json({ error: 'La password deve avere almeno 12 caratteri' });
   // bcrypt considera solo i primi 72 byte: oltre, la parte in più non conta
@@ -1071,8 +1099,8 @@ app.post('/api/auth/register', limitaTentativi('registrazione-ip', 40, QUARTO_DO
     const hash = await bcrypt.hash(password, 12);
     const full_name = `${nome.trim()} ${cognome.trim()}`;
     const [result] = await c.execute(
-      "INSERT INTO users (username,email,password_hash,full_name,nome,cognome,role) VALUES (?,?,?,?,?,?,'none')",
-      [username.trim(), email.trim().toLowerCase(), hash, full_name, nome.trim(), cognome.trim()]
+      "INSERT INTO users (username,email,password_hash,full_name,nome,cognome,company_id,role) VALUES (?,?,?,?,?,?,?,'none')",
+      [username.trim(), email.trim().toLowerCase(), hash, full_name, nome.trim(), cognome.trim(), companyId]
     );
     // Iscrizione riuscita: non deve consumare il budget della rete condivisa
     scalaTentativo('registrazione-ip', req.ip);
@@ -1114,7 +1142,9 @@ app.post('/api/auth/login',
       role: user.role || 'none',
       can_access_finance:     !!Number(user.can_access_finance),
       can_access_2compagnia:  !!Number(user.can_access_2compagnia),
-      is_admin: !!Number(user.is_admin)
+      is_admin: !!Number(user.is_admin),
+      company_id: Number(user.company_id || 2),
+      course_code: user.course_code || ''
     };
     const token = jwt.sign(payload, CHIAVE_JWT, { expiresIn: '7d', algorithm: 'HS256' });
     // Accesso riuscito: il conto di questo account riparte da zero e il
@@ -1316,9 +1346,11 @@ app.get('/api/auth/me', auth, async (req, res) => {
 // ── PROFILO ───────────────────────────────────────────────────
 app.put('/api/profile', auth, async (req, res) => {
   const { nome, cognome, platoon, academic_year, course_code } = req.body;
-  const corsiValidi = new Set(['TRAMAT','MECCANICA','INFORMATICA','TCL.','TELECOMUNICAZIONI','ELETTRONICA','CIVILE']);
+  const corsiValidi = new Set(['TRAMAT','MECCANICA','INFORMATICA','TCL.','TELECOMUNICAZIONI','ELETTRONICA','CIVILE','SCIENZE_STRATEGICHE','GIURISPRUDENZA','MEDICINA']);
   if (course_code && !corsiValidi.has(String(course_code).trim().toUpperCase()))
     return res.status(400).json({ error: 'Corso di laurea non valido' });
+  if (platoon && !['1','2'].includes(String(platoon).trim()))
+    return res.status(400).json({ error: 'Il plotone può essere 1, 2 oppure non indicato' });
   if (!nome?.trim() || !cognome?.trim())
     return res.status(400).json({ error: 'Nome e cognome obbligatori' });
   const full_name = `${nome.trim()} ${cognome.trim()}`;
@@ -1327,7 +1359,7 @@ app.put('/api/profile', auth, async (req, res) => {
     // military_rank non è modificabile dall'utente — rimane quello assegnato
     await c.execute(
       'UPDATE users SET nome=?, cognome=?, full_name=?, platoon=?, academic_year=?, course_code=? WHERE id=?',
-      [nome.trim(), cognome.trim(), full_name, platoon||'', academic_year||'1° Anno', course_code ? String(course_code).trim().toUpperCase() : null, req.user.id]
+      [nome.trim(), cognome.trim(), full_name, platoon ? String(platoon).trim() : '', academic_year||'1° Anno', course_code ? String(course_code).trim().toUpperCase() : null, req.user.id]
     );
     res.json({ ok: true });
   } catch(e) { errServer(res, e); }
@@ -1996,7 +2028,7 @@ function dataRapporto(req) {
   return value;
 }
 
-app.get('/api/rapportini-pasti/crediti', auth, async (req, res) => {
+app.get('/api/rapportini-pasti/crediti', auth, requireCompagnia, async (req, res) => {
   try {
     const c = await db();
     const [rows] = await c.execute('SELECT meal_export_credits FROM users WHERE id=?', [req.user.id]);
@@ -2006,7 +2038,7 @@ app.get('/api/rapportini-pasti/crediti', auth, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
-app.post('/api/rapportini-pasti/crediti/acquista', auth, async (req, res) => {
+app.post('/api/rapportini-pasti/crediti/acquista', auth, requireCompagnia, async (req, res) => {
   const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '').trim();
   const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || '').trim();
   const appUrl = String(process.env.APP_URL || '').trim().replace(/\/+$/, '');
@@ -2075,7 +2107,7 @@ app.post('/api/supporto/offri-caffe', auth, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
-app.get('/api/rapportini-pasti/crediti/conferma', auth, async (req, res) => {
+app.get('/api/rapportini-pasti/crediti/conferma', auth, requireCompagnia, async (req, res) => {
   const stripeSecret = String(process.env.STRIPE_SECRET_KEY || '').trim();
   const sessionId = String(req.query.session_id || '');
   if (!stripeSecret) return res.status(503).json({ error: 'Pagamenti non configurati' });
@@ -2097,64 +2129,70 @@ app.get('/api/rapportini-pasti/crediti/conferma', auth, async (req, res) => {
   } catch (e) { errServer(res, e); }
 });
 
-app.get('/api/rapportini-pasti', auth, async (req, res) => {
+app.get('/api/rapportini-pasti', auth, requireCompagnia, async (req, res) => {
   try {
     const date = dataRapporto(req);
     const c = await db();
     if (req.query.reset === '1' && req.user.is_admin) {
-      await resetEccezioniPastoAllaRiapertura(c, Number(req.user.company_id || 2), date);
-      await resetEccezioniPastoAllaRiapertura(c, Number(req.user.company_id || 2), date, true);
+      await resetEccezioniPastoAllaRiapertura(c, 2, date);
+      await resetEccezioniPastoAllaRiapertura(c, 2, date, true);
     }
-    res.json(await preparaVociPasto(c, Number(req.user.company_id || 2), date));
+    res.json(await preparaVociPasto(c, 2, date));
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     errServer(res, e);
   }
 });
 
-app.put('/api/rapportini-pasti', auth, requireAdmin, async (req, res) => {
+app.put('/api/rapportini-pasti', auth, requireCompagnia, requireAdmin, async (req, res) => {
   try {
     const date = dataRapporto(req);
     const c = await db();
-    await preparaVociPasto(c, Number(req.user.company_id || 2), date);
-    res.json(await salvaVociPasto(c, req, date, req.body.entries));
+    await preparaVociPasto(c, 2, date);
+    const risultato = req.body.allServito
+      ? await impostaServitoPerTutti(c, req, date)
+      : await salvaVociPasto(c, req, date, req.body.entries);
+    res.json(risultato);
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     errServer(res, e);
   }
 });
 
-app.get('/api/rapportini-pasti/previsionale', auth, async (req, res) => {
+app.get('/api/rapportini-pasti/previsionale', auth, requireCompagnia, async (req, res) => {
   try {
     const date = pasti.giornoSuccessivo(dataRapporto(req));
     const c = await db();
     if (req.query.reset === '1' && req.user.is_admin)
-      await resetEccezioniPastoAllaRiapertura(c, Number(req.user.company_id || 2), date, true);
-    res.json(await preparaVociPasto(c, Number(req.user.company_id || 2), date, true));
+      await resetEccezioniPastoAllaRiapertura(c, 2, date, true);
+    res.json(await preparaVociPasto(c, 2, date, true));
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     errServer(res, e);
   }
 });
 
-app.put('/api/rapportini-pasti/previsionale', auth, requireAdmin, async (req, res) => {
+app.put('/api/rapportini-pasti/previsionale', auth, requireCompagnia, requireAdmin, async (req, res) => {
   try {
     const date = req.body?.forecastDate;
     if (!pasti.dataISOValida(date)) throw Object.assign(new Error('Data previsionale non valida'), { status: 400 });
     const c = await db();
-    await preparaVociPasto(c, Number(req.user.company_id || 2), date, true);
-    res.json(await salvaVociPasto(c, req, date, req.body.entries, true));
+    await preparaVociPasto(c, 2, date, true);
+    const risultato = req.body.allServito
+      ? await impostaServitoPerTutti(c, req, date, true)
+      : await salvaVociPasto(c, req, date, req.body.entries, true);
+    res.json(risultato);
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     errServer(res, e);
   }
 });
 
-app.get('/api/rapportini-pasti/export', auth, async (req, res) => {
+app.get('/api/rapportini-pasti/export', auth, requireCompagnia, async (req, res) => {
   try {
     const date = dataRapporto(req);
     const nextDate = pasti.giornoSuccessivo(date);
-    const companyId = Number(req.user.company_id || 2);
+    const companyId = 2; // 7ª Compagnia, ID storico
     const c = await db();
     const day = await preparaVociPasto(c, companyId, date);
     const forecast = await preparaVociPasto(c, companyId, nextDate, true);
